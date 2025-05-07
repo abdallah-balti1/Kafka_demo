@@ -1,31 +1,33 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getUsers } from '@/services/users'; // chemin adapté selon ton projet
-import { User } from '@/schemas/user';
+import { useUsers } from '@/hooks/useUsers'; // utilise ton hook custom
+import { deleteUser } from '@/services/users'; // à ajouter si ce n’est pas encore fait
 
 const DataTablePocs: React.FC = () => {
-  const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>(['users'], getUsers);
+  const { data: users = [], isLoading, isError, refetch } = useUsers();
 
-  const deleteUser = async (id: number) => {
-    // à implémenter dans ton service aussi
-    await fetch(`/api/users/${id}`, { method: 'DELETE' });
-    refetch();
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteUser(id);
+      refetch(); // rafraîchit les données après suppression
+    } catch (err) {
+      console.error("Erreur lors de la suppression :", err);
+    }
   };
 
-  if (isLoading) return <div className="text-center py-10">Chargement des utilisateurs...</div>;
-  if (isError) return <div className="text-center text-red-600 py-10">Erreur lors du chargement.</div>;
+  if (isLoading) return <div className="text-center py-10">Chargement...</div>;
+  if (isError) return <div className="text-center text-red-600 py-10">Erreur lors du chargement des utilisateurs.</div>;
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-center mb-6">Users</h1>
-      <div className="overflow-x-auto rounded shadow">
-        <table className="min-w-full bg-white border border-gray-200">
+    <div className="p-6">
+      <h1 className="text-2xl font-bold text-center mb-6">Liste des utilisateurs</h1>
+      <div className="overflow-x-auto bg-white shadow rounded">
+        <table className="min-w-full border border-gray-200">
           <thead className="bg-gray-100">
             <tr>
-              <th className="text-left px-4 py-2">First Name</th>
-              <th className="text-left px-4 py-2">Last Name</th>
-              <th className="text-left px-4 py-2">Email</th>
-              <th className="text-left px-4 py-2">Actions</th>
+              <th className="px-4 py-2 text-left">Prénom</th>
+              <th className="px-4 py-2 text-left">Nom</th>
+              <th className="px-4 py-2 text-left">Email</th>
+              <th className="px-4 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -35,17 +37,11 @@ const DataTablePocs: React.FC = () => {
                 <td className="px-4 py-2">{user.lastName}</td>
                 <td className="px-4 py-2">{user.mail}</td>
                 <td className="px-4 py-2 space-x-2">
-                  <button
-                    className="bg-blue-500 text-white px-3 py-1 rounded"
-                    onClick={() => console.log("Edit", user.userId)}
-                  >
-                    Edit
+                  <button className="bg-blue-500 text-white px-3 py-1 rounded" onClick={() => console.log("Edit", user.userId)}>
+                    Modifier
                   </button>
-                  <button
-                    className="bg-red-500 text-white px-3 py-1 rounded"
-                    onClick={() => deleteUser(user.userId)}
-                  >
-                    Delete
+                  <button className="bg-red-500 text-white px-3 py-1 rounded" onClick={() => handleDelete(user.userId)}>
+                    Supprimer
                   </button>
                 </td>
               </tr>
