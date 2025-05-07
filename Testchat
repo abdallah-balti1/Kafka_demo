@@ -1,0 +1,75 @@
+import React from 'react';
+import axios from 'axios';
+import { useQuery } from '@tanstack/react-query';
+
+interface User {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  mail: string;
+}
+
+const fetchUsers = async (): Promise<User[]> => {
+  const res = await axios.get('/api/users');
+  return res.data;
+};
+
+const DataTablePocs: React.FC = () => {
+  const { data: users = [], isLoading, isError, refetch } = useQuery(['users'], fetchUsers);
+
+  const deleteUser = async (id: number) => {
+    await axios.delete(`/api/users/${id}`);
+    refetch();
+  };
+
+  if (isLoading) return <div className="text-center py-10">Chargement des utilisateurs...</div>;
+  if (isError) return <div className="text-center py-10 text-red-500">Erreur de chargement.</div>;
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold text-center mb-6">Users</h1>
+      <div className="overflow-x-auto shadow rounded">
+        <table className="min-w-full bg-white border border-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="text-left px-4 py-2">First Name</th>
+              <th className="text-left px-4 py-2">Last Name</th>
+              <th className="text-left px-4 py-2">Email</th>
+              <th className="text-left px-4 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.userId} className="border-t">
+                <td className="px-4 py-2">{user.firstName}</td>
+                <td className="px-4 py-2">{user.lastName}</td>
+                <td className="px-4 py-2">{user.mail}</td>
+                <td className="px-4 py-2 space-x-2">
+                  <button
+                    className="bg-blue-500 text-white px-3 py-1 rounded"
+                    onClick={() => console.log("Edit", user.userId)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="bg-red-500 text-white px-3 py-1 rounded"
+                    onClick={() => deleteUser(user.userId)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center py-4">Aucun utilisateur trouvé.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default DataTablePocs;
