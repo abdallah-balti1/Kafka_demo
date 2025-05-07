@@ -1,0 +1,8 @@
+import axiosInstance from "../interceptors/customizedAxios";
+import { User } from "../types/User"; // adapte selon ton dossier
+
+export const updateUser = async (userId: string, updatedData: Partial<User>) => {
+  return await axiosInstance.put(`/user`, updatedData, {
+    params: { user_id: userId },
+  });
+};
