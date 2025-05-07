@@ -1,0 +1,45 @@
+import DeleteModal from './DeleteModal';
+
+
+
+const [isModalOpen, setIsModalOpen] = useState(false);
+const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+
+
+const confirmDelete = (id: string) => {
+  setSelectedUserId(id);
+  setIsModalOpen(true);
+};
+
+const handleConfirmDelete = async () => {
+  if (!selectedUserId) return;
+  try {
+    await deleteUser(selectedUserId);
+    refetch();
+  } catch (err) {
+    console.error("Erreur suppression :", err);
+  } finally {
+    setIsModalOpen(false);
+    setSelectedUserId(null);
+  }
+};
+
+
+<button
+  className="bg-red-500 text-white px-3 py-1 rounded"
+  onClick={() => confirmDelete(user.userId)}
+>
+  Supprimer
+</button>
+
+
+<DeleteModal
+  isOpen={isModalOpen}
+  onCancel={() => setIsModalOpen(false)}
+  onConfirm={handleConfirmDelete}
+/>
+
+
+
+
