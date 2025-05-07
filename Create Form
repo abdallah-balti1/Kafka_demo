@@ -1,0 +1,111 @@
+import React, { useState } from "react";
+import { createUser } from "../services/userService";
+
+type Props = {
+  onSuccess: () => void;     // pour recharger les users
+  onCancel?: () => void;     // si tu veux fermer un modal
+};
+
+const UserCreateForm: React.FC<Props> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState({
+    userId: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    createdAt: "",
+  });
+
+  const [error, setError] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await createUser(formData);
+      onSuccess(); // recharge les users
+      if (onCancel) onCancel(); // ferme le modal si fourni
+    } catch (err: any) {
+      console.error("Erreur création utilisateur :", err);
+      setError("Erreur lors de la création de l'utilisateur.");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 p-4">
+      {error && <p className="text-red-600">{error}</p>}
+
+      <input
+        type="text"
+        name="userId"
+        placeholder="ID utilisateur"
+        value={formData.userId}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+        required
+      />
+
+      <input
+        type="text"
+        name="firstName"
+        placeholder="Prénom"
+        value={formData.firstName}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+        required
+      />
+
+      <input
+        type="text"
+        name="lastName"
+        placeholder="Nom"
+        value={formData.lastName}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+        required
+      />
+
+      <input
+        type="email"
+        name="email"
+        placeholder="Email"
+        value={formData.email}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+        required
+      />
+
+      <input
+        type="date"
+        name="createdAt"
+        value={formData.createdAt}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+        required
+      />
+
+      <div className="flex justify-end space-x-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+          >
+            Annuler
+          </button>
+        )}
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Créer
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default UserCreateForm;
