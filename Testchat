@@ -1,34 +1,24 @@
 import React from 'react';
-import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
-
-interface User {
-  userId: number;
-  firstName: string;
-  lastName: string;
-  mail: string;
-}
-
-const fetchUsers = async (): Promise<User[]> => {
-  const res = await axios.get('/api/users');
-  return res.data;
-};
+import { getUsers } from '@/services/users'; // chemin adapté selon ton projet
+import { User } from '@/schemas/user';
 
 const DataTablePocs: React.FC = () => {
-  const { data: users = [], isLoading, isError, refetch } = useQuery(['users'], fetchUsers);
+  const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>(['users'], getUsers);
 
   const deleteUser = async (id: number) => {
-    await axios.delete(`/api/users/${id}`);
+    // à implémenter dans ton service aussi
+    await fetch(`/api/users/${id}`, { method: 'DELETE' });
     refetch();
   };
 
   if (isLoading) return <div className="text-center py-10">Chargement des utilisateurs...</div>;
-  if (isError) return <div className="text-center py-10 text-red-500">Erreur de chargement.</div>;
+  if (isError) return <div className="text-center text-red-600 py-10">Erreur lors du chargement.</div>;
 
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-center mb-6">Users</h1>
-      <div className="overflow-x-auto shadow rounded">
+      <div className="overflow-x-auto rounded shadow">
         <table className="min-w-full bg-white border border-gray-200">
           <thead className="bg-gray-100">
             <tr>
