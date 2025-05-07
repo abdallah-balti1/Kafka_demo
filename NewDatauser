@@ -1,0 +1,116 @@
+import React, { useState } from "react";
+import { useUsers } from "../hooks/useUsers";
+import { deleteUser } from "../services/userService";
+import UserCreateForm from "./UserCreateForm";
+
+const DataTableUsers: React.FC = () => {
+  const { data: users, refetch } = useUsers();
+  const [showForm, setShowForm] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDelete = async (userId: string) => {
+    try {
+      await deleteUser(userId);
+      setConfirmDeleteId(null);
+      refetch();
+    } catch (error) {
+      console.error("Erreur lors de la suppression :", error);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Liste des utilisateurs</h1>
+        <button
+          onClick={() => setShowForm(true)}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Ajouter un utilisateur
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="border p-4 rounded bg-gray-50 mb-6">
+          <UserCreateForm
+            onSuccess={() => {
+              refetch();
+              setShowForm(false);
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded shadow">
+        <table className="min-w-full bg-white border">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="p-3">ID</th>
+              <th className="p-3">Prénom</th>
+              <th className="p-3">Nom</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Date création</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(users) && users.length > 0 ? (
+              users.map((user) => (
+                <tr key={user.userId} className="border-t">
+                  <td className="p-3">{user.userId}</td>
+                  <td className="p-3">{user.firstName}</td>
+                  <td className="p-3">{user.lastName}</td>
+                  <td className="p-3">{user.email}</td>
+                  <td className="p-3">{user.createdAt}</td>
+                  <td className="p-3 space-x-2">
+                    <button className="px-3 py-1 bg-yellow-400 rounded text-white hover:bg-yellow-500">
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(user.userId)}
+                      className="px-3 py-1 bg-red-600 rounded text-white hover:bg-red-700"
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="p-4" colSpan={6}>
+                  Aucun utilisateur trouvé.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pop-up de confirmation suppression */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+          <div className="bg-white p-6 rounded shadow-md space-y-4">
+            <p>Voulez-vous vraiment supprimer cet utilisateur ?</p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DataTableUsers;
