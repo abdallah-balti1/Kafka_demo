@@ -1,0 +1,24 @@
+import axios from "axios";
+
+// Base URL statique ou issue du fichier .env
+const axiosInstance = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v0.0.1",
+  withCredentials: true,
+});
+
+axiosInstance.interceptors.request.use(
+  (config) => {
+    if (!config.url?.includes("auth")) {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      } else {
+        window.location.href = "/login";
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export default axiosInstance;
