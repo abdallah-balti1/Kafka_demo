@@ -1,0 +1,16 @@
+async function login(email: string, password: string) {
+  try {
+    const res = await axios.post("https://localhost:8080/api/v.0.0.1/login", {
+      email,
+      password,
+    });
+
+    const { access_token, refresh_token } = res.data;
+    setTokens(access_token, refresh_token);
+
+    window.location.href = "/dashboard"; // or wherever
+  } catch (e) {
+    console.error("Login failed", e);
+    alert("Invalid credentials");
+  }
+}
