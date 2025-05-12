@@ -1,0 +1,26 @@
+import { AxiosResponse } from "axios";
+import { User } from "schemas/user";
+import axiosInstance from "utils/customizedAxios";
+
+const usersUrl = "/users";
+
+export const getUsers = async (): Promise<User[]> => {
+  const response: AxiosResponse<User[]> = await axiosInstance.get(usersUrl);
+  return response.data;
+};
+
+export const createUser = async (data: Partial<User>) => {
+  await axiosInstance.post(usersUrl, data);
+};
+
+export const updateUser = async (userId: string, updatedData: Partial<User>) => {
+  return await axiosInstance.put(usersUrl, updatedData, {
+    params: { user_id: userId },
+  });
+};
+
+export const deleteUser = async (userId: string) => {
+  await axiosInstance.delete(usersUrl, {
+    params: { user_id: userId },
+  });
+};
