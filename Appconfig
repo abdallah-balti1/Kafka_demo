@@ -1,0 +1,26 @@
+import axios from "axios";
+
+// Créer une instance Axios avec l'URL du backend
+const axiosInstance = axios.create({
+  baseURL:
+    (window as any)?.appConfig?.BASE_URL +
+    (window as any)?.appConfig?.VERSION,
+  withCredentials: true,
+});
+
+axiosInstance.interceptors.request.use(
+  (config) => {
+    if (!config.url?.includes("auth")) {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      } else {
+        window.location.href = "/login";
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export default axiosInstance;
