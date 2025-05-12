@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.ia_discovery_backend.appName }}-ingress
+  annotations:
+    kubernetes.io/ingress.class: private-iks-k8s-nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "64k"
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+spec:
+  tls:
+    - hosts:
+        - {{ .Values.ia_discovery_backend.ingress.host }}
+      secretName: {{ .Values.ia_discovery_backend.ingress.secretName }}
+  rules:
+    - host: {{ .Values.ia_discovery_backend.ingress.host }}
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.ia_discovery_backend.appName }}-service
+                port:
+                  number: {{ .Values.ia_discovery_backend.service.servicePort }}
