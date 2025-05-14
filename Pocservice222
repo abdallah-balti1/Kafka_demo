@@ -1,0 +1,11 @@
+import axios from "@/utils/customizedAxios";
+
+export const getAllPocs = async () => {
+  try {
+    const response = await axios.get("/v.0.0.1/pocs/");
+    return response;
+  } catch (error) {
+    console.error("Failed to fetch POCs:", error);
+    throw error;
+  }
+};
