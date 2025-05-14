@@ -1,0 +1,25 @@
+import { useEffect, useState } from "react";
+import { getAllPocs } from "@/services/pocService";
+
+export const usePocs = () => {
+  const [pocs, setPocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchPocs = async () => {
+      try {
+        const response = await getAllPocs();
+        setPocs(response.data);
+      } catch (err) {
+        setError("Failed to fetch POCs");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPocs();
+  }, []);
+
+  return { pocs, loading, error };
+};
