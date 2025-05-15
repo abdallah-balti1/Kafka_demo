@@ -1,0 +1,19 @@
+<label className="block mb-2 font-medium">POC</label>
+<select
+  name="pocUid"
+  value={formData.pocUid || ""}
+  onChange={(e) => setFormData({ ...formData, pocUid: e.target.value })}
+  className="w-full border rounded-md p-2 mb-4"
+  required
+>
+  <option value="">Select a POC</option>
+  {pocs.map((poc) => (
+    <option key={poc.uid} value={poc.uid}>
+      {poc.name}
+    </option>
+  ))}
+</select>
+
+
+
+
