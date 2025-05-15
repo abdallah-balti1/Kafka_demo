@@ -1,139 +1,81 @@
-import React, { useEffect, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
-import { createUser } from "@/services/userService";
-import { fetchPocs } from "@/services/pocService";
-import { assignUserToPoc } from "@/services/userPocService";
+import React, { useState, useEffect } from "react";
+import { createUserAndAssignPoc } from "services/users";
+import { fetchPocs } from "services/pocs";
+import { User } from "types/user";
+import { Poc } from "types/poc";
 
-interface Poc {
-  uid: string;
-  name: string;
-}
+type Props = {
+  onSuccess: () => void;
+  onCancel: () => void;
+};
 
-export const UserCreateForm = ({ onUserCreated }: { onUserCreated: () => void }) => {
-  const [formData, setFormData] = useState({
-    userId: uuidv4(),
-    firstName: "",
-    lastName: "",
-    mail: "",
-    role: "user",
-    active: true,
-    creationDate: new Date().toISOString().split("T")[0],
-    pocUid: "",
-  });
-
+const UserCreateForm: React.FC<Props> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState<Partial<User>>({});
   const [pocs, setPocs] = useState<Poc[]>([]);
+  const [selectedPoc, setSelectedPoc] = useState<string>("");
 
   useEffect(() => {
     const loadPocs = async () => {
-      try {
-        const res = await fetchPocs();
-        setPocs(res.data);
-      } catch (err) {
-        console.error("Failed to fetch POCs", err);
-      }
+      const fetchedPocs = await fetchPocs();
+      setPocs(fetchedPocs);
     };
-
     loadPocs();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      // 1. Create user
-      await createUser({
-        userId: formData.userId,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        mail: formData.mail,
-        role: formData.role,
-        active: formData.active,
-        creationDate: formData.creationDate,
-      });
+    if (!selectedPoc) return;
 
-      // 2. Assign to POC if selected
-      if (formData.pocUid) {
-        await assignUserToPoc({
-          userId: formData.userId,
-          pocUid: formData.pocUid,
-        });
-      }
-
-      onUserCreated();
-      alert("User created and assigned to POC!");
-    } catch (err) {
-      console.error("Error:", err);
-      alert("Error creating user or assigning to POC.");
-    }
+    await createUserAndAssignPoc(formData, selectedPoc);
+    onSuccess();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl mx-auto space-y-4 p-4 border rounded shadow">
-      <h2 className="text-2xl font-semibold text-center">Create New User</h2>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       <input
         type="text"
         name="firstName"
         placeholder="First Name"
-        value={formData.firstName}
         onChange={handleChange}
-        className="w-full border p-2 rounded"
+        className="border rounded px-2 py-1 w-full"
         required
       />
       <input
         type="text"
         name="lastName"
         placeholder="Last Name"
-        value={formData.lastName}
         onChange={handleChange}
-        className="w-full border p-2 rounded"
+        className="border rounded px-2 py-1 w-full"
         required
       />
       <input
         type="email"
         name="mail"
         placeholder="Email"
-        value={formData.mail}
         onChange={handleChange}
-        className="w-full border p-2 rounded"
+        className="border rounded px-2 py-1 w-full"
         required
       />
-
-      <select
+      <input
+        type="text"
         name="role"
-        value={formData.role}
+        placeholder="Role"
         onChange={handleChange}
-        className="w-full border p-2 rounded"
-      >
-        <option value="user">User</option>
-        <option value="admin">Admin</option>
-      </select>
-
-      <label className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          name="active"
-          checked={formData.active}
-          onChange={handleChange}
-        />
-        <span>Active</span>
-      </label>
-
-      <label className="block font-medium mt-2">Assign to a POC</label>
+        className="border rounded px-2 py-1 w-full"
+        required
+      />
       <select
-        name="pocUid"
-        value={formData.pocUid}
-        onChange={handleChange}
-        className="w-full border p-2 rounded"
+        value={selectedPoc}
+        onChange={(e) => setSelectedPoc(e.target.value)}
+        className="border rounded px-2 py-1 w-full"
+        required
       >
-        <option value="">-- Select POC --</option>
+        <option value="">Select a POC</option>
         {pocs.map((poc) => (
           <option key={poc.uid} value={poc.uid}>
             {poc.name}
@@ -141,12 +83,23 @@ export const UserCreateForm = ({ onUserCreated }: { onUserCreated: () => void })
         ))}
       </select>
 
-      <button
-        type="submit"
-        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-      >
-        Create User
-      </button>
+      <div className="flex justify-end space-x-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+        >
+          Create
+        </button>
+      </div>
     </form>
   );
 };
+
+export default UserCreateForm;
