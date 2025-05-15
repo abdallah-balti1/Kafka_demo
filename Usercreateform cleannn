@@ -1,1 +1,131 @@
+import React, { useEffect, useState } from "react";
+import { createUser } from "@/services/userService";
+import { fetchPocs } from "@/services/pocService";
+import axios from "@/utils/customizedAxios";
+import { v4 as uuidv4 } from "uuid";
 
+export const UserCreateForm = ({ onUserCreated }: { onUserCreated: () => void }) => {
+  const [formData, setFormData] = useState({
+    userId: uuidv4(),
+    firstName: "",
+    lastName: "",
+    mail: "",
+    role: "user",
+    active: true,
+    creationDate: new Date().toISOString().split("T")[0],
+    pocUid: "",
+  });
+
+  const [pocs, setPocs] = useState([]);
+
+  useEffect(() => {
+    const loadPocs = async () => {
+      try {
+        const res = await fetchPocs();
+        setPocs(res.data);
+      } catch (err) {
+        console.error("Error loading POCs:", err);
+      }
+    };
+
+    loadPocs();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createUser({
+        userId: formData.userId,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        mail: formData.mail,
+        role: formData.role,
+        active: formData.active,
+        creationDate: formData.creationDate,
+      });
+
+      if (formData.pocUid) {
+        await axios.post("/v.0.0.1/manage/user/poc", {
+          user_id: formData.userId,
+          poc_id: formData.pocUid,
+          start_use: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      onUserCreated();
+      alert("User created successfully.");
+    } catch (err) {
+      console.error("Failed to create user or link POC:", err);
+      alert("Error creating user.");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-4 border rounded shadow space-y-4">
+      <h2 className="text-xl font-semibold mb-2">Create New User</h2>
+
+      <input
+        type="text"
+        name="firstName"
+        value={formData.firstName}
+        onChange={handleChange}
+        placeholder="First Name"
+        className="w-full border p-2 rounded"
+        required
+      />
+      <input
+        type="text"
+        name="lastName"
+        value={formData.lastName}
+        onChange={handleChange}
+        placeholder="Last Name"
+        className="w-full border p-2 rounded"
+        required
+      />
+      <input
+        type="email"
+        name="mail"
+        value={formData.mail}
+        onChange={handleChange}
+        placeholder="Email"
+        className="w-full border p-2 rounded"
+        required
+      />
+      <select name="role" value={formData.role} onChange={handleChange} className="w-full border p-2 rounded">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+      <label className="flex items-center space-x-2">
+        <input type="checkbox" name="active" checked={formData.active} onChange={handleChange} />
+        <span>Active</span>
+      </label>
+
+      <label className="block font-medium">Associated POC</label>
+      <select
+        name="pocUid"
+        value={formData.pocUid}
+        onChange={handleChange}
+        className="w-full border p-2 rounded"
+      >
+        <option value="">Select a POC</option>
+        {pocs.map((poc) => (
+          <option key={poc.uid} value={poc.uid}>
+            {poc.name}
+          </option>
+        ))}
+      </select>
+
+      <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        Create User
+      </button>
+    </form>
+  );
+};
