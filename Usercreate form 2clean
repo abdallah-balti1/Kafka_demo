@@ -1,0 +1,105 @@
+import React, { useState } from "react";
+import { createUserWithPoc } from "services/users";
+import { Poc } from "types/poc";
+
+interface Props {
+  pocs: Poc[];
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const UserCreateForm: React.FC<Props> = ({ pocs, onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "",
+    pocId: "",
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createUserWithPoc(formData); // Ensure this calls /manage/user/poc
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating user", error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block mb-1">First Name</label>
+        <input
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border px-3 py-2 rounded"
+          required
+        />
+      </div>
+      <div>
+        <label className="block mb-1">Last Name</label>
+        <input
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border px-3 py-2 rounded"
+          required
+        />
+      </div>
+      <div>
+        <label className="block mb-1">Email</label>
+        <input
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          className="w-full border px-3 py-2 rounded"
+          required
+        />
+      </div>
+      <div>
+        <label className="block mb-1">Role</label>
+        <input
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border px-3 py-2 rounded"
+          required
+        />
+      </div>
+      <div>
+        <label className="block mb-1">Assign Poc</label>
+        <select
+          name="pocId"
+          value={formData.pocId}
+          onChange={handleChange}
+          className="w-full border px-3 py-2 rounded"
+          required
+        >
+          <option value="">Select a POC</option>
+          {pocs.map((poc) => (
+            <option key={poc.uid} value={poc.uid}>
+              {poc.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex justify-end space-x-4 pt-4">
+        <button type="button" onClick={onCancel} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">
+          Cancel
+        </button>
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          Create User
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default UserCreateForm;
