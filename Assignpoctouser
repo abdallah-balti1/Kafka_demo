@@ -1,0 +1,23 @@
+import axios from "axios";
+import { User } from "types/user";
+import { assignUserToPoc } from "./userPocService";
+
+const API_URL = "http://your-api-url.com"; // replace with actual URL
+
+export const createUserAndAssignPoc = async (
+  userData: Partial<User>,
+  pocId?: string // optional
+): Promise<void> => {
+  try {
+    // 1. Create user
+    const { data: createdUser } = await axios.post(`${API_URL}/users`, userData);
+
+    // 2. If pocId is provided, assign the user
+    if (pocId) {
+      await assignUserToPoc(createdUser.userId, pocId);
+    }
+  } catch (error) {
+    console.error("Error during user creation or POC assignment:", error);
+    throw error;
+  }
+};
