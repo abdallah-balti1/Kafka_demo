@@ -1,0 +1,12 @@
+import axios from "utils/customizedAxios"; // correct import path
+
+export const assignUserToPoc = async (
+  userId: string,
+  pocUid: string
+): Promise<void> => {
+  await axios.post("/v.0.0.1/manage/user/poc", {
+    user_id: userId,
+    poc_id: pocUid,
+    start_use: new Date().toISOString().split("T")[0]  // e.g., "2025-05-15"
+  });
+};
