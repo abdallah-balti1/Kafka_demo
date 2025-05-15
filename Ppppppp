@@ -1,17 +1,175 @@
-import axios from "@/utils/customizedAxios";
-import { User } from "@/schemas/user";
+import React, { useState, useEffect } from "react";
+import { assignUserToPoc } from "@/services/userPocService";
+import { fetchPocs } from "@/services/pocs";
 import { Pocs } from "@/schemas/pocs";
+import { User } from "@/schemas/user";
 
-export const assignUserToPoc = async (
-  user: User,
-  poc: Pocs,
-  startUsing: string,
-  endUsing: string
-): Promise<void> => {
-  await axios.post("/v.0.0.1/manage/user/poc", {
-    user,
-    poc,
-    startUsing,
-    endUsing,
+interface UserCreateFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState<User>({
+    userId: "",
+    firstName: "",
+    lastName: "",
+    mail: "",
+    role: "user",
+    active: true,
   });
+
+  const [pocs, setPocs] = useState<Pocs[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+
+  useEffect(() => {
+    const loadPocs = async () => {
+      const result = await fetchPocs();
+      setPocs(result);
+    };
+    loadPocs();
+  }, []);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const selectedPoc = pocs.find((p) => p.id === selectedPocId);
+      if (!selectedPoc) {
+        alert("Please select a POC");
+        return;
+      }
+
+      const startUsing = new Date().toISOString().split("T")[0];
+      const endUsing = new Date(
+        new Date().setMonth(new Date().getMonth() + 1)
+      )
+        .toISOString()
+        .split("T")[0];
+
+      await assignUserToPoc(formData, selectedPoc, startUsing, endUsing);
+      onSuccess();
+    } catch (error) {
+      console.error("Erreur lors de la création de l'utilisateur :", error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block font-medium">UID</label>
+        <input
+          type="text"
+          name="userId"
+          value={formData.userId}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">First Name</label>
+        <input
+          type="text"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Last Name</label>
+        <input
+          type="text"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Email</label>
+        <input
+          type="email"
+          name="mail"
+          value={formData.mail}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Role</label>
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          name="active"
+          checked={formData.active}
+          onChange={handleChange}
+        />
+        <label>Active</label>
+      </div>
+
+      <div>
+        <label className="block font-medium">POC</label>
+        <select
+          value={selectedPocId}
+          onChange={(e) => setSelectedPocId(e.target.value)}
+          className="w-full border p-2 rounded"
+          required
+        >
+          <option value="">-- Select a POC --</option>
+          {pocs.map((poc) => (
+            <option key={poc.id} value={poc.id}>
+              {poc.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Create
+        </button>
+      </div>
+    </form>
+  );
 };
+
+export default UserCreateForm;
