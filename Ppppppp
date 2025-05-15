@@ -1,65 +1,173 @@
-import React, { useState } from "react";
-import { useUsers } from "../hooks/useUsers";
-import UserCreateForm from "./UserCreateForm";
+import React, { useEffect, useState } from "react";
+import { createUser } from "services/users";
+import { fetchPocs } from "services/pocs";
+import { assignUserToPoc } from "services/userPocService";
+import { Pocs } from "schemas/pocs";
 
-const DataTableUsers: React.FC = () => {
-  const { data: users, isLoading, error, refetch } = useUsers();
-  const [showCreateForm, setShowCreateForm] = useState(false);
+interface UserCreateFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
 
-  const handleUserCreated = () => {
-    setShowCreateForm(false);
-    refetch();
+interface NewUser {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  mail: string;
+  role: string;
+  active: boolean;
+  pocUid: string;
+}
+
+const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState<NewUser>({
+    userId: "",
+    firstName: "",
+    lastName: "",
+    mail: "",
+    role: "user",
+    active: true,
+    pocUid: "",
+  });
+
+  const [pocs, setPocs] = useState<Pocs[]>([]);
+
+  useEffect(() => {
+    const getPocs = async () => {
+      try {
+        const response = await fetchPocs();
+        setPocs(response);
+      } catch (error) {
+        console.error("Failed to fetch POCs", error);
+      }
+    };
+    getPocs();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
-  if (isLoading) return <div>Loading users...</div>;
-  if (error) return <div>Error loading users</div>;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createUser(formData);
+      if (formData.pocUid) {
+        await assignUserToPoc(formData.userId, formData.pocUid);
+      }
+      onSuccess();
+    } catch (error) {
+      console.error("Erreur lors de la création de l'utilisateur", error);
+    }
+  };
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">Users List</h1>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-        >
-          Add User
-        </button>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block font-medium">UID</label>
+        <input
+          type="text"
+          name="userId"
+          value={formData.userId}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
       </div>
 
-      {showCreateForm && (
-        <div className="mb-4">
-          <UserCreateForm />
-        </div>
-      )}
+      <div>
+        <label className="block font-medium">First Name</label>
+        <input
+          type="text"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
 
-      <table className="min-w-full border text-left text-sm">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="border px-4 py-2">User ID</th>
-            <th className="border px-4 py-2">First Name</th>
-            <th className="border px-4 py-2">Last Name</th>
-            <th className="border px-4 py-2">Email</th>
-            <th className="border px-4 py-2">Role</th>
-            <th className="border px-4 py-2">Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users?.map((user) => (
-            <tr key={user.userId}>
-              <td className="border px-4 py-2">{user.userId}</td>
-              <td className="border px-4 py-2">{user.firstName}</td>
-              <td className="border px-4 py-2">{user.lastName}</td>
-              <td className="border px-4 py-2">{user.mail}</td>
-              <td className="border px-4 py-2">{user.role}</td>
-              <td className="border px-4 py-2">
-                {user.active ? "Yes" : "No"}
-              </td>
-            </tr>
+      <div>
+        <label className="block font-medium">Last Name</label>
+        <input
+          type="text"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Email</label>
+        <input
+          type="email"
+          name="mail"
+          value={formData.mail}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Role</label>
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block font-medium">Assign to POC</label>
+        <select
+          name="pocUid"
+          value={formData.pocUid}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="">-- Select POC --</option>
+          {pocs.map((poc) => (
+            <option key={poc.id} value={poc.id}>
+              {poc.name}
+            </option>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </select>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          name="active"
+          checked={formData.active}
+          onChange={handleChange}
+        />
+        <label>Active</label>
+      </div>
+
+      <div className="flex justify-end space-x-4">
+        <button type="button" onClick={onCancel} className="bg-gray-300 px-4 py-2 rounded">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Create
+        </button>
+      </div>
+    </form>
   );
 };
 
-export default DataTableUsers;
+export default UserCreateForm;
