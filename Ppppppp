@@ -1,0 +1,7 @@
+import axios from "utils/customizedAxios";
+import { Pocs } from "../schemas/pocs";
+
+export const fetchPocs = async (): Promise<Pocs[]> => {
+  const response = await axios.get("/v.0.0.1/pocs");
+  return response.data;
+};
