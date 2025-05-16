@@ -1,151 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { updateUser } from "services/users";
-import { assignUserToPoc } from "services/userPocService";
-import { fetchPocs } from "services/pocs";
-import { User } from "schemas/users";
-import { Pocs } from "schemas/pocs";
+export const assignUserToPoc = async (
+  user: User,
+  poc: Pocs,
+  startUsing: string,
+  endUsing: string
+): Promise<void> => {
+  const payload = {
+    user,
+    poc,
+    startusing: startUsing,
+    endusing: endUsing,
+  };
 
-type Props = {
-  user: User;
-  onClose: () => void;
-  onSuccess: () => void;
+  console.log("Sending payload to /manage/user/poc:", payload);
+
+  await axios.post("/manage/user/poc", payload);
 };
-
-const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState<User>({ ...user });
-  const [pocs, setPocs] = useState<Pocs[]>([]);
-  const [selectedPocId, setSelectedPocId] = useState<string>("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setFormData({ ...user });
-    fetchAvailablePocs();
-  }, [user]);
-
-  const fetchAvailablePocs = async () => {
-    try {
-      const pocsList = await fetchPocs();
-      setPocs(pocsList);
-    } catch (err) {
-      console.error("Error fetching POCs", err);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    try {
-      await updateUser(formData.userId, formData);
-
-      if (selectedPocId) {
-        const selectedPoc = pocs.find((p) => p.id === selectedPocId);
-        if (selectedPoc) {
-          const today = new Date();
-          const startUsing = today.toISOString().split("T")[0];
-          const endUsing = new Date(today.setDate(today.getDate() + 7))
-            .toISOString()
-            .split("T")[0];
-
-          await assignUserToPoc(formData, selectedPoc, startUsing, endUsing);
-        }
-      }
-
-      onSuccess();
-      onClose();
-    } catch (err) {
-      console.error("Error updating user or assigning POC:", err);
-      setError("Failed to update user or assign POC.");
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Update User</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-red-600">{error}</p>}
-
-          <input
-            type="text"
-            name="userId"
-            value={formData.userId}
-            readOnly
-            className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
-          />
-
-          <input
-            type="text"
-            name="firstName"
-            placeholder="First Name"
-            value={formData.firstName}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-
-          <input
-            type="text"
-            name="lastName"
-            placeholder="Last Name"
-            value={formData.lastName}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-
-          <input
-            type="email"
-            name="mail"
-            placeholder="Email"
-            value={formData.mail}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-
-          <div>
-            <label className="block font-medium mb-1">Assign POC (optional)</label>
-            <select
-              value={selectedPocId}
-              onChange={(e) => setSelectedPocId(e.target.value)}
-              className="w-full border p-2 rounded"
-            >
-              <option value="">-- No POC --</option>
-              {pocs.map((poc) => (
-                <option key={poc.id} value={poc.id}>
-                  {poc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex justify-end space-x-4 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-export default UserEditModal;
