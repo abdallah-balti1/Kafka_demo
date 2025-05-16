@@ -1,45 +1,31 @@
-// services/pocs.ts
-import axiosInstance from "./axiosInstance"; // your axios wrapper
-import { User } from "./users"; // if needed
+import React from "react";
 
-export const assignUserToPoc = async (
-  user: User,
-  poc: { id: string },
-  startUsing: string,
-  endUsing: string
-): Promise<void> => {
-  try {
-    // First check if user already has a POC assigned
-    const response = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
+const Dashboard = () => {
+  const pocAppUrl = "http://pock-1:8000"; // Replace with your actual POC URL
+  const logoUrl = "/logo-poc.png"; // Put your logo in the public folder or use an external URL
 
-    if (response.data && response.data.poc) {
-      // If POC already exists, use PUT to update
-      await axiosInstance.put("/manage/user/poc", {
-        user,
-        poc,
-        startUsing,
-        endUsing,
-      });
-    } else {
-      // If no POC assigned, use POST to create association
-      await axiosInstance.post("/manage/user/poc", {
-        user,
-        poc,
-        startUsing,
-        endUsing,
-      });
-    }
-  } catch (error: any) {
-    // If 404, assume user has no assigned POC, proceed with POST
-    if (error.response && error.response.status === 404) {
-      await axiosInstance.post("/manage/user/poc", {
-        user,
-        poc,
-        startUsing,
-        endUsing,
-      });
-    } else {
-      throw error;
-    }
-  }
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
+        <p className="text-gray-600">Access the POC application below</p>
+      </div>
+
+      <a
+        href={pocAppUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-transform transform hover:scale-105"
+      >
+        <img
+          src={logoUrl}
+          alt="POC Logo"
+          className="w-32 h-32 object-contain mx-auto mb-4"
+        />
+        <p className="text-center text-blue-600 font-semibold">Go to POC Application</p>
+      </a>
+    </div>
+  );
 };
+
+export default Dashboard;
