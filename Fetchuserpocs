@@ -1,17 +1,20 @@
+import axiosInstance from "utils/customizedAxios";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+
 export const assignUserToPoc = async (
   user: User,
   poc: Pocs,
   startUsing: string,
-  endUsing: string
+  endUsing: string,
+  isUpdate: boolean = false // default to POST for creation
 ): Promise<void> => {
-  const payload = {
+  const method = isUpdate ? "put" : "post";
+
+  await axiosInstance[method]("/manage/user/poc", {
     user,
     poc,
-    startusing: startUsing,
-    endusing: endUsing,
-  };
-
-  console.log("Sending payload to /manage/user/poc:", payload);
-
-  await axios.post("/manage/user/poc", payload);
+    startUsing,
+    endUsing,
+  });
 };
