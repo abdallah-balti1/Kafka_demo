@@ -3,44 +3,44 @@ import React from "react";
 const Dashboard = () => {
   const pocApps = [
     {
-      name: "POC App 1",
+      name: "POC Application 1",
       url: "http://pock-1:8000",
       logo: "/logo-poc1.png",
     },
     {
-      name: "POC App 2",
+      name: "POC Application 2",
       url: "http://pock-2:8000",
       logo: "/logo-poc2.png",
     },
     {
-      name: "POC App 3",
+      name: "POC Application 3",
       url: "http://pock-3:8000",
       logo: "/logo-poc3.png",
     },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
-      <div className="text-center mb-8">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+      <div className="text-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
         <p className="text-gray-600">Access the POC applications below</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex flex-wrap justify-center gap-8">
         {pocApps.map((app, index) => (
           <a
             key={index}
             href={app.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-transform transform hover:scale-105 w-64 text-center"
+            className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-transform transform hover:scale-105 w-60"
           >
             <img
               src={app.logo}
-              alt={`${app.name} Logo`}
-              className="w-24 h-24 object-contain mx-auto mb-4"
+              alt={app.name}
+              className="w-28 h-28 object-contain mx-auto mb-4"
             />
-            <p className="text-blue-600 font-semibold">{app.name}</p>
+            <p className="text-center text-blue-600 font-semibold">{app.name}</p>
           </a>
         ))}
       </div>
