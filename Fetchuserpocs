@@ -1,19 +1,141 @@
-import axios from "utils/customizedAxios";
-import { Pocs } from "schemas/pocs";
+import React, { useState, useEffect } from "react";
+import { updateUser } from "services/users";
+import { fetchPocs } from "services/pocs";
+import { assignUserToPoc } from "services/userPoc";
 
-export const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
-  try {
-    const response = await axios.get(`/v.0.0.1/manage/pocs/user/${userId}`);
-
-    console.log("Fetched user-poc response:", response.data);
-
-    const data = Array.isArray(response.data) ? response.data[0] : response.data;
-
-    const poc = data?.poc;
-
-    return poc ?? null;
-  } catch (error) {
-    console.error("Failed to fetch user POC:", error);
-    return null;
-  }
+type Props = {
+  user: {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    mail: string;
+  };
+  onClose: () => void;
+  onSuccess: () => void;
 };
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({ ...user, pocUid: "" });
+  const [error, setError] = useState("");
+  const [pocs, setPocs] = useState([]);
+
+  useEffect(() => {
+    setFormData({ ...user, pocUid: "" });
+    const loadPocs = async () => {
+      try {
+        const fetchedPocs = await fetchPocs();
+        setPocs(fetchedPocs);
+      } catch (e) {
+        console.error("Failed to fetch POCs", e);
+      }
+    };
+    loadPocs();
+  }, [user]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await updateUser(formData.userId, formData);
+      if (formData.pocUid) {
+        await assignUserToPoc(formData.userId, formData.pocUid);
+      }
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Erreur mise à jour :", err);
+      setError("Échec de la mise à jour.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+        <h2 className="text-xl font-bold mb-4">Update user</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="text-red-600">{error}</p>}
+          <input
+            type="text"
+            name="userId"
+            value={formData.userId}
+            readOnly
+            className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
+          />
+          <input
+            type="text"
+            name="firstName"
+            placeholder="Prénom"
+            value={formData.firstName}
+            onChange={handleChange}
+            className="w-full border p-2 rounded"
+            required
+          />
+          <input
+            type="text"
+            name="lastName"
+            placeholder="Nom"
+            value={formData.lastName}
+            onChange={handleChange}
+            className="w-full border p-2 rounded"
+            required
+          />
+          <input
+            type="email"
+            name="mail"
+            placeholder="Email"
+            value={formData.mail}
+            onChange={handleChange}
+            className="w-full border p-2 rounded"
+            required
+          />
+
+          {/* Dropdown to select a POC */}
+          <div>
+            <label className="block font-medium">POC</label>
+            <select
+              name="pocUid"
+              value={formData.pocUid}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+            >
+              <option value="">-- Aucun POC --</option>
+              {pocs.map((poc: any) => (
+                <option key={poc.id} value={poc.id}>
+                  {poc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-4 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UserEditModal;
