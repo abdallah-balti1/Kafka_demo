@@ -1,0 +1,6 @@
+import axios from "utils/customizedAxios";
+
+export const fetchUserPoc = async (userId: string) => {
+  const response = await axios.get(`/manage/pocs/user/${userId}`);
+  return response.data.poc; // Assuming response format includes .poc
+};
