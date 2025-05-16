@@ -1,199 +1,27 @@
-import React, { useEffect, useState } from "react";
-import { updateUser } from "services/users";
-import { assignUserToPoc } from "services/userPocService";
-import { fetchPocs, Pocs } from "services/pocs"; // Assuming you have this
+// userPocService.ts
 import axios from "utils/customizedAxios";
+import { User } from "./users";
+import { Pocs } from "./pocs";
 
-type Props = {
-  user: {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    mail: string;
-    role: string;
-    active: boolean;
+export const assignUserToPoc = async (
+  user: User,
+  poc: Pocs,
+  startUsing: string,
+  endUsing: string,
+  isUpdate = false // new flag
+): Promise<void> => {
+  const payload = {
+    user,
+    poc,
+    startUsing,
+    endUsing,
   };
-  onClose: () => void;
-  onSuccess: () => void;
+
+  if (isUpdate) {
+    // UPDATE existing relation
+    await axios.put("/manage/user/poc", payload);
+  } else {
+    // CREATE new relation
+    await axios.post("/manage/user/poc", payload);
+  }
 };
-
-const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({ ...user });
-  const [pocs, setPocs] = useState<Pocs[]>([]);
-  const [selectedPocId, setSelectedPocId] = useState<string | null>(null);
-  const [existingPocId, setExistingPocId] = useState<string | null>(null);
-  const [startUsing, setStartUsing] = useState("");
-  const [endUsing, setEndUsing] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setFormData({ ...user });
-
-    // Fetch POCs
-    fetchPocs().then(setPocs).catch(console.error);
-
-    // Get current POC assigned to user
-    axios
-      .get(`/manage/pocs/user/${user.userId}`)
-      .then((res) => {
-        if (res.data?.poc) {
-          setSelectedPocId(res.data.poc.id);
-          setExistingPocId(res.data.poc.id);
-          setStartUsing(res.data.startUsing?.split("T")[0] || "");
-          setEndUsing(res.data.endUsing?.split("T")[0] || "");
-        }
-      })
-      .catch(() => {
-        // User might not have a POC — that's okay
-      });
-  }, [user]);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    try {
-      await updateUser(formData.userId, formData);
-
-      // Assign POC if selected
-      if (selectedPocId) {
-        const selectedPoc = pocs.find((p) => p.id === selectedPocId);
-        const isUpdate = existingPocId !== null;
-        await assignUserToPoc(
-          formData,
-          selectedPoc!,
-          startUsing,
-          endUsing,
-          isUpdate
-        );
-      }
-
-      onSuccess();
-      onClose();
-    } catch (err) {
-      console.error("Error during update:", err);
-      setError("Failed to update user.");
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Update user</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-red-600">{error}</p>}
-
-          <input
-            type="text"
-            name="userId"
-            value={formData.userId}
-            readOnly
-            className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
-          />
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            placeholder="First Name"
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="text"
-            name="lastName"
-            value={formData.lastName}
-            onChange={handleChange}
-            placeholder="Last Name"
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="email"
-            name="mail"
-            value={formData.mail}
-            onChange={handleChange}
-            placeholder="Email"
-            className="w-full border p-2 rounded"
-            required
-          />
-
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-
-          <div>
-            <label className="block font-medium mb-1">Assign POC</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={selectedPocId || ""}
-              onChange={(e) => setSelectedPocId(e.target.value)}
-            >
-              <option value="">-- None --</option>
-              {pocs.map((poc) => (
-                <option key={poc.id} value={poc.id}>
-                  {poc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {selectedPocId && (
-            <>
-              <input
-                type="date"
-                className="w-full border p-2 rounded"
-                value={startUsing}
-                onChange={(e) => setStartUsing(e.target.value)}
-                placeholder="Start Using"
-                required
-              />
-              <input
-                type="date"
-                className="w-full border p-2 rounded"
-                value={endUsing}
-                onChange={(e) => setEndUsing(e.target.value)}
-                placeholder="End Using"
-                required
-              />
-            </>
-          )}
-
-          <div className="flex justify-end space-x-4 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-export default UserEditModal;
