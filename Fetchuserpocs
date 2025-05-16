@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { updateUser } from "services/users";
 import { assignUserToPoc } from "services/userPocService";
-import { getAllPocs } from "services/pocs"; // assuming you have this
+import { fetchPocs } from "services/pocs";
 import { User } from "schemas/users";
 import { Pocs } from "schemas/pocs";
 
@@ -14,20 +14,20 @@ type Props = {
 const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
   const [formData, setFormData] = useState<User>({ ...user });
   const [pocs, setPocs] = useState<Pocs[]>([]);
-  const [selectedPocId, setSelectedPocId] = useState<string | "">("");
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     setFormData({ ...user });
-    fetchPocs();
+    fetchAvailablePocs();
   }, [user]);
 
-  const fetchPocs = async () => {
+  const fetchAvailablePocs = async () => {
     try {
-      const response = await getAllPocs();
-      setPocs(response);
+      const pocsList = await fetchPocs();
+      setPocs(pocsList);
     } catch (err) {
-      console.error("Failed to fetch POCs", err);
+      console.error("Error fetching POCs", err);
     }
   };
 
