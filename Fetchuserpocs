@@ -1,6 +1,19 @@
 import axios from "utils/customizedAxios";
+import { Pocs } from "schemas/pocs";
 
-export const fetchUserPoc = async (userId: string) => {
-  const response = await axios.get(`/manage/pocs/user/${userId}`);
-  return response.data.poc; // Assuming response format includes .poc
+export const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
+  try {
+    const response = await axios.get(`/v.0.0.1/manage/pocs/user/${userId}`);
+
+    console.log("Fetched user-poc response:", response.data);
+
+    const data = Array.isArray(response.data) ? response.data[0] : response.data;
+
+    const poc = data?.poc;
+
+    return poc ?? null;
+  } catch (error) {
+    console.error("Failed to fetch user POC:", error);
+    return null;
+  }
 };
