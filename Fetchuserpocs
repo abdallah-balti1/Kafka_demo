@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { updateUser } from "services/users";
 import { fetchPocs } from "services/pocs";
-import { assignUserToPoc } from "services/userPoc";
 
 type Props = {
   user: {
@@ -15,41 +14,52 @@ type Props = {
 };
 
 const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({ ...user, pocUid: "" });
+  const [formData, setFormData] = useState(user);
+  const [pocs, setPocs] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
   const [error, setError] = useState("");
-  const [pocs, setPocs] = useState([]);
 
   useEffect(() => {
-    setFormData({ ...user, pocUid: "" });
-    const loadPocs = async () => {
+    setFormData({ ...user });
+
+    const loadData = async () => {
       try {
         const fetchedPocs = await fetchPocs();
         setPocs(fetchedPocs);
-      } catch (e) {
-        console.error("Failed to fetch POCs", e);
+
+        // Fetch user’s associated POC
+        const response = await fetch(`/manage/pocs/user/${user.userId}`);
+        const result = await response.json();
+
+        if (result.poc && result.poc.id) {
+          setSelectedPocId(result.poc.id);
+        } else {
+          setSelectedPocId("");
+        }
+      } catch (err) {
+        console.error("Error loading POCs or user POC:", err);
       }
     };
-    loadPocs();
+
+    loadData();
   }, [user]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
     try {
       await updateUser(formData.userId, formData);
-      if (formData.pocUid) {
-        await assignUserToPoc(formData.userId, formData.pocUid);
+
+      if (selectedPocId) {
+        // Assuming assignUserToPoc exists and imported
+        await assignUserToPoc(formData.userId, selectedPocId);
       }
+
       onSuccess();
       onClose();
     } catch (err) {
@@ -62,61 +72,69 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Update user</h2>
+        {error && <p className="text-red-600 mb-2">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-red-600">{error}</p>}
-          <input
-            type="text"
-            name="userId"
-            value={formData.userId}
-            readOnly
-            className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
-          />
-          <input
-            type="text"
-            name="firstName"
-            placeholder="Prénom"
-            value={formData.firstName}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="text"
-            name="lastName"
-            placeholder="Nom"
-            value={formData.lastName}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="email"
-            name="mail"
-            placeholder="Email"
-            value={formData.mail}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-
-          {/* Dropdown to select a POC */}
           <div>
-            <label className="block font-medium">POC</label>
-            <select
-              name="pocUid"
-              value={formData.pocUid}
+            <label className="block font-medium">UID</label>
+            <input
+              type="text"
+              name="userId"
+              value={formData.userId}
+              readOnly
+              className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
+            />
+          </div>
+          <div>
+            <label className="block font-medium">First Name</label>
+            <input
+              type="text"
+              name="firstName"
+              placeholder="Prénom"
+              value={formData.firstName}
               onChange={handleChange}
               className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Last Name</label>
+            <input
+              type="text"
+              name="lastName"
+              placeholder="Nom"
+              value={formData.lastName}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Email</label>
+            <input
+              type="email"
+              name="mail"
+              placeholder="Email"
+              value={formData.mail}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Associate POC</label>
+            <select
+              value={selectedPocId}
+              onChange={(e) => setSelectedPocId(e.target.value)}
+              className="w-full border p-2 rounded"
             >
-              <option value="">-- Aucun POC --</option>
-              {pocs.map((poc: any) => (
+              <option value="">-- Sélectionner un POC --</option>
+              {pocs.map((poc) => (
                 <option key={poc.id} value={poc.id}>
                   {poc.name}
                 </option>
               ))}
             </select>
           </div>
-
           <div className="flex justify-end space-x-4 pt-2">
             <button
               type="button"
