@@ -1,29 +1,48 @@
 import React from "react";
 
 const Dashboard = () => {
-  const pocAppUrl = "http://pock-1:8000"; // Replace with actual POC URL
-  const logoUrl = "/logo-poc.png"; // Replace with actual logo path or external image
+  const pocs = [
+    {
+      name: "POC App 1",
+      url: "http://pock-1:8000",
+      logo: "/logo-poc1.png",
+    },
+    {
+      name: "POC App 2",
+      url: "http://pock-2:8000",
+      logo: "/logo-poc2.png",
+    },
+    {
+      name: "POC App 3",
+      url: "http://pock-3:8000",
+      logo: "/logo-poc3.png",
+    },
+  ];
 
   return (
     <div className="h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white rounded-xl shadow-md p-6 w-full max-w-md flex flex-col items-center">
-        <img
-          src={logoUrl}
-          alt="POC Logo"
-          className="w-24 h-24 object-contain mb-4"
-        />
-        <h1 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to the POC Portal</h1>
-        <p className="text-gray-600 text-center mb-6 text-sm">
-          Click below to access the Proof of Concept application.
-        </p>
-        <a
-          href={pocAppUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          Open POC App
-        </a>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl w-full px-4">
+        {pocs.map((poc, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-xl shadow-md p-6 flex flex-col items-center text-center"
+          >
+            <img
+              src={poc.logo}
+              alt={`${poc.name} Logo`}
+              className="w-20 h-20 object-contain mb-4"
+            />
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">{poc.name}</h2>
+            <a
+              href={poc.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+              Open App
+            </a>
+          </div>
+        ))}
       </div>
     </div>
   );
