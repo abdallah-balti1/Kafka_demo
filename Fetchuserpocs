@@ -1,29 +1,28 @@
 import React from "react";
 
 const Dashboard = () => {
-  const pocAppUrl = "http://pock-1:8000"; // Replace with your actual POC URL
-  const logoUrl = "/logo-poc.png"; // Put your logo in the public folder or use an external URL
+  const pocAppUrl = "http://pock-1:8000"; // Replace with actual POC app URL
+  const logoUrl = "/logo-poc.png"; // Replace with actual logo path or external URL
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
-      <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
-        <p className="text-gray-600">Access the POC application below</p>
-      </div>
-
-      <a
-        href={pocAppUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-transform transform hover:scale-105"
-      >
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center bg-white border border-gray-200 rounded-lg shadow-md p-4 w-full max-w-sm">
         <img
           src={logoUrl}
           alt="POC Logo"
-          className="w-32 h-32 object-contain mx-auto mb-4"
+          className="w-20 h-20 mx-auto mb-3 object-contain"
         />
-        <p className="text-center text-blue-600 font-semibold">Go to POC Application</p>
-      </a>
+        <h2 className="text-lg font-semibold text-gray-800 mb-2">POC Application</h2>
+        <p className="text-sm text-gray-600 mb-4">Click below to access the app</p>
+        <a
+          href={pocAppUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm transition"
+        >
+          Open POC App
+        </a>
+      </div>
     </div>
   );
 };
