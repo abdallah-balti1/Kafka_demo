@@ -1,21 +1,25 @@
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "FastAPI (uvicorn)",
-      "type": "python",
-      "request": "launch",
-      "module": "uvicorn",
-      "args": [
-        "src.main.web.api.main:app",
-        "--reload"
-      ],
-      "env": {
-        "PYTHONPATH": "."
-      },
-      "cwd": "${workspaceFolder}",
-      "jinja": true,
-      "justMyCode": false
-    }
-  ]
-}
+from pydantic import BaseModel
+from typing import List, Optional
+from src.main.domain.enums.role_enum import EnumRole
+
+# Create a nested DTO for POC response
+class PocDto(BaseModel):
+    id: str
+    name: str
+    url: str
+    start_date: str
+    end_date: str
+    start_using: str
+    end_using: str
+
+class UserDto(BaseModel):
+    userId: str
+    firstName: str
+    lastName: str
+    mail: str
+    role: EnumRole
+    active: bool
+    pocs: Optional[List[PocDto]] = []  # Now includes POC details
+
+    class Config:
+        orm_mode = True
