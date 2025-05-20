@@ -1,9 +1,67 @@
-from sqlalchemy.orm import joinedload
-from src.main.domain.entities.user import User
+import React, { useEffect, useState } from 'react';
+import {
+  Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Typography, Link
+} from '@mui/material';
 
-def get_all_with_pocs(self) -> List[User]:
-    return (
-        self.db.query(User)
-        .options(joinedload(User.user_pocs).joinedload("poc"))  # Make sure User has relationship `user_pocs`
-        .all()
-    )
+const UsersTable = () => {
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/users') // Replace with your actual endpoint
+      .then((res) => res.json())
+      .then((data) => setUsers(data))
+      .catch((err) => console.error('Error fetching users:', err));
+  }, []);
+
+  return (
+    <TableContainer component={Paper} sx={{ maxWidth: '1000px', margin: 'auto', mt: 5 }}>
+      <Typography variant="h5" align="center" gutterBottom sx={{ paddingTop: 2 }}>
+        User List with POC
+      </Typography>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell><strong>User ID</strong></TableCell>
+            <TableCell><strong>Name</strong></TableCell>
+            <TableCell><strong>Email</strong></TableCell>
+            <TableCell><strong>Role</strong></TableCell>
+            <TableCell><strong>Status</strong></TableCell>
+            <TableCell><strong>POC</strong></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {users.map((user) => {
+            const poc = user.Pocs?.[0]; // get the only POC
+            return (
+              <TableRow key={user.userId}>
+                <TableCell>{user.userId}</TableCell>
+                <TableCell>{user.firstName} {user.lastName}</TableCell>
+                <TableCell>{user.mail}</TableCell>
+                <TableCell>{user.role}</TableCell>
+                <TableCell>{user.active ? 'Active' : 'Inactive'}</TableCell>
+                <TableCell>
+                  {poc ? (
+                    <div>
+                      <div><strong>{poc.name}</strong></div>
+                      <div>
+                        <Link href={poc.url} target="_blank" rel="noopener noreferrer">
+                          {poc.url}
+                        </Link>
+                      </div>
+                      <div>{poc.start_date} → {poc.end_date}</div>
+                    </div>
+                  ) : (
+                    'No POC'
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+};
+
+export default UsersTable;
