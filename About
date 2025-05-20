@@ -1,29 +1,161 @@
-export const assignUserToPoc = async (
-  userId: string,
-  pocId: string,
-  startUsing: string,
-  endUsing: string
-): Promise<void> => {
-  const payload = {
-    User: { userId },
-    Poc: { id: pocId },
-    startUsing,
-    endUsing
+import React, { useState, useEffect } from "react";
+import { updateUser } from "services/users";
+import { assignUserToPoc } from "services/userPocService";
+import fetchPocs from "services/pocs";
+import { User } from "schemas/user";
+import { Poc } from "schemas/pocs";
+
+interface UserEditModalProps {
+  user: User;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const UserEditModal: React.FC<UserEditModalProps> = ({ user, onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState<User>({ ...user });
+  const [pocs, setPocs] = useState<Poc[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+  const [loadingPocs, setLoadingPocs] = useState<boolean>(true);
+
+  useEffect(() => {
+    const loadPocs = async () => {
+      try {
+        const result = await fetchPocs();
+        setPocs(result);
+        setSelectedPocId(user.pocId || ""); // If you have current user-poc relation
+      } catch (error) {
+        console.error("Error fetching POCs:", error);
+      } finally {
+        setLoadingPocs(false);
+      }
+    };
+    loadPocs();
+  }, [user.pocId]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
-  try {
-    const response = await axios.get(`/manage/pocs/user/${userId}`);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateUser(formData);
+      const startUsing = new Date().toISOString().split("T")[0];
+      const endUsing = new Date(new Date().setMonth(new Date().getMonth() + 1))
+        .toISOString()
+        .split("T")[0];
+      if (selectedPocId) {
+        await assignUserToPoc(formData.userId, selectedPocId, startUsing, endUsing);
+      }
+      onSuccess();
+    } catch (error) {
+      console.error("Error updating user:", error);
+    }
+  };
 
-    if (response.data?.poc) {
-      await axios.put("/manage/user/poc", payload);
-    } else {
-      await axios.post("/manage/user/poc", payload);
-    }
-  } catch (error: any) {
-    if (error.response?.status === 404) {
-      await axios.post("/manage/user/poc", payload);
-    } else {
-      throw error;
-    }
-  }
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block font-medium">UID</label>
+        <input
+          type="text"
+          name="userId"
+          value={formData.userId}
+          disabled
+          className="w-full border p-2 rounded bg-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block font-medium">First Name</label>
+        <input
+          type="text"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
+      </div>
+      <div>
+        <label className="block font-medium">Last Name</label>
+        <input
+          type="text"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
+      </div>
+      <div>
+        <label className="block font-medium">Email</label>
+        <input
+          type="email"
+          name="mail"
+          value={formData.mail}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
+      </div>
+      <div>
+        <label className="block font-medium">Role</label>
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          name="active"
+          checked={formData.active}
+          onChange={handleChange}
+        />
+        <label>Active</label>
+      </div>
+      <div>
+        <label className="block font-medium">POC</label>
+        {loadingPocs ? (
+          <p>Loading POCs...</p>
+        ) : (
+          <select
+            value={selectedPocId}
+            onChange={(e) => setSelectedPocId(e.target.value)}
+            className="w-full border p-2 rounded"
+          >
+            <option value="">-- Select a Poc --</option>
+            {pocs.map((poc) => (
+              <option key={poc.id} value={poc.id}>
+                {poc.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  );
 };
+
+export default UserEditModal;
