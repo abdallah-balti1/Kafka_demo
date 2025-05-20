@@ -1,25 +1,8 @@
-from pydantic import BaseModel
-from typing import List, Optional
-from src.main.domain.enums.role_enum import EnumRole
+from sqlalchemy.orm import selectinload
 
-# Create a nested DTO for POC response
-class PocDto(BaseModel):
-    id: str
-    name: str
-    url: str
-    start_date: str
-    end_date: str
-    start_using: str
-    end_using: str
-
-class UserDto(BaseModel):
-    userId: str
-    firstName: str
-    lastName: str
-    mail: str
-    role: EnumRole
-    active: bool
-    pocs: Optional[List[PocDto]] = []  # Now includes POC details
-
-    class Config:
-        orm_mode = True
+def get_all(self) -> List[User]:
+    return (
+        self.session.query(User)
+        .options(selectinload(User.pocs).selectinload(UserPocRelation.poc))
+        .all()
+    )
