@@ -1,7 +1,145 @@
-<td className="p-3">
-  {user.pocs && user.pocs.length > 0 ? (
-    user.pocs.map((poc) => poc.name).join(", ")
-  ) : (
-    <i className="text-gray-400">None</i>
-  )}
-</td>
+import React, { useState } from "react";
+import { createUser } from "@/services/userService";
+import { assignUserToPoc } from "@/services/pocService";
+import { UserDto, Pocs } from "@/types";
+
+type UserCreateFormProps = {
+  pocs: Pocs[];
+  onUserCreated: () => void;
+};
+
+const UserCreateForm: React.FC<UserCreateFormProps> = ({ pocs, onUserCreated }) => {
+  const [user, setUser] = useState<UserDto>({
+    userId: "",
+    firstName: "",
+    lastName: "",
+    mail: "",
+    role: "USER",
+    active: true,
+  });
+
+  const [selectedPocId, setSelectedPocId] = useState<string | null>(null);
+  const [startUsing, setStartUsing] = useState("");
+  const [endUsing, setEndUsing] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const createdUser = await createUser(user);
+
+      if (selectedPocId && startUsing && endUsing) {
+        const selectedPoc = pocs.find((p) => p.id === selectedPocId);
+        if (selectedPoc) {
+          await assignUserToPoc(createdUser, selectedPoc, startUsing, endUsing);
+        }
+      }
+
+      onUserCreated();
+    } catch (error) {
+      console.error("Error creating user:", error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-white rounded shadow">
+      <input
+        type="text"
+        name="userId"
+        placeholder="User ID"
+        value={user.userId}
+        onChange={handleChange}
+        required
+        className="input"
+      />
+      <input
+        type="text"
+        name="firstName"
+        placeholder="First Name"
+        value={user.firstName}
+        onChange={handleChange}
+        required
+        className="input"
+      />
+      <input
+        type="text"
+        name="lastName"
+        placeholder="Last Name"
+        value={user.lastName}
+        onChange={handleChange}
+        required
+        className="input"
+      />
+      <input
+        type="email"
+        name="mail"
+        placeholder="Email"
+        value={user.mail}
+        onChange={handleChange}
+        required
+        className="input"
+      />
+      <select name="role" value={user.role} onChange={handleChange} className="input">
+        <option value="USER">User</option>
+        <option value="ADMIN">Admin</option>
+      </select>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          name="active"
+          checked={user.active}
+          onChange={(e) => setUser((prev) => ({ ...prev, active: e.target.checked }))}
+        />
+        <label>Active</label>
+      </div>
+
+      <div>
+        <label className="block font-semibold mb-1">Assign to POC:</label>
+        <select
+          value={selectedPocId ?? ""}
+          onChange={(e) => setSelectedPocId(e.target.value)}
+          className="input"
+        >
+          <option value="">None</option>
+          {pocs.map((poc) => (
+            <option key={poc.id} value={poc.id}>
+              {poc.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedPocId && (
+        <div className="grid grid-cols-2 gap-4">
+          <input
+            type="date"
+            value={startUsing}
+            onChange={(e) => setStartUsing(e.target.value)}
+            required
+            className="input"
+            placeholder="Start Using"
+          />
+          <input
+            type="date"
+            value={endUsing}
+            onChange={(e) => setEndUsing(e.target.value)}
+            required
+            className="input"
+            placeholder="End Using"
+          />
+        </div>
+      )}
+
+      <button type="submit" className="btn-primary w-full">
+        Create User
+      </button>
+    </form>
+  );
+};
+
+export default UserCreateForm;
