@@ -1,112 +1,152 @@
-import React, { useState } from "react";
-import { createUser } from "@/services/userService";
-import { assignUserToPoc } from "@/services/pocService";
-import { UserDto, Pocs } from "@/types";
+import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import createUser from "services/users";
+import { assignUserToPoc } from "services/userPocService";
+import fetchPocs from "services/pocs";
+import { User, Poc } from "schemas"; // Make sure your schemas export these interfaces
 
-type UserCreateFormProps = {
-  pocs: Pocs[];
-  onUserCreated: () => void;
-};
+interface UserCreateFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
 
-const UserCreateForm: React.FC<UserCreateFormProps> = ({ pocs, onUserCreated }) => {
-  const [user, setUser] = useState<UserDto>({
+const UserCreateForm: React.FC<UserCreateFormProps> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState<User>({
     userId: "",
     firstName: "",
     lastName: "",
     mail: "",
-    role: "USER",
+    role: "user",
     active: true,
   });
 
-  const [selectedPocId, setSelectedPocId] = useState<string | null>(null);
-  const [startUsing, setStartUsing] = useState("");
-  const [endUsing, setEndUsing] = useState("");
+  const [pocs, setPocs] = useState<Poc[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setUser((prev) => ({ ...prev, [name]: value }));
+  useEffect(() => {
+    const loadPocs = async () => {
+      try {
+        const result = await fetchPocs();
+        setPocs(result);
+      } catch (error) {
+        console.error("Error fetching POCs:", error);
+      }
+    };
+    loadPocs();
+  }, []);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      const createdUser = await createUser(user);
+      await createUser(formData);
 
-      if (selectedPocId && startUsing && endUsing) {
-        const selectedPoc = pocs.find((p) => p.id === selectedPocId);
-        if (selectedPoc) {
-          await assignUserToPoc(createdUser, selectedPoc, startUsing, endUsing);
-        }
+      const selectedPoc = pocs.find(p => p.id === selectedPocId);
+      if (!selectedPoc) {
+        alert("Please select a POC");
+        return;
       }
 
-      onUserCreated();
+      const today = new Date();
+      const startUsing = today.toISOString().split("T")[0];
+      const endUsing = new Date(today.setMonth(today.getMonth() + 1)).toISOString().split("T")[0];
+
+      await assignUserToPoc(formData.userId, selectedPoc.id, startUsing, endUsing);
+      onSuccess();
     } catch (error) {
-      console.error("Error creating user:", error);
+      console.error("Error creating user or assigning POC:", error);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-white rounded shadow">
-      <input
-        type="text"
-        name="userId"
-        placeholder="User ID"
-        value={user.userId}
-        onChange={handleChange}
-        required
-        className="input"
-      />
-      <input
-        type="text"
-        name="firstName"
-        placeholder="First Name"
-        value={user.firstName}
-        onChange={handleChange}
-        required
-        className="input"
-      />
-      <input
-        type="text"
-        name="lastName"
-        placeholder="Last Name"
-        value={user.lastName}
-        onChange={handleChange}
-        required
-        className="input"
-      />
-      <input
-        type="email"
-        name="mail"
-        placeholder="Email"
-        value={user.mail}
-        onChange={handleChange}
-        required
-        className="input"
-      />
-      <select name="role" value={user.role} onChange={handleChange} className="input">
-        <option value="USER">User</option>
-        <option value="ADMIN">Admin</option>
-      </select>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block font-medium">UID</label>
+        <input
+          type="text"
+          name="userId"
+          value={formData.userId}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">First Name</label>
+        <input
+          type="text"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Last Name</label>
+        <input
+          type="text"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Email</label>
+        <input
+          type="email"
+          name="mail"
+          value={formData.mail}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Role</label>
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
 
       <div className="flex items-center space-x-2">
         <input
           type="checkbox"
           name="active"
-          checked={user.active}
-          onChange={(e) => setUser((prev) => ({ ...prev, active: e.target.checked }))}
+          checked={formData.active}
+          onChange={handleChange}
         />
         <label>Active</label>
       </div>
 
       <div>
-        <label className="block font-semibold mb-1">Assign to POC:</label>
+        <label className="block font-medium">POC</label>
         <select
-          value={selectedPocId ?? ""}
-          onChange={(e) => setSelectedPocId(e.target.value)}
-          className="input"
+          value={selectedPocId}
+          onChange={e => setSelectedPocId(e.target.value)}
+          className="w-full border p-2 rounded"
+          required
         >
-          <option value="">None</option>
-          {pocs.map((poc) => (
+          <option value="">-- Select a POC --</option>
+          {pocs.map(poc => (
             <option key={poc.id} value={poc.id}>
               {poc.name}
             </option>
@@ -114,30 +154,21 @@ const UserCreateForm: React.FC<UserCreateFormProps> = ({ pocs, onUserCreated }) 
         </select>
       </div>
 
-      {selectedPocId && (
-        <div className="grid grid-cols-2 gap-4">
-          <input
-            type="date"
-            value={startUsing}
-            onChange={(e) => setStartUsing(e.target.value)}
-            required
-            className="input"
-            placeholder="Start Using"
-          />
-          <input
-            type="date"
-            value={endUsing}
-            onChange={(e) => setEndUsing(e.target.value)}
-            required
-            className="input"
-            placeholder="End Using"
-          />
-        </div>
-      )}
-
-      <button type="submit" className="btn-primary w-full">
-        Create User
-      </button>
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Create
+        </button>
+      </div>
     </form>
   );
 };
