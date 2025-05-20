@@ -4,15 +4,15 @@ export const assignUserToPoc = async (
   startUsing: string,
   endUsing: string
 ): Promise<void> => {
+  const payload = {
+    User: { userId },
+    Poc: { id: pocId },
+    startUsing,
+    endUsing
+  };
+
   try {
     const response = await axios.get(`/manage/pocs/user/${userId}`);
-    
-    const payload = {
-      userId,
-      pocId,
-      startUsing,
-      endUsing,
-    };
 
     if (response.data?.poc) {
       await axios.put("/manage/user/poc", payload);
@@ -21,12 +21,7 @@ export const assignUserToPoc = async (
     }
   } catch (error: any) {
     if (error.response?.status === 404) {
-      await axios.post("/manage/user/poc", {
-        userId,
-        pocId,
-        startUsing,
-        endUsing,
-      });
+      await axios.post("/manage/user/poc", payload);
     } else {
       throw error;
     }
