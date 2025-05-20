@@ -1,72 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Paper, Typography, Link
-} from '@mui/material';
-import { getUsers } from '../services/user'; // Adjust path if needed
+// components/PocCell.tsx
+import React, { useEffect, useState } from "react";
+import fetchUserPoc from "services/pocs"; // make sure this returns the POC for one user
 
-const UsersTable = () => {
-  const [users, setUsers] = useState([]);
+interface PocCellProps {
+  userId: string;
+}
+
+const PocCell: React.FC<PocCellProps> = ({ userId }) => {
+  const [pocName, setPocName] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadPoc = async () => {
       try {
-        const data = await getUsers();
-        setUsers(data);
+        const data = await fetchUserPoc(userId);
+        setPocName(data?.name || null);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error("Error fetching POC for user", userId, error);
+        setPocName(null);
       }
     };
-
-    fetchData();
-  }, []);
+    loadPoc();
+  }, [userId]);
 
   return (
-    <TableContainer component={Paper} sx={{ maxWidth: '1000px', margin: 'auto', mt: 5 }}>
-      <Typography variant="h5" align="center" gutterBottom sx={{ paddingTop: 2 }}>
-        User List with POC
-      </Typography>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell><strong>User ID</strong></TableCell>
-            <TableCell><strong>Name</strong></TableCell>
-            <TableCell><strong>Email</strong></TableCell>
-            <TableCell><strong>Role</strong></TableCell>
-            <TableCell><strong>Status</strong></TableCell>
-            <TableCell><strong>POC</strong></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {users.map((user) => {
-            const poc = user.Pocs?.[0];
-            return (
-              <TableRow key={user.userId}>
-                <TableCell>{user.userId}</TableCell>
-                <TableCell>{user.firstName} {user.lastName}</TableCell>
-                <TableCell>{user.mail}</TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>{user.active ? 'Active' : 'Inactive'}</TableCell>
-                <TableCell>
-                  {poc ? (
-                    <div>
-                      <div><strong>{poc.name}</strong></div>
-                      <div>
-                        <Link href={poc.url} target="_blank" rel="noopener noreferrer">
-                          {poc.url}
-                        </Link>
-                      </div>
-                      <div>{poc.start_date} → {poc.end_date}</div>
-                    </div>
-                  ) : 'No POC'}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <span>{pocName || <i className="text-gray-400">None</i>}</span>
   );
 };
 
-export default UsersTable;
+export default PocCell;
