@@ -1,8 +1,39 @@
-from sqlalchemy.orm import selectinload
+from src.main.application.dto.users_dto import UserDto, PocDto
+from src.main.application.mappers.general_mapper import GeneralMapper
+from src.main.domain.entities.user import User
 
-def get_all(self) -> List[User]:
-    return (
-        self.session.query(User)
-        .options(selectinload(User.pocs).selectinload(UserPocRelation.poc))
-        .all()
-    )
+class UserMapper(GeneralMapper[User, UserDto]):
+    def to_dto(self, user: User) -> UserDto:
+        pocs_dto = []
+        for relation in getattr(user, "pocs", []):
+            poc = relation.poc
+            if poc:
+                pocs_dto.append(PocDto(
+                    id=str(poc.id),
+                    name=poc.name,
+                    url=poc.url,
+                    start_date=str(poc.start_date),
+                    end_date=str(poc.end_date),
+                    start_using=str(relation.start_using),
+                    end_using=str(relation.end_using)
+                ))
+
+        return UserDto(
+            userId=user.id,
+            firstName=user.first_name,
+            lastName=user.last_name,
+            mail=user.mail,
+            role=user.role,
+            active=user.active,
+            pocs=pocs_dto
+        )
+
+    def to_entity(self, user_dto: UserDto) -> User:
+        return User(
+            id=user_dto.userId,
+            first_name=user_dto.firstName,
+            last_name=user_dto.lastName,
+            mail=user_dto.mail,
+            active=user_dto.active,
+            role=user_dto.role
+        )
