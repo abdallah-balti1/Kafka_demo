@@ -1,58 +1,31 @@
-# dto/user_poc_update_dto.py
-from pydantic import BaseModel
-from datetime import date
-
-class UserPocUpdateDto(BaseModel):
-    userId: str
-    pocId: str
-    startUsing: date
-    endUsing: date
-
-
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from src.main.persistance.config.database_connection import get_db
-from src.main.domain.entities.management_user_poc import UserPocRelation
-from src.main.domain.entities.user import User
-from src.main.domain.entities.poc import Poc
-from src.main.web_api.dto.user_poc_update_dto import UserPocUpdateDto
-
-router = APIRouter()
-
-@router.put("/manage/user/poc")
-def update_user_poc_relation(data: UserPocUpdateDto, db: Session = Depends(get_db)):
-    # Check if user and poc exist
-    user = db.query(User).filter_by(id=data.userId).first()
+def update_user_poc_relation(self, relation: UserPocRelationDto) -> UserPocRelationDto:
+    # Ensure user exists
+    user = self.user_service.get_user_by_id(relation.user.userId)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise UserNotFoundException(relation.user.userId)
 
-    poc = db.query(Poc).filter_by(id=data.pocId).first()
+    # Ensure new POC exists
+    poc = self.poc_service.get_poc_by_id(relation.poc.id)
     if not poc:
-        raise HTTPException(status_code=404, detail="POC not found")
+        raise PocNotFoundException(relation.poc.name)
 
-    # Check for existing relation
-    relation = db.query(UserPocRelation).filter_by(user_id=data.userId).first()
+    # Validate dates
+    if relation.endUsing < relation.startUsing:
+        raise InvalidDatesException("End date must be after start date")
 
-    if relation:
-        # Update existing
-        relation.poc_id = data.pocId
-        relation.start_using = data.startUsing
-        relation.end_using = data.endUsing
-    else:
-        # Create new relation
-        relation = UserPocRelation(
-            user_id=data.userId,
-            poc_id=data.pocId,
-            start_using=data.startUsing,
-            end_using=data.endUsing
-        )
-        db.add(relation)
+    # Check if the user already has any POC relation
+    existing_relation = self.repository.get_user_poc_by_user_id(relation.user.userId)
+    if not existing_relation:
+        raise UserPocRelationNotFoundException(relation.user.userId, "Unknown")
 
-    db.commit()
-    return {"message": "User-POC relation updated"}
+    # Update the existing relation with the new POC info
+    existing_relation.poc_id = relation.poc.id
+    existing_relation.start_using = relation.startUsing
+    existing_relation.end_using = relation.endUsing
 
+    result = self.repository.update_object(existing_relation)
+    return self.mapper_pocs_users.to_dto(result)
 
-
-
-
+def get_user_poc_by_user_id(self, user_id: str) -> Optional[UserPocRelation]:
+    return self.db.query(UserPocRelation).filter_by(user_id=user_id).first()
 
