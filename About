@@ -1,30 +1,7 @@
-// components/PocCell.tsx
-import React, { useEffect, useState } from "react";
-import fetchUserPoc from "services/pocs"; // make sure this returns the POC for one user
-
-interface PocCellProps {
-  userId: string;
-}
-
-const PocCell: React.FC<PocCellProps> = ({ userId }) => {
-  const [pocName, setPocName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadPoc = async () => {
-      try {
-        const data = await fetchUserPoc(userId);
-        setPocName(data?.name || null);
-      } catch (error) {
-        console.error("Error fetching POC for user", userId, error);
-        setPocName(null);
-      }
-    };
-    loadPoc();
-  }, [userId]);
-
-  return (
-    <span>{pocName || <i className="text-gray-400">None</i>}</span>
-  );
-};
-
-export default PocCell;
+<td className="p-3">
+  {user.pocs && user.pocs.length > 0 ? (
+    user.pocs.map((poc) => poc.name).join(", ")
+  ) : (
+    <i className="text-gray-400">None</i>
+  )}
+</td>
