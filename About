@@ -7,9 +7,13 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "main:app",       // Replace with your module and app variable
+        "src.main.web.api.main:app",
         "--reload"
       ],
+      "env": {
+        "PYTHONPATH": "."
+      },
+      "cwd": "${workspaceFolder}",
       "jinja": true,
       "justMyCode": false
     }
