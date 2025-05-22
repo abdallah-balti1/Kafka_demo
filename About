@@ -1,6 +1,86 @@
-Voici une version corrigée et améliorée de ta phrase :
+import axiosInstance from "utils/customizedAxios";
+import { User } from "schemas/User";
+import { Poc } from "schemas/pocs";
 
-"J’aimerais avoir accès au parking afin de pouvoir venir en voiture. Pourriez-vous me préciser quels sont les documents ou informations à fournir ?"
+export const assignUserToPoc = async (
+    user: User,
+    poc: Poc | null,
+    startDate: string,
+    endDate: string
+): Promise<void> => {
+    try {
+        // If no POC is provided, remove any existing assignment
+        if (!poc) {
+            await removeUserPoc(user.userId);
+            return;
+        }
 
-Souhaite-tu une version plus formelle ou plus décontractée ?
+        const payload = {
+            user: {
+                userId: user.userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                mail: user.mail,
+                role: user.role,
+                active: user.active,
+                pocs: []
+            },
+            poc: {
+                id: poc.id,
+                name: poc.name,
+                startDate: poc.startDate,
+                endDate: poc.endDate,
+                url: poc.url
+            },
+            startUsing: startDate,
+            endUsing: endDate
+        };
 
+        // Check for existing assignment
+        try {
+            const checkResponse = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
+            const existingAssignment = Array.isArray(checkResponse.data) 
+                ? checkResponse.data[0] 
+                : checkResponse.data;
+
+            if (existingAssignment?.poc) {
+                // Update existing assignment
+                await axiosInstance.put("/manage/user/poc", payload);
+            } else {
+                // Create new assignment
+                await axiosInstance.post("/manage/user/poc", payload);
+            }
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                // No existing assignment found - create new one
+                await axiosInstance.post("/manage/user/poc", payload);
+            } else {
+                throw error;
+            }
+        }
+    } catch (error: any) {
+        console.error("POC assignment error:", {
+            error: error.response?.data || error.message,
+            user: user.userId,
+            poc: poc?.id
+        });
+        throw new Error(
+            error.response?.data?.message || 
+            "Failed to assign user to POC"
+        );
+    }
+};
+
+export const removeUserPoc = async (userId: string): Promise<void> => {
+    try {
+        await axiosInstance.delete(`/manage/user/poc/${userId}`);
+    } catch (error: any) {
+        if (error.response?.status !== 404) { // Ignore "not found" errors
+            console.error("POC removal error:", error);
+            throw new Error(
+                error.response?.data?.message || 
+                "Failed to remove POC assignment"
+            );
+        }
+    }
+};
