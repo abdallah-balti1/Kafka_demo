@@ -1,43 +1,75 @@
-export const assignUserToPoc = async (data: {
-    user: User;
-    poc: Poc;
-    startUsing: string;
-    endUsing: string;
-}): Promise<void> => {
+import axios from "axios";
+import { User } from "schemas/user";
+import { Poc } from "schemas/pocs";
+
+export const assignUserToPoc = async (
+    user: User,
+    poc: Poc,
+    startDate: string,
+    endDate: string
+): Promise<void> => {
     try {
-        const response = await axios.get(`/manage/pocs/user/${data.user.userId}`);
+        // Check if user already has a POC assigned
+        const checkResponse = await axios.get(`/manage/pocs/user/${user.userId}`);
 
         const payload = {
             user: {
-                userId: data.user.userId,
-                firstName: data.user.firstName,
-                lastName: data.user.lastName,
-                mail: data.user.mail,
-                role: data.user.role,
-                active: data.user.active
+                userId: user.userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                mail: user.mail,
+                role: user.role,
+                active: user.active,
+                pocs: [] // Empty array as per your backend example
             },
             poc: {
-                id: data.poc.id,
-                name: data.poc.name,
-                startDate: data.poc.startDate,
-                endDate: data.poc.endDate,
-                url: data.poc.url
+                id: poc.id,
+                name: poc.name,
+                startDate: poc.startDate,
+                endDate: poc.endDate,
+                url: poc.url
             },
-            startUsing: data.startUsing,
-            endUsing: data.endUsing
+            startUsing: startDate,  // Matches your backend field name
+            endUsing: endDate       // Matches your backend field name
         };
-        // ... rest of the function
+
+        if (checkResponse.data?.poc) {
+            // Update existing assignment
+            await axios.put("/manage/user/poc", payload);
+        } else {
+            // Create new assignment
+            await axios.post("/manage/user/poc", payload);
+        }
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            // Retry with POST if no existing assignment found
+            const payload = {
+                user: {
+                    userId: user.userId,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    mail: user.mail,
+                    role: user.role,
+                    active: user.active,
+                    pocs: []
+                },
+                poc: {
+                    id: poc.id,
+                    name: poc.name,
+                    startDate: poc.startDate,
+                    endDate: poc.endDate,
+                    url: poc.url
+                },
+                startUsing: startDate,
+                endUsing: endDate
+            };
+            await axios.post("/manage/user/poc", payload);
+        } else {
+            console.error("POC assignment error:", error);
+            throw new Error(
+                error.response?.data?.message || 
+                "Failed to assign user to POC"
+            );
+        }
     }
-    // ... error handling
 };
-
-
-
-
-
-await assignUserToPoc({
-    user: formData,
-    poc: selectedPoc,
-    startUsing,
-    endUsing
-});
