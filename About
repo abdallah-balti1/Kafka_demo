@@ -1,70 +1,43 @@
-import axios from "axios";
-import { User } from "schemas/user";
-import { Poc } from "schemas/pocs";
-
-export const assignUserToPoc = async (
-    user: User,
-    poc: Poc,
-    startUsing: string,
-    endUsing: string
-): Promise<void> => {
+export const assignUserToPoc = async (data: {
+    user: User;
+    poc: Poc;
+    startUsing: string;
+    endUsing: string;
+}): Promise<void> => {
     try {
-        // First check if the user already has a POC assigned
-        const response = await axios.get(`/manage/pocs/user/${user.userId}`);
+        const response = await axios.get(`/manage/pocs/user/${data.user.userId}`);
 
         const payload = {
             user: {
-                userId: user.userId,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                mail: user.mail,
-                role: user.role,
-                active: user.active
+                userId: data.user.userId,
+                firstName: data.user.firstName,
+                lastName: data.user.lastName,
+                mail: data.user.mail,
+                role: data.user.role,
+                active: data.user.active
             },
             poc: {
-                id: poc.id,
-                name: poc.name,
-                startDate: poc.startDate,
-                endDate: poc.endDate,
-                url: poc.url
+                id: data.poc.id,
+                name: data.poc.name,
+                startDate: data.poc.startDate,
+                endDate: data.poc.endDate,
+                url: data.poc.url
             },
-            startUsing,
-            endUsing
+            startUsing: data.startUsing,
+            endUsing: data.endUsing
         };
-
-        if (response.data?.poc) {
-            // Update existing relation
-            await axios.put("/manage/user/poc", payload);
-        } else {
-            // Create new relation
-            await axios.post("/manage/user/poc", payload);
-        }
-    } catch (error: any) {
-        if (error.response?.status === 404) {
-            // No relation exists, create one
-            const payload = {
-                user: {
-                    userId: user.userId,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    mail: user.mail,
-                    role: user.role,
-                    active: user.active
-                },
-                poc: {
-                    id: poc.id,
-                    name: poc.name,
-                    startDate: poc.startDate,
-                    endDate: poc.endDate,
-                    url: poc.url
-                },
-                startUsing,
-                endUsing
-            };
-            await axios.post("/manage/user/poc", payload);
-        } else {
-            console.error("Error assigning user to POC:", error);
-            throw new Error("Failed to assign user to POC");
-        }
+        // ... rest of the function
     }
+    // ... error handling
 };
+
+
+
+
+
+await assignUserToPoc({
+    user: formData,
+    poc: selectedPoc,
+    startUsing,
+    endUsing
+});
