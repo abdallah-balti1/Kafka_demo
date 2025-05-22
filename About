@@ -1,3 +1,128 @@
+import { AxiosResponse } from "axios";
+import { User } from "schemas/user";
+import axiosInstance from "utils/customizedAxios";
+
+const usersUrl = "/users";
+
+export const getUsers = async (): Promise<User[]> => {
+    const response: AxiosResponse<User[]> = await axiosInstance.get(usersUrl);
+    return response.data;
+};
+
+export const createUser = async (data: Partial<User>): Promise<User> => {
+    const response = await axiosInstance.post(usersUrl, data);
+    return response.data;
+};
+
+export const updateUser = async (userId: string, updateData: Partial<User>): Promise<User> => {
+    const response = await axiosInstance.put(usersUrl, updateData, {
+        params: { user_id: userId },
+    });
+    return response.data;
+};
+
+export const deleteUser = async (userId: string): Promise<void> => {
+    await axiosInstance.delete(usersUrl, {
+        params: { user_id: userId },
+    });
+};
+
+// Add this new function to get user with POC info
+export const getUserPocInfo = async (userId: string): Promise<{
+    poc?: any;
+    startUsing?: string;
+    endUsing?: string;
+} | null> => {
+    try {
+        const response = await axiosInstance.get(`/manage/pocs/user/${userId}`);
+        const data = Array.isArray(response.data) ? response.data[0] : response.data;
+        return data || null;
+    } catch (error) {
+        if (error.response?.status === 404) {
+            return null;
+        }
+        throw error;
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from "react";
+import { updateUser, getUserPocInfo } from "services/users";
+import { assignUserToPoc, removeUserPoc } from "services/userPocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Poc } from "schemas/pocs";
+
+type Props = {
+    user: User;
+    onClose: () => void;
+    onSuccess: () => void;
+};
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+    const [formData, setFormData] = useState<User>({ ...user });
+    const [availablePocs, setAvailablePocs] = useState<Poc[]>([]);
+    const [selectedPoc, setSelectedPoc] = useState<Poc | null>(null);
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                // Load all available POCs
+                const pocs = await fetchPocs();
+                setAvailablePocs(pocs);
+
+                // Load current POC assignment if exists
+                const assignment = await getUserPocInfo(user.userId);
+                if (assignment?.poc) {
+                    const currentPoc = pocs.find(p => p.id === assignment.poc.id) || assignment.poc;
+                    setSelectedPoc(currentPoc);
+                    setStartDate(assignment.startUsing || "");
+                    setEndDate(assignment.endUsing || "");
+                }
+            } catch (err) {
+                console.error("Failed to load POC data:", err);
+                setError("Failed to load POC information");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadData();
+    }, [user.userId]);
+
+    // ... (keep rest of the component code the same as previous implementation)
+    // Only change the initial data loading logic as shown above
+
+    return (
+        // ... (keep the same JSX structure as before)
+    );
+};
+
+export default UserEditModal;
+
+
+
+
+
+
+
+
 import axiosInstance from "utils/customizedAxios";
 import { User } from "schemas/User";
 import { Poc } from "schemas/pocs";
@@ -9,7 +134,6 @@ export const assignUserToPoc = async (
     endDate: string
 ): Promise<void> => {
     try {
-        // If no POC is provided, remove any existing assignment
         if (!poc) {
             await removeUserPoc(user.userId);
             return;
@@ -36,7 +160,6 @@ export const assignUserToPoc = async (
             endUsing: endDate
         };
 
-        // Check for existing assignment
         try {
             const checkResponse = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
             const existingAssignment = Array.isArray(checkResponse.data) 
@@ -44,15 +167,12 @@ export const assignUserToPoc = async (
                 : checkResponse.data;
 
             if (existingAssignment?.poc) {
-                // Update existing assignment
                 await axiosInstance.put("/manage/user/poc", payload);
             } else {
-                // Create new assignment
                 await axiosInstance.post("/manage/user/poc", payload);
             }
         } catch (error: any) {
             if (error.response?.status === 404) {
-                // No existing assignment found - create new one
                 await axiosInstance.post("/manage/user/poc", payload);
             } else {
                 throw error;
@@ -75,8 +195,7 @@ export const removeUserPoc = async (userId: string): Promise<void> => {
     try {
         await axiosInstance.delete(`/manage/user/poc/${userId}`);
     } catch (error: any) {
-        if (error.response?.status !== 404) { // Ignore "not found" errors
-            console.error("POC removal error:", error);
+        if (error.response?.status !== 404) {
             throw new Error(
                 error.response?.data?.message || 
                 "Failed to remove POC assignment"
