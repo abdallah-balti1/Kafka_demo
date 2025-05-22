@@ -1,15 +1,274 @@
-Merci pour la précision ! Voici une version corrigée de ton message, en tenant compte de cela :
+import React, { useState, useEffect } from "react";
+import { updateUser } from "services/users";
+import { assignUserToPoc, removeUserPoc } from "services/userPocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Poc } from "schemas/pocs";
 
+type Props = {
+  user: User;
+  onClose: () => void;
+  onSuccess: () => void;
+};
 
----
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+  // Form state
+  const [formData, setFormData] = useState<User>({ ...user });
+  const [availablePocs, setAvailablePocs] = useState<Poc[]>([]);
+  const [selectedPoc, setSelectedPoc] = useState<Poc | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-Bonjour Laura,
-J’espère que tu vas bien.
-J’ai besoin de ton accord pour l’accès au parking. Est-ce que je peux te mettre en copie du mail afin que tu puisses le confirmer ?
-Merci beaucoup !
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // 1. Load all available POCs
+        const pocs = await fetchPocs();
+        setAvailablePocs(pocs);
 
+        // 2. Check if user has existing POC assignment
+        try {
+          const response = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
+          const assignment = Array.isArray(response.data) ? response.data[0] : response.data;
+          
+          if (assignment?.poc) {
+            const matchedPoc = pocs.find(p => p.id === assignment.poc.id) || assignment.poc;
+            setSelectedPoc(matchedPoc);
+            setStartDate(assignment.startUsing || "");
+            setEndDate(assignment.endUsing || "");
+          }
+        } catch (error) {
+          // 404 means no POC assigned - which is fine
+          if (error.response?.status !== 404) {
+            throw error;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load POC data:", err);
+        setError("Failed to load POC information");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
----
+    loadData();
+  }, [user.userId]);
 
-Souhaites-tu une version plus formelle ou plus décontractée ?
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
+  const handlePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const pocId = e.target.value;
+    const poc = availablePocs.find(p => p.id === pocId) || null;
+    setSelectedPoc(poc);
+    
+    // Reset dates when changing POC
+    if (poc) {
+      setStartDate(poc.startDate || "");
+      setEndDate(poc.endDate || "");
+    } else {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      // 1. Validate dates if POC is selected
+      if (selectedPoc) {
+        if (!startDate || !endDate) {
+          throw new Error("Both start and end dates are required when assigning a POC");
+        }
+        if (new Date(endDate) < new Date(startDate)) {
+          throw new Error("End date must be after start date");
+        }
+      }
+
+      // 2. Update user details
+      await updateUser(formData.userId, formData);
+
+      // 3. Handle POC assignment/removal
+      if (!selectedPoc) {
+        // Remove existing assignment if any
+        await removeUserPoc(formData.userId);
+      } else {
+        // Assign/update POC
+        await assignUserToPoc(
+          formData,  // Pass full user object
+          selectedPoc,
+          startDate,
+          endDate
+        );
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Update failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to update user");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Edit User</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+              disabled={isLoading}
+            >
+              &times;
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">User ID</label>
+              <input
+                type="text"
+                value={formData.userId}
+                readOnly
+                className="w-full p-2 border rounded bg-gray-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">First Name</label>
+              <input
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Last Name</label>
+              <input
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">POC Assignment</label>
+              <select
+                value={selectedPoc?.id || ""}
+                onChange={handlePocChange}
+                className="w-full p-2 border rounded"
+                disabled={isLoading}
+              >
+                <option value="">-- No POC Assigned --</option>
+                {availablePocs.map(poc => (
+                  <option key={poc.id} value={poc.id}>
+                    {poc.name} ({poc.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedPoc && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-2 border rounded"
+                    required
+                    min={startDate}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-between items-center mt-6 pt-4 border-t">
+            {selectedPoc && (
+              <button
+                type="button"
+                onClick={() => setSelectedPoc(null)}
+                disabled={isLoading}
+                className="px-4 py-2 text-red-600 hover:text-red-800 disabled:opacity-50"
+              >
+                Remove POC
+              </button>
+            )}
+
+            <div className="space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                className="px-4 py-2 border rounded hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isLoading ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UserEditModal;
