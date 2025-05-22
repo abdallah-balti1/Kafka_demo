@@ -1,7 +1,192 @@
-{
-  "name": "Chrome: React App",
-  "type": "pwa-chrome",
-  "request": "launch",
-  "url": "http://localhost:3000", // adjust if using a different port
-  "webRoot": "${workspaceFolder}/src"
-}
+import React, { useState, useEffect } from "react";
+import { updateUser } from "service/users";
+import { assignUserToPoc } from "services/userpocservice";
+import { fetchPocs } from "services/pocs";
+import axios from "axios";
+import { User } from "schemas/user";
+import { Poc } from "schemas/pocs";
+
+type Props = {
+    user: User;
+    onClose: () => void;
+    onSuccess: () => void;
+};
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+    const [formData, setFormData] = useState<User>({ ...user });
+    const [pocs, setPocs] = useState<Poc[]>([]);
+    const [selectedPoc, setSelectedPoc] = useState<Poc | null>(null);
+    const [startUsing, setStartUsing] = useState("");
+    const [endUsing, setEndUsing] = useState("");
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                // Fetch all available POCs
+                const pocsList = await fetchPocs();
+                setPocs(pocsList);
+
+                // Check if user already has a POC assigned
+                const response = await axios.get(`/manage/pocs/user/${user.userId}`);
+                const userPoc = response.data?.poc;
+
+                if (userPoc) {
+                    const matchedPoc = pocsList.find((p) => p.id === userPoc.id) || userPoc;
+                    setSelectedPoc(matchedPoc);
+                    setStartUsing(response.data.startUsing);
+                    setEndUsing(response.data.endUsing);
+                }
+            } catch (error) {
+                console.warn('No POC assigned to this user or failed to load data');
+            }
+        };
+
+        loadData();
+    }, [user.userId]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        
+        try {
+            // First update user details
+            await updateUser(formData.userId, formData);
+            
+            // Then handle POC assignment if selected
+            if (selectedPoc && startUsing && endUsing) {
+                await assignUserToPoc({
+                    userId: formData.userId,
+                    pocId: selectedPoc.id,
+                    startDate: startUsing,
+                    endDate: endUsing
+                });
+            }
+            
+            onSuccess();
+            onClose();
+        } catch (err) {
+            console.error("Error updating user or assigning POC:", err);
+            setError("Failed to update user or assign POC.");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white rounded shadow-lg w-full max-w-md">
+                <form onSubmit={handleSubmit} className="p-6">
+                    <h2 className="text-xl font-bold mb-4">Update User</h2>
+                    
+                    {error && <p className="text-red-600 mb-4">{error}</p>}
+
+                    <input
+                        type="text"
+                        name="userId"
+                        value={formData.userId}
+                        readOnly
+                        className="w-full border p-2 rounded bg-gray-300 cursor-not-allowed mb-4"
+                    />
+
+                    <input
+                        type="text"
+                        name="firstName"
+                        placeholder="First Name"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        className="w-full border p-2 rounded mb-4"
+                        required
+                    />
+
+                    <input
+                        type="text"
+                        name="lastName"
+                        placeholder="Last Name"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        className="w-full border p-2 rounded mb-4"
+                        required
+                    />
+
+                    <input
+                        type="email"
+                        name="mail"
+                        placeholder="Email"
+                        value={formData.mail}
+                        onChange={handleChange}
+                        className="w-full border p-2 rounded mb-4"
+                        required
+                    />
+
+                    {/* POC Assignment Section */}
+                    <div className="mb-4">
+                        <label className="block font-medium mb-1">Assign POC</label>
+                        <select
+                            value={selectedPoc?.id || ""}
+                            onChange={(e) => {
+                                const poc = pocs.find((p) => p.id === e.target.value);
+                                setSelectedPoc(poc || null);
+                            }}
+                            className="w-full border p-2 rounded"
+                        >
+                            <option value="">-- Select a POC --</option>
+                            {pocs.map((poc) => (
+                                <option key={poc.id} value={poc.id}>
+                                    {poc.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {selectedPoc && (
+                        <>
+                            <div className="mb-4">
+                                <label className="block font-medium mb-1">Start Date</label>
+                                <input
+                                    type="date"
+                                    value={startUsing}
+                                    onChange={(e) => setStartUsing(e.target.value)}
+                                    className="w-full border p-2 rounded"
+                                    required
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block font-medium mb-1">End Date</label>
+                                <input
+                                    type="date"
+                                    value={endUsing}
+                                    onChange={(e) => setEndUsing(e.target.value)}
+                                    className="w-full border p-2 rounded"
+                                    required
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    <div className="flex justify-end space-x-4 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+export default UserEditModal;
