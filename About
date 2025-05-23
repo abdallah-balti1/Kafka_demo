@@ -5,25 +5,34 @@ const HomePage = () => {
     {
       name: "POC 1",
       url: "http://poc-1:8666",
-      logo: "/logo.png", // Updated to use logo.png
+      logo: "/logo.png",
     },
     {
       name: "POC 2",
       url: "http://poc-2:8666",
-      logo: "/logo.png", // Updated to use logo.png
+      logo: "/logo.png",
     },
     {
       name: "POC 3",
       url: "http://poc-3:8666",
-      logo: "/logo.png", // Updated to use logo.png
+      logo: "/logo.png",
     },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="text-center mb-6">
+      <div className="text-center mb-8">
+        {/* Added logo container with margin and smooth scaling */}
+        <div className="flex justify-center mb-4">
+          <img 
+            src="/logo.png" 
+            alt="Company Logo" 
+            className="h-20 w-auto object-contain transition-transform hover:scale-105"
+          />
+        </div>
+        
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
-        <p className="text-gray-600">Access the PCCs below</p>
+        <p className="text-gray-600">Access the POCs below</p>
       </div>
 
       <div className="flex flex-wrap justify-center gap-8">
