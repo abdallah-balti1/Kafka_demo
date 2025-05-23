@@ -62,6 +62,10 @@ export const removeUserPoc = async (
 
 
 
+
+
+
+
 import React, { useState, useEffect, useMemo } from "react";
 import { getUsersWithPocs, updateUser } from "services/users";
 import { assignUserToPoc, removeUserPoc } from "services/userPocService";
@@ -93,11 +97,11 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
     const loadData = async () => {
       setIsLoading(prev => ({ ...prev, pocs: true }));
       try {
-        // Load all available POCs
+        // Load ALL POCs from the dedicated endpoint
         const pocs = await fetchPocs();
         setAllPocs(pocs);
 
-        // Check current assignment
+        // Check current assignment from users data
         const users = await getUsersWithPocs();
         const currentUser = users.find(u => u.userId === user.userId);
         if (currentUser?.pocs?.[0]) {
@@ -127,37 +131,17 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handlePocChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handlePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newPocId = e.target.value;
-    const previousPocId = selectedPocId;
-    
-    // Update UI immediately
     setSelectedPocId(newPocId);
     
-    const newPoc = allPocs.find(poc => poc.id === newPocId) || null;
-    
+    const newPoc = allPocs.find(poc => poc.id === newPocId);
     if (newPoc) {
       setStartDate(newPoc.startDate || "");
       setEndDate(newPoc.endDate || "");
     } else {
       setStartDate("");
       setEndDate("");
-      
-      // If changing from a POC to "No POC", remove the assignment
-      if (previousPocId) {
-        const previousPoc = allPocs.find(poc => poc.id === previousPocId);
-        if (previousPoc) {
-          try {
-            await removeUserPoc(formData, previousPoc);
-          } catch (err) {
-            console.error("Failed to remove POC:", err);
-            // Revert UI if removal fails
-            setSelectedPocId(previousPocId);
-            setStartDate(previousPoc.startDate || "");
-            setEndDate(previousPoc.endDate || "");
-          }
-        }
-      }
     }
   };
 
@@ -171,14 +155,23 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
       // Update user details
       await updateUser(formData.userId, formData);
 
-      // Handle POC assignment if selected
-      if (selectedPoc) {
+      // Get current assignment before making changes
+      const users = await getUsersWithPocs();
+      const currentUser = users.find(u => u.userId === user.userId);
+      const currentPoc = currentUser?.pocs?.[0];
+
+      // Handle POC changes
+      if (selectedPocId && selectedPoc) {
+        // Assign new or update existing POC
         await assignUserToPoc(
           formData,
           selectedPoc,
           startDate,
           endDate
         );
+      } else if (currentPoc) {
+        // Remove existing POC if none selected
+        await removeUserPoc(formData, currentPoc);
       }
 
       onSuccess();
@@ -261,7 +254,7 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
               />
             </div>
 
-            {/* POC Assignment */}
+            {/* POC Assignment - No remove button */}
             <div>
               <label className="block text-sm font-medium mb-1">POC Assignment</label>
               <select
