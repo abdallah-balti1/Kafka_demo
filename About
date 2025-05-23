@@ -13,105 +13,48 @@ type Props = {
 const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
   // State
   const [formData, setFormData] = useState<User>({ ...user });
-  const [isLoading, setIsLoading] = useState({
-    main: false,
-    remove: false,
-    save: false
-  });
-  const [error, setError] = useState("");
-  const [localPoc, setLocalPoc] = useState<Poc | null>(null);
+  const [availablePocs, setAvailablePocs] = useState<Poc[]>([]);
+  const [selectedPoc, setSelectedPoc] = useState<Poc | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [usersData, setUsersData] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState({
+    form: false,
+    pocs: false,
+    remove: false
+  });
+  const [error, setError] = useState("");
 
-  // Memoized data processing
-  const { availablePocs, currentPoc } = useMemo(() => {
-    const currentUser = usersData.find(u => u.userId === user.userId);
-    const uniquePocs = [...new Set(
-      usersData.flatMap(u => u.pocs || [])
-        .filter((p): p is Poc => !!p)
-        .map(p => p.id)
-    )].map(id => 
-      usersData.flatMap(u => u.pocs).find(p => p?.id === id)
-    ).filter(Boolean) as Poc[];
-
-    return {
-      availablePocs: uniquePocs,
-      currentPoc: currentUser?.pocs?.[0] || null
-    };
-  }, [usersData, user.userId]);
-
-  // Data loading with optimized caching
+  // Load initial data
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(prev => ({ ...prev, main: true }));
+      setIsLoading(prev => ({ ...prev, pocs: true }));
       try {
-        const data = await getUsersWithPocs();
-        setUsersData(data);
+        const users = await getUsersWithPocs();
+        const pocs = Array.from(new Set(
+          users.flatMap(u => u.pocs || [])
+            .filter((poc): poc is Poc => !!poc)
+        ));
         
-        const userData = data.find(u => u.userId === user.userId);
-        if (userData?.pocs?.[0]) {
-          setLocalPoc(userData.pocs[0]);
-          setStartDate(userData.pocs[0].startDate || "");
-          setEndDate(userData.pocs[0].endDate || "");
+        setAvailablePocs(pocs);
+
+        // Set current assignment if exists
+        const currentUser = users.find(u => u.userId === user.userId);
+        if (currentUser?.pocs?.[0]) {
+          setSelectedPoc(currentUser.pocs[0]);
+          setStartDate(currentUser.pocs[0].startDate || "");
+          setEndDate(currentUser.pocs[0].endDate || "");
         }
       } catch (err) {
-        console.error("Data loading error:", err);
-        setError("Failed to load data");
+        console.error("Failed to load POCs:", err);
+        setError("Failed to load POC data");
       } finally {
-        setIsLoading(prev => ({ ...prev, main: false }));
+        setIsLoading(prev => ({ ...prev, pocs: false }));
       }
     };
 
     loadData();
   }, [user.userId]);
 
-  // Handle POC removal
-  const handleRemovePoc = async () => {
-    setError("");
-    setIsLoading(prev => ({ ...prev, remove: true }));
-    
-    try {
-      await removeUserPoc(formData.userId);
-      setLocalPoc(null);
-      setStartDate("");
-      setEndDate("");
-      
-      // Force immediate cache refresh
-      const updatedUsers = await getUsersWithPocs();
-      setUsersData(updatedUsers);
-    } catch (err) {
-      console.error("Remove POC error:", err);
-      setError("Failed to remove POC assignment");
-    } finally {
-      setIsLoading(prev => ({ ...prev, remove: false }));
-    }
-  };
-
-  // Form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(prev => ({ ...prev, save: true }));
-
-    try {
-      await updateUser(formData.userId, formData);
-
-      if (localPoc) {
-        await assignUserToPoc(formData, localPoc, startDate, endDate);
-      }
-
-      onSuccess();
-      onClose();
-    } catch (err) {
-      console.error("Save error:", err);
-      setError(err instanceof Error ? err.message : "Failed to save changes");
-    } finally {
-      setIsLoading(prev => ({ ...prev, save: false }));
-    }
-  };
-
-  // Input handlers
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -120,138 +63,201 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
   const handlePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const pocId = e.target.value;
     const poc = availablePocs.find(p => p.id === pocId) || null;
-    setLocalPoc(poc);
-    setStartDate(poc?.startDate || "");
-    setEndDate(poc?.endDate || "");
+    setSelectedPoc(poc);
+    
+    if (poc) {
+      setStartDate(poc.startDate || "");
+      setEndDate(poc.endDate || "");
+    } else {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
+
+  const handleRemovePoc = async () => {
+    if (!selectedPoc) return;
+    
+    setError("");
+    setIsLoading(prev => ({ ...prev, remove: true }));
+
+    try {
+      await removeUserPoc(
+        formData,
+        selectedPoc,
+        startDate,
+        endDate
+      );
+      setSelectedPoc(null);
+      setStartDate("");
+      setEndDate("");
+    } catch (err) {
+      console.error("Remove POC error:", err);
+      setError("Failed to remove POC assignment");
+    } finally {
+      setIsLoading(prev => ({ ...prev, remove: false }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(prev => ({ ...prev, form: true }));
+
+    try {
+      // Update user details
+      await updateUser(formData.userId, formData);
+
+      // Handle POC assignment/removal
+      if (selectedPoc) {
+        await assignUserToPoc(
+          formData,
+          selectedPoc,
+          startDate,
+          endDate
+        );
+      } else {
+        // If no POC selected but had one before, remove it
+        const users = await getUsersWithPocs();
+        const currentUser = users.find(u => u.userId === user.userId);
+        if (currentUser?.pocs?.[0]) {
+          await removeUserPoc(
+            formData,
+            currentUser.pocs[0],
+            startDate,
+            endDate
+          );
+        }
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Submission error:", err);
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setIsLoading(prev => ({ ...prev, form: false }));
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 animate-fade-in">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <form onSubmit={handleSubmit} className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Edit User</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Edit User</h2>
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
-              disabled={isLoading.save || isLoading.remove}
-              aria-label="Close modal"
+              className="text-gray-500 hover:text-gray-700"
+              disabled={isLoading.form || isLoading.remove}
             >
               &times;
             </button>
           </div>
 
           {error && (
-            <div className="mb-6 p-3 bg-red-100 text-red-700 rounded-md">
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
               {error}
             </div>
           )}
 
-          <div className="space-y-4 mb-6">
-            {/* User ID Field */}
+          <div className="space-y-4">
+            {/* User Fields */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                User ID
-              </label>
+              <label className="block text-sm font-medium mb-1">User ID</label>
               <input
                 type="text"
                 value={formData.userId}
                 readOnly
-                className="w-full p-2 border border-gray-300 rounded-md bg-gray-50"
+                className="w-full p-2 border rounded bg-gray-100"
               />
             </div>
 
-            {/* First Name Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                First Name
-              </label>
+              <label className="block text-sm font-medium mb-1">First Name</label>
               <input
                 type="text"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md"
+                className="w-full p-2 border rounded"
                 required
               />
             </div>
 
-            {/* Last Name Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Last Name
-              </label>
+              <label className="block text-sm font-medium mb-1">Last Name</label>
               <input
                 type="text"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md"
+                className="w-full p-2 border rounded"
                 required
               />
             </div>
 
-            {/* Email Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
+              <label className="block text-sm font-medium mb-1">Email</label>
               <input
                 type="email"
                 name="mail"
                 value={formData.mail}
                 onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md"
+                className="w-full p-2 border rounded"
                 required
               />
             </div>
 
             {/* POC Assignment */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                POC Assignment
-              </label>
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1">POC Assignment</label>
               <select
-                value={localPoc?.id || ""}
+                value={selectedPoc?.id || ""}
                 onChange={handlePocChange}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                disabled={isLoading.main}
+                className="w-full p-2 border rounded"
+                disabled={isLoading.pocs}
               >
                 <option value="">-- No POC Assigned --</option>
                 {availablePocs.map(poc => (
                   <option key={poc.id} value={poc.id}>
-                    {poc.name} (ID: {poc.id})
+                    {poc.name} ({poc.id})
                   </option>
                 ))}
               </select>
+              {selectedPoc && (
+                <button
+                  type="button"
+                  onClick={handleRemovePoc}
+                  className="absolute right-2 top-7 text-red-500 hover:text-red-700"
+                  disabled={isLoading.remove}
+                >
+                  {isLoading.remove ? "Removing..." : "× Remove"}
+                </button>
+              )}
             </div>
 
-            {/* POC Date Fields */}
-            {localPoc && (
+            {/* Date Fields */}
+            {selectedPoc && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border rounded"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     min={startDate}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border rounded"
                     required
                   />
                 </div>
@@ -259,55 +265,22 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Form Actions */}
-          <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-            {localPoc && (
-              <button
-                type="button"
-                onClick={handleRemovePoc}
-                disabled={isLoading.remove || isLoading.save}
-                className={`px-4 py-2 text-red-600 hover:text-red-800 transition-colors ${
-                  isLoading.remove ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isLoading.remove ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Removing...
-                  </span>
-                ) : 'Remove POC'}
-              </button>
-            )}
-            <div className="space-x-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isLoading.save || isLoading.remove}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading.save || isLoading.remove}
-                className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${
-                  isLoading.save ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isLoading.save ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Saving...
-                  </span>
-                ) : 'Save Changes'}
-              </button>
-            </div>
+          <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border rounded hover:bg-gray-100"
+              disabled={isLoading.form || isLoading.remove}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              disabled={isLoading.form || isLoading.remove}
+            >
+              {isLoading.form ? "Saving..." : "Save Changes"}
+            </button>
           </div>
         </form>
       </div>
@@ -316,3 +289,73 @@ const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
 };
 
 export default UserEditModal;
+
+
+
+
+
+
+
+import axiosInstance from "utils/customizedAxios";
+import { User } from "schemas/User";
+import { Poc } from "schemas/pocs";
+
+export const assignUserToPoc = async (
+  user: User,
+  poc: Poc,
+  startDate: string,
+  endDate: string
+): Promise<void> => {
+  const payload = {
+    user: {
+      userId: user.userId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mail: user.mail,
+      role: user.role,
+      active: user.active,
+      pocs: []
+    },
+    poc: {
+      id: poc.id,
+      name: poc.name,
+      startDate: poc.startDate,
+      endDate: poc.endDate,
+      url: poc.url
+    },
+    startUsing: startDate,
+    endUsing: endDate
+  };
+
+  await axiosInstance.put("/manage/user/poc", payload);
+};
+
+export const removeUserPoc = async (
+  user: User,
+  poc: Poc,
+  startUsing: string,
+  endUsing: string
+): Promise<void> => {
+  const payload = {
+    user: {
+      userId: user.userId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mail: user.mail,
+      role: user.role,
+      active: user.active,
+      pocs: []
+    },
+    poc: {
+      id: poc.id,
+      name: poc.name,
+      startDate: poc.startDate,
+      endDate: poc.endDate,
+      url: poc.url
+    },
+    startUsing,
+    endUsing
+  };
+
+  await axiosInstance.delete("/manage/user/poc", { data: payload });
+};
