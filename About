@@ -1,60 +1,56 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { fetchCurrentUser } from "../services/auth"; // adjust path
 
-const HomePage = () => {
-  const pccApps = [
-    {
-      name: "POC 1",
-      url: "http://poc-1:8666",
-      logo: "/logo.png",
-    },
-    {
-      name: "POC 2",
-      url: "http://poc-2:8666",
-      logo: "/logo.png",
-    },
-    {
-      name: "POC 3",
-      url: "http://poc-3:8666",
-      logo: "/logo.png",
-    },
+export default function Sidebar() {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((user) => setRole(user.role))
+      .catch(() => setRole(null)); // optionally handle unauthorized users
+  }, []);
+
+  const menuItems = [
+    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
+    { name: "Users", icon: <PeopleIcon />, link: "/users", requiresAdmin: true },
+    { name: "POCS", icon: <WorkIcon />, link: "/pocs", requiresAdmin: true },
+    { name: "About", icon: <InfoIcon />, link: "/about" },
   ];
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="text-center mb-8">
-        {/* Added logo container with margin and smooth scaling */}
-        <div className="flex justify-center mb-4">
-          <img 
-            src="/logo.png" 
-            alt="Company Logo" 
-            className="h-20 w-auto object-contain transition-transform hover:scale-105"
-          />
-        </div>
-        
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
-        <p className="text-gray-600">Access the POCs below</p>
-      </div>
+  const filteredItems = menuItems.filter(
+    (item) => !item.requiresAdmin || role === "admin"
+  );
 
-      <div className="flex flex-wrap justify-center gap-8">
-        {pccApps.map((app, index) => (
-          <a
-            key={index}
-            href={app.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-transform transform hover:scale-105 w-64"
-          >
-            <img
-              src={app.logo}
-              alt={app.name}
-              className="w-28 h-28 object-contain mx-auto mb-4"
-            />
-            <p className="text-center text-blue-600 font-semibold">{app.name}</p>
-          </a>
-        ))}
-      </div>
+  return (
+    <div
+      className={`fixed left-0 top-0 h-full bg-backSideBar text-greyElementSideBar font-bold shadow-lg transition-all duration-300 ${
+        isExpanded ? "w-64" : "w-16"
+      }`}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
+      <nav className="mt-2 p-2">
+        <ul className="space-y-4">
+          {filteredItems.map((item, index) => (
+            <li key={index}>
+              <a
+                href={item.link}
+                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300"
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span
+                  className={`ml-4 overflow-hidden transition-all duration-300 ${
+                    isExpanded ? "opacity-100 w-auto hover:text-white" : "opacity-0 w-0"
+                  }`}
+                >
+                  {item.name}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
-};
-
-export default HomePage;
+}
