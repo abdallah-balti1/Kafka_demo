@@ -1,10 +1,13 @@
-// src/components/Sidebar.tsx
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { getUsers } from "services/users";
+import React, { useState, useEffect } from "react";
+import { PiGarageBold } from "react-icons/pi";
+import PeopleIcon from "@mui/icons-material/People";
+import WorkIcon from "@mui/icons-material/work";
+import InfoIcon from "@mui/icons-material/Info";
 import { decodeToken } from "utils/auth";
+import { getUsers } from "services/users";
 
-const Sidebar: React.FC = () => {
+export default function Sidebar() {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -24,20 +27,48 @@ const Sidebar: React.FC = () => {
     }
   }, []);
 
+  const menuItems = [
+    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
+    ...(isAdmin
+      ? [
+          { name: "Users", icon: <PeopleIcon />, link: "/users" },
+          { name: "POCS", icon: <WorkIcon />, link: "/pocs" },
+        ]
+      : []),
+    { name: "About", icon: <InfoIcon />, link: "/about" },
+  ];
+
   return (
-    <div className="sidebar">
-      <ul>
-        <li><Link to="/dashboard">Dashboard</Link></li>
-        {isAdmin && (
-          <>
-            <li><Link to="/users">Users</Link></li>
-            <li><Link to="/pocs">POCs</Link></li>
-          </>
-        )}
-        <li><Link to="/profile">Profile</Link></li>
-      </ul>
+    <div
+      className={`fixed left-0 top-0 h-full bg-backsideBar text-greyElementSideBard font-bold shadow-lg transition-all duration-300 ${
+        isExpanded ? "w-64" : "w-16"
+      }`}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
+      <nav className="mt-2 p-2">
+        <ul className="space-y-4">
+          {menuItems.map((item, index) => (
+            <li key={index}>
+              <a
+                href={item.link}
+                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300 hover:bg-gray-700"
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span
+                  className={`ml-4 overflow-hidden transition-all duration-300 ${
+                    isExpanded
+                      ? "opacity-100 w-auto hover:text-white"
+                      : "opacity-0 w-0"
+                  }`}
+                >
+                  {item.name}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
-};
-
-export default Sidebar;
+}
