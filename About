@@ -1,66 +1,41 @@
-import { useState, useEffect } from "react";
-import { PiGarageBold } from "react-icons/pi";
-import PeopleIcon from "@mui/icons-material/People";
-import WorkIcon from "@mui/icons-material/Work";
-import InfoIcon from "@mui/icons-material/Info";
-import { decodeToken } from "utils/auth";
+import { SHA256, enc } from 'crypto-js';
+import jwtDecode from 'jwt-decode';
 
-export default function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [role, setRole] = useState<string | undefined>(undefined);
+interface CustomTokenPayload {
+  userId: string;
+  role: string;
+  exp?: number;
+  iat?: number;
+}
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      const dataUser = decodeToken(token);
-      setRole(dataUser?.role);
+// Génération du code verifier
+export function generateCodeVerifier(): string {
+  const array = new Uint8Array(32);
+  window.crypto.getRandomValues(array);
+  return Array.from(array).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Génération du code challenge
+export function generateCodeChallenge(codeVerifier: string): string {
+  const hash = SHA256(codeVerifier);
+  return enc.Base64url.stringify(hash);
+}
+
+export function decodeToken(token: string): CustomTokenPayload | null {
+  try {
+    const decode_tok = jwtDecode<CustomTokenPayload>(token);
+    const current_time = Math.floor(Date.now() / 1000);
+    if (decode_tok.exp && decode_tok.exp > current_time) {
+      return decode_tok;
     } else {
-      setRole("guest");
+      localStorage.removeItem('access_token');
+      window.location.href = "/";
+      return null;
     }
-  }, []);
-
-  const menuItems = [
-    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
-    ...(role === "admin"
-      ? [
-          { name: "Users", icon: <PeopleIcon />, link: "/users" },
-          { name: "POCS", icon: <WorkIcon />, link: "/pocs" },
-        ]
-      : []),
-    { name: "About", icon: <InfoIcon />, link: "/about" },
-  ];
-
-  if (role === undefined) return null; // or return a skeleton loader
-
-  return (
-    <div
-      className={`fixed left-0 top-0 h-full bg-backsideBar text-greyElementSideBard font-bold shadow-lg transition-all duration-300 ${
-        isExpanded ? "w-64" : "w-16"
-      }`}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      <nav className="mt-2 p-2">
-        <ul className="space-y-4">
-          {menuItems.map((item, index) => (
-            <li key={index}>
-              <a
-                href={item.link}
-                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span
-                  className={`ml-4 overflow-hidden transition-all duration-300 ${
-                    isExpanded ? "opacity-100 w-auto hover:text-white" : "opacity-0 w-0"
-                  }`}
-                >
-                  {item.name}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
-  );
+  } catch (e) {
+    console.log('Invalid Token');
+    localStorage.removeItem('access_token');
+    window.location.href = "/";
+    throw new Error('Unable to decode token');
+  }
 }
