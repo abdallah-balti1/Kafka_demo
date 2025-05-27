@@ -1,56 +1,43 @@
-import { useEffect, useState } from "react";
-import { fetchCurrentUser } from "../services/auth"; // adjust path
+// src/components/Sidebar.tsx
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { getUsers } from "services/users";
+import { decodeToken } from "utils/auth";
 
-export default function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
+const Sidebar: React.FC = () => {
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    fetchCurrentUser()
-      .then((user) => setRole(user.role))
-      .catch(() => setRole(null)); // optionally handle unauthorized users
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      const dataUser = decodeToken(token);
+      const userId = dataUser?.["userId"];
+
+      if (userId) {
+        getUsers().then(users => {
+          const currentUser = users.find(u => u.userId === userId);
+          if (currentUser?.role === "admin") {
+            setIsAdmin(true);
+          }
+        });
+      }
+    }
   }, []);
 
-  const menuItems = [
-    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
-    { name: "Users", icon: <PeopleIcon />, link: "/users", requiresAdmin: true },
-    { name: "POCS", icon: <WorkIcon />, link: "/pocs", requiresAdmin: true },
-    { name: "About", icon: <InfoIcon />, link: "/about" },
-  ];
-
-  const filteredItems = menuItems.filter(
-    (item) => !item.requiresAdmin || role === "admin"
-  );
-
   return (
-    <div
-      className={`fixed left-0 top-0 h-full bg-backSideBar text-greyElementSideBar font-bold shadow-lg transition-all duration-300 ${
-        isExpanded ? "w-64" : "w-16"
-      }`}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      <nav className="mt-2 p-2">
-        <ul className="space-y-4">
-          {filteredItems.map((item, index) => (
-            <li key={index}>
-              <a
-                href={item.link}
-                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span
-                  className={`ml-4 overflow-hidden transition-all duration-300 ${
-                    isExpanded ? "opacity-100 w-auto hover:text-white" : "opacity-0 w-0"
-                  }`}
-                >
-                  {item.name}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <div className="sidebar">
+      <ul>
+        <li><Link to="/dashboard">Dashboard</Link></li>
+        {isAdmin && (
+          <>
+            <li><Link to="/users">Users</Link></li>
+            <li><Link to="/pocs">POCs</Link></li>
+          </>
+        )}
+        <li><Link to="/profile">Profile</Link></li>
+      </ul>
     </div>
   );
-}
+};
+
+export default Sidebar;
