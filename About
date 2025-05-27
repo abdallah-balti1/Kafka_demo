@@ -1,24 +1,66 @@
-def verify_token(self, token: str):
-    try:
-        payload = self.security_service.decode_token(token)
-        user_id = payload.get("userId")
-        if not user_id:
-            return None
-        user = self.user_service.get_user_by_id(user_id)
-        return user
-    except Exception:
-        return None
+import { useState, useEffect } from "react";
+import { PiGarageBold } from "react-icons/pi";
+import PeopleIcon from "@mui/icons-material/People";
+import WorkIcon from "@mui/icons-material/Work";
+import InfoIcon from "@mui/icons-material/Info";
+import { decodeToken } from "utils/auth";
 
+export default function Sidebar() {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [role, setRole] = useState<string | undefined>(undefined);
 
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      const dataUser = decodeToken(token);
+      setRole(dataUser?.role);
+    } else {
+      setRole("guest");
+    }
+  }, []);
 
+  const menuItems = [
+    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
+    ...(role === "admin"
+      ? [
+          { name: "Users", icon: <PeopleIcon />, link: "/users" },
+          { name: "POCS", icon: <WorkIcon />, link: "/pocs" },
+        ]
+      : []),
+    { name: "About", icon: <InfoIcon />, link: "/about" },
+  ];
 
-def get_user_by_id(self, user_id: str) -> Optional[User]:
-    return self.user_repository.get_by_id(user_id)
+  if (role === undefined) return null; // or return a skeleton loader
 
-
-
-
-
-@abstractmethod
-def get_user_by_id(self, user_id: str) -> Optional[User]:
-    pass
+  return (
+    <div
+      className={`fixed left-0 top-0 h-full bg-backsideBar text-greyElementSideBard font-bold shadow-lg transition-all duration-300 ${
+        isExpanded ? "w-64" : "w-16"
+      }`}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
+      <nav className="mt-2 p-2">
+        <ul className="space-y-4">
+          {menuItems.map((item, index) => (
+            <li key={index}>
+              <a
+                href={item.link}
+                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300"
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span
+                  className={`ml-4 overflow-hidden transition-all duration-300 ${
+                    isExpanded ? "opacity-100 w-auto hover:text-white" : "opacity-0 w-0"
+                  }`}
+                >
+                  {item.name}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  );
+}
