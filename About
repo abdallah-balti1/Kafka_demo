@@ -1,74 +1,37 @@
-import React, { useState, useEffect } from "react";
-import { PiGarageBold } from "react-icons/pi";
-import PeopleIcon from "@mui/icons-material/People";
-import WorkIcon from "@mui/icons-material/work";
-import InfoIcon from "@mui/icons-material/Info";
-import { decodeToken } from "utils/auth";
-import { getUsers } from "services/users";
+from fastapi import APIRouter, Depends
+from web_api.dependencies.auth_depends import require_admin
+from application.services.users.user_service import UserService
 
-export default function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+router = APIRouter()
+user_service = UserService()
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      const dataUser = decodeToken(token);
-      const userId = dataUser?.["userId"];
+@router.get("/users", dependencies=[Depends(require_admin)])
+def get_all_users():
+    return user_service.get_all_users()
 
-      if (userId) {
-        getUsers().then(users => {
-          const currentUser = users.find(u => u.userId === userId);
-          if (currentUser?.role === "admin") {
-            setIsAdmin(true);
-          }
-        });
-      }
-    }
-  }, []);
 
-  const menuItems = [
-    { name: "Dashboard", icon: <PiGarageBold />, link: "/home" },
-    ...(isAdmin
-      ? [
-          { name: "Users", icon: <PeopleIcon />, link: "/users" },
-          { name: "POCS", icon: <WorkIcon />, link: "/pocs" },
-        ]
-      : []),
-    { name: "About", icon: <InfoIcon />, link: "/about" },
-  ];
 
-  return (
-    <div
-      className={`fixed left-0 top-0 h-full bg-backsideBar text-greyElementSideBard font-bold shadow-lg transition-all duration-300 ${
-        isExpanded ? "w-64" : "w-16"
-      }`}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      <nav className="mt-2 p-2">
-        <ul className="space-y-4">
-          {menuItems.map((item, index) => (
-            <li key={index}>
-              <a
-                href={item.link}
-                className="relative flex items-center p-3 text-lg cursor-pointer rounded transition-all duration-300 hover:bg-gray-700"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span
-                  className={`ml-4 overflow-hidden transition-all duration-300 ${
-                    isExpanded
-                      ? "opacity-100 w-auto hover:text-white"
-                      : "opacity-0 w-0"
-                  }`}
-                >
-                  {item.name}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
-  );
-}
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from application.dto.user_dto import UserDto  # Adjust path
+from core.config import settings  # Adjust path to access SECRET_KEY
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+
+def get_current_user(token: str = Depends(oauth2_scheme)) -> UserDto:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("userId")
+        role = payload.get("role")
+        if user_id is None or role is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        return UserDto(userId=user_id, role=role)
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+
+
+def require_admin(user: UserDto = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
