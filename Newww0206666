@@ -1,0 +1,249 @@
+import React, { useState, useEffect } from 'react';
+import { getPocs, checkPocAccess, getUserPocInfo } from '../services/pocs';
+import { decodeToken } from '../utils/auth';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import LockIcon from '@mui/icons-material/Lock';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+
+interface POCApp {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface PocAccessStatus {
+  authorized: boolean;
+  url?: string;
+  status: 'authorized' | 'invalid_date' | 'not_authorized';
+}
+
+const HomePage = () => {
+  const [pccApps, setPccApps] = useState<POCApp[]>([]);
+  const [userPocInfo, setUserPocInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("guest");
+  const [userId, setUserId] = useState<string>("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        setUserRole(decoded.role);
+        setUserId(decoded.userId);
+      } catch (err) {
+        console.error("Token decoding failed:", err);
+        setUserRole("guest");
+      }
+    }
+
+    const fetchData = async () => {
+      try {
+        const [allPocs, pocInfo] = await Promise.all([
+          getPocs(),
+          userId ? getUserPocInfo(userId) : Promise.resolve(null)
+        ]);
+
+        setPccApps(allPocs);
+        setUserPocInfo(pocInfo);
+      } catch (err) {
+        setError(err.message || "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [userId]);
+
+  const handlePocClick = async (pocName: string) => {
+    if (userRole === 'admin') {
+      const poc = pccApps.find(p => p.name === pocName);
+      if (poc) window.open(poc.url, '_blank');
+      return;
+    }
+
+    try {
+      const response = await checkPocAccess(pocName, userId);
+      const data: PocAccessStatus = response.data;
+
+      switch (data.status) {
+        case 'authorized':
+          window.open(data.url, '_blank');
+          break;
+        case 'invalid_date':
+          alert('Access to this POC is not available at this time');
+          break;
+        case 'not_authorized':
+          alert('You are not authorized to access this POC');
+          break;
+      }
+    } catch (err) {
+      console.error('Authorization check failed:', err);
+      alert('Failed to verify authorization. Please try again.');
+    }
+  };
+
+  const getPocStatus = (pocId: string): PocAccessStatus => {
+    if (userRole === 'admin') {
+      return { authorized: true, status: 'authorized' };
+    }
+    
+    if (!userPocInfo) {
+      return { authorized: false, status: 'not_authorized' };
+    }
+    
+    // Check if this POC is assigned to user (using your existing endpoint data)
+    const isAssigned = userPocInfo.poc?.id === pocId;
+    
+    if (!isAssigned) {
+      return { authorized: false, status: 'not_authorized' };
+    }
+    
+    // Actual date validation happens on click via checkPocAccess
+    return { authorized: false, status: 'invalid_date' };
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <CircularProgress />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <Alert severity="error" className="max-w-md">
+          {error}
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Welcome{userRole === 'admin' ? ' Admin' : ''} to the Dashboard
+        </h1>
+        <p className="text-gray-600">
+          {userRole === 'admin' 
+            ? 'You have access to all POCs' 
+            : userPocInfo 
+              ? 'View your assigned POCs below' 
+              : 'No POCs currently assigned'}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8">
+        {pccApps.map((app) => {
+          const status = getPocStatus(app.id);
+          const isClickable = status.authorized || userRole === 'admin';
+          const isAssigned = status.status !== 'not_authorized';
+          
+          return (
+            <div
+              key={app.id}
+              onClick={() => isClickable && handlePocClick(app.name)}
+              className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center
+                ${isClickable 
+                  ? 'cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200' 
+                  : 'cursor-not-allowed border-gray-100 opacity-70'}
+                ${!isAssigned && 'grayscale'}
+              `}
+            >
+              <div className="w-20 h-20 bg-gray-100 rounded-full mb-4 flex items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt={app.name}
+                  className="w-16 h-16 object-contain"
+                />
+              </div>
+              
+              <p className={`text-center font-semibold ${
+                isClickable ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {app.name}
+              </p>
+              
+              <div className="mt-2 flex items-center text-xs">
+                {userRole === 'admin' && (
+                  <span className="text-green-600 flex items-center">
+                    <AdminPanelSettingsIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Admin Access
+                  </span>
+                )}
+                {!isClickable && status.status === 'not_authorized' && (
+                  <span className="text-red-500 flex items-center">
+                    <LockIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Not Authorized
+                  </span>
+                )}
+                {!isClickable && status.status === 'invalid_date' && (
+                  <span className="text-orange-500 flex items-center">
+                    <EventBusyIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Access Restricted
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
+
+
+
+import axiosInstance from './axiosInstance';
+
+interface POCApp {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface PocAccessStatus {
+  authorized: boolean;
+  url?: string;
+  status: 'authorized' | 'invalid_date' | 'not_authorized';
+}
+
+interface UserPocInfo {
+  poc?: any;
+  startUsing?: string;
+  endUsing?: string;
+}
+
+export const getPocs = async (): Promise<POCApp[]> => {
+  const response = await axiosInstance.get('/api/pocs');
+  return response.data;
+};
+
+export const checkPocAccess = async (pocName: string, userId: string): Promise<{ data: PocAccessStatus }> => {
+  return axiosInstance.get('/api/pocs/check-access', {
+    params: { poc_name: pocName, user_id: userId }
+  });
+};
+
+// Using your existing function with proper typing
+export const getUserPocInfo = async (userId: string): Promise<UserPocInfo | null> => {
+  try {
+    const response = await axiosInstance.get(`/manage/pocs/user/${userId}`);
+    const data = Array.isArray(response.data) ? response.data[0] : response.data;
+    return data || null;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+};
