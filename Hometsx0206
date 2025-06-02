@@ -1,0 +1,317 @@
+from datetime import datetime
+from uuid import UUID
+from typing import List, Optional, Dict
+from fastapi import HTTPException, status
+
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+from src.main.services.interfaces.management_users_pocs_service import IManagementUsersPocsService
+from src.main.services.interfaces.user_service import IUserService
+from src.main.services.interfaces.poc_service import IPocService
+from src.main.repositories.interfaces.management_users_pocs_repository import IManagementUsersPocsRepository
+from src.main.core.exceptions.poc_exceptions import PocNotFoundException
+from src.main.core.mappers.user_poc_relation_mapper import UserPocRelationMapper
+from src.main.core.models.dto.user_poc_relation_dto import UserPocRelationDto
+
+class ManagementUsersPocsService(IManagementUsersPocsService):
+    def __init__(
+        self,
+        repository: IManagementUsersPocsRepository,
+        user_service: IUserService,
+        poc_service: IPocService,
+    ):
+        self.repository = repository
+        self.mapper_pocs_users = UserPocRelationMapper()
+        self.user_service = user_service
+        self.poc_service = poc_service
+
+    def can_user_access_to_poc(self, user_id: str, poc_name: str) -> Dict[str, Optional[str]]:
+        """
+        Check if user can access POC with date validation
+        Returns dict with:
+        - url: POC URL if authorized
+        - status: 'authorized', 'invalid_date', or 'not_authorized'
+        """
+        try:
+            poc = self.poc_service.get_poc_by_name(poc_name)
+            if not poc:
+                raise PocNotFoundException(poc_name)
+                
+            user_poc_relation = self.repository.get_user_poc_relation(user_id, poc.id)
+            
+            if not user_poc_relation:
+                return {"url": None, "status": "not_authorized"}
+            
+            current_date = datetime.now().date()
+            if user_poc_relation.start_using <= current_date <= user_poc_relation.end_using:
+                return {"url": poc.url, "status": "authorized"}
+            else:
+                return {"url": None, "status": "invalid_date"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to verify POC access: {str(e)}"
+            )
+
+    def get_all_pocs_for_a_user(self, user_id: str) -> List[UserPocRelationDto]:
+        user_poc_relations = self.repository.get_pocs_for_user(user_id)
+        return self.mapper_pocs_users.to_dtos(user_poc_relations)
+
+    # ... keep other existing methods ...
+
+
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+from typing import Dict
+
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+from src.main.services.concrete.management_users_pocs_service import ManagementUsersPocsService
+
+router = APIRouter(prefix="/api/pocs", tags=["POC Access"])
+
+@router.get("/check-access")
+async def check_poc_access(
+    poc_name: str = Query(..., description="Name of the POC to check"),
+    user_id: str = Query(..., description="User ID to check"),
+    current_user = Depends(AuthDependency.get_current_user),
+    poc_service: ManagementUsersPocsService = Depends()
+):
+    """
+    Check if user can access POC with date validation
+    Returns:
+    - authorized: boolean
+    - url: string if authorized
+    - status: detailed status ('authorized', 'invalid_date', 'not_authorized')
+    """
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to check access for this user"
+        )
+    
+    try:
+        result = poc_service.can_user_access_to_poc(user_id, poc_name)
+        return JSONResponse(content={
+            "authorized": result["status"] == "authorized",
+            "url": result["url"],
+            "status": result["status"]
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to verify POC access: {str(e)}"
+        )
+
+@router.get("/user/{user_id}")
+async def get_user_pocs(
+    user_id: str,
+    current_user = Depends(AuthDependency.get_current_user),
+    poc_service: ManagementUsersPocsService = Depends()
+):
+    """
+    Get all POCs assigned to a user (regardless of date validity)
+    """
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view other users' POCs"
+        )
+    
+    return poc_service.get_all_pocs_for_a_user(user_id)
+
+
+
+import React, { useState, useEffect } from 'react';
+import { getPocs, checkPocAccess } from '../services/pocs';
+import { decodeToken } from '../utils/auth';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import LockIcon from '@mui/icons-material/Lock';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+
+interface POCApp {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface PocAccessStatus {
+  authorized: boolean;
+  url?: string;
+  status: 'authorized' | 'invalid_date' | 'not_authorized';
+}
+
+const HomePage = () => {
+  const [pccApps, setPccApps] = useState<POCApp[]>([]);
+  const [assignedPocs, setAssignedPocs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("guest");
+  const [userId, setUserId] = useState<string>("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        setUserRole(decoded.role);
+        setUserId(decoded.userId);
+      } catch (err) {
+        console.error("Token decoding failed:", err);
+        setUserRole("guest");
+      }
+    }
+
+    const fetchData = async () => {
+      try {
+        const [allPocs, userPocs] = await Promise.all([
+          getPocs(),
+          userId ? fetch(`/api/pocs/user/${userId}`).then(res => res.json()) : []
+        ]);
+
+        setPccApps(allPocs);
+        setAssignedPocs(userPocs.map((poc: any) => poc.id));
+      } catch (err) {
+        setError(err.message || "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [userId]);
+
+  const handlePocClick = async (pocName: string) => {
+    if (userRole === 'admin') {
+      // Admin can access any POC without checking
+      const poc = pccApps.find(p => p.name === pocName);
+      if (poc) window.open(poc.url, '_blank');
+      return;
+    }
+
+    try {
+      const response = await checkPocAccess(pocName, userId);
+      const data: PocAccessStatus = response.data;
+
+      switch (data.status) {
+        case 'authorized':
+          window.open(data.url, '_blank');
+          break;
+        case 'invalid_date':
+          alert('Access to this POC is not available at this time');
+          break;
+        case 'not_authorized':
+          alert('You are not authorized to access this POC');
+          break;
+      }
+    } catch (err) {
+      console.error('Authorization check failed:', err);
+      alert('Failed to verify authorization. Please try again.');
+    }
+  };
+
+  const getPocStatus = (pocId: string): PocAccessStatus => {
+    if (userRole === 'admin') {
+      return { authorized: true, status: 'authorized' };
+    }
+    
+    if (!assignedPocs.includes(pocId)) {
+      return { authorized: false, status: 'not_authorized' };
+    }
+    
+    // Actual date validation happens on click
+    return { authorized: false, status: 'invalid_date' };
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <CircularProgress />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <Alert severity="error" className="max-w-md">
+          {error}
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Welcome{userRole === 'admin' ? ' Admin' : ''} to the Dashboard
+        </h1>
+        <p className="text-gray-600">
+          {userRole === 'admin' 
+            ? 'You have access to all POCs' 
+            : 'View available POCs below'}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8">
+        {pccApps.map((app) => {
+          const status = getPocStatus(app.id);
+          const isClickable = status.authorized || userRole === 'admin';
+          
+          return (
+            <div
+              key={app.id}
+              onClick={() => isClickable && handlePocClick(app.name)}
+              className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center
+                ${isClickable 
+                  ? 'cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200' 
+                  : 'cursor-not-allowed border-gray-100 opacity-70'}
+              `}
+            >
+              <div className="w-20 h-20 bg-gray-100 rounded-full mb-4 flex items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt={app.name}
+                  className="w-16 h-16 object-contain"
+                />
+              </div>
+              
+              <p className={`text-center font-semibold ${
+                isClickable ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {app.name}
+              </p>
+              
+              <div className="mt-2 flex items-center text-xs">
+                {userRole === 'admin' && (
+                  <span className="text-green-600 flex items-center">
+                    <AdminPanelSettingsIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Admin Access
+                  </span>
+                )}
+                {!isClickable && status.status === 'not_authorized' && (
+                  <span className="text-red-500 flex items-center">
+                    <LockIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Not Authorized
+                  </span>
+                )}
+                {!isClickable && status.status === 'invalid_date' && (
+                  <span className="text-orange-500 flex items-center">
+                    <EventBusyIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Access Restricted
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
