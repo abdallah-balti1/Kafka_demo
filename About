@@ -1,41 +1,109 @@
-import { SHA256, enc } from 'crypto-js';
-import jwtDecode from 'jwt-decode';
+import React, { useState, useEffect } from "react";
+import { getPocs } from "../services/pocs"; // Adjust the import path as needed
 
-interface CustomTokenPayload {
-  userId: string;
-  role: string;
-  exp?: number;
-  iat?: number;
+interface POCApp {
+  name: string;
+  url: string;
 }
 
-// Génération du code verifier
-export function generateCodeVerifier(): string {
-  const array = new Uint8Array(32);
-  window.crypto.getRandomValues(array);
-  return Array.from(array).map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
+const HomePage = () => {
+  const [pccApps, setPccApps] = useState<POCApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-// Génération du code challenge
-export function generateCodeChallenge(codeVerifier: string): string {
-  const hash = SHA256(codeVerifier);
-  return enc.Base64url.stringify(hash);
-}
+  useEffect(() => {
+    const fetchPOCData = async () => {
+      try {
+        const pocs = await getPocs(); // Using your existing service
+        setPccApps(pocs);
+      } catch (err) {
+        setError(err.message || "Failed to load POCs");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-export function decodeToken(token: string): CustomTokenPayload | null {
-  try {
-    const decode_tok = jwtDecode<CustomTokenPayload>(token);
-    const current_time = Math.floor(Date.now() / 1000);
-    if (decode_tok.exp && decode_tok.exp > current_time) {
-      return decode_tok;
-    } else {
-      localStorage.removeItem('access_token');
-      window.location.href = "/";
-      return null;
-    }
-  } catch (e) {
-    console.log('Invalid Token');
-    localStorage.removeItem('access_token');
-    window.location.href = "/";
-    throw new Error('Unable to decode token');
+    fetchPOCData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="Company Logo" 
+              className="h-16 w-auto object-contain"
+            />
+          </div>
+          <p className="text-gray-600">Loading POCs...</p>
+        </div>
+      </div>
+    );
   }
-}
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="Company Logo" 
+              className="h-16 w-auto object-contain"
+            />
+          </div>
+          <p className="text-red-500">Error: {error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="text-center mb-8">
+        {/* Header with Logo */}
+        <div className="flex justify-center mb-6">
+          <img 
+            src="/logo.png" 
+            alt="Company Logo" 
+            className="h-20 w-auto object-contain transition-all hover:scale-105"
+          />
+        </div>
+        
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to the Dashboard</h1>
+        <p className="text-gray-600">Access the POCs below</p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8">
+        {pccApps.map((app, index) => (
+          <a
+            key={`${app.name}-${index}`}
+            href={app.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200 transition-all hover:scale-105 w-64 flex flex-col items-center"
+          >
+            {/* Static logo for all cards */}
+            <img
+              src="/logo.png"
+              alt={app.name}
+              className="w-20 h-20 object-contain mb-4"
+            />
+            <p className="text-center text-blue-600 font-semibold">{app.name}</p>
+            <p className="text-xs text-gray-500 mt-2">Click to access</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
