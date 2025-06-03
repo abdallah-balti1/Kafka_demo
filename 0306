@@ -1,0 +1,133 @@
+import { getAllPocsAdmin } from '../services/pocs';
+
+const AdminPocsPage = () => {
+  const [pocs, setPocs] = useState<FullPoc[]>([]);
+
+  useEffect(() => {
+    const fetchPocs = async () => {
+      try {
+        const data = await getAllPocsAdmin();
+        setPocs(data);
+      } catch (error) {
+        if (error.response?.status === 403) {
+          // Handle unauthorized access
+        }
+        console.error('Failed to load POCs:', error);
+      }
+    };
+    fetchPocs();
+  }, []);
+
+  return (
+    <PocTable pocs={pocs} />
+  );
+};
+
+
+import { getPublicPocs } from '../services/pocs';
+
+const HomePage = () => {
+  const [pocs, setPocs] = useState<BasicPoc[]>([]);
+
+  useEffect(() => {
+    const fetchPocs = async () => {
+      try {
+        const data = await getPublicPocs();
+        setPocs(data);
+      } catch (error) {
+        console.error('Failed to load POCs:', error);
+      }
+    };
+    fetchPocs();
+  }, []);
+
+  return (
+    <div>
+      {pocs.map(poc => (
+        <PocCard key={poc.id} poc={poc} />
+      ))}
+    </div>
+  );
+};
+
+
+
+
+import axiosInstance from './axiosInstance';
+
+// Public endpoints
+export const getPublicPocs = async (): Promise<BasicPoc[]> => {
+  const response = await axiosInstance.get('/api/public/pocs');
+  return response.data;
+};
+
+// Admin endpoints
+export const getAllPocsAdmin = async (): Promise<FullPoc[]> => {
+  const response = await axiosInstance.get('/api/admin/pocs');
+  return response.data;
+};
+
+// Types
+interface BasicPoc {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface FullPoc extends BasicPoc {
+  url: string;
+  created_at: string;
+  created_by: string;
+  // other admin-only fields
+}
+
+
+
+
+async def get_all_pocs_public(self):
+    """Get minimal POC info for public display"""
+    return self.repository.get_pocs(minimal=True)
+
+async def get_all_pocs_full(self):
+    """Get full POC details with sensitive info"""
+    return self.repository.get_pocs(minimal=False)
+
+
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+
+router = APIRouter(prefix="/api/admin", tags=["Admin POCs"])
+
+@router.get("/pocs")
+async def get_all_pocs_admin(
+    current_user = Depends(AuthDependency.require_admin),
+    poc_service: ManagementUsersPocsService = Depends()
+):
+    """
+    Get full POC details (admin only)
+    """
+    pocs = await poc_service.get_all_pocs_full()
+    return JSONResponse(content=pocs)
+
+
+
+
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+
+router = APIRouter(prefix="/api/public", tags=["Public POCs"])
+
+@router.get("/pocs")
+async def get_public_pocs(poc_service: ManagementUsersPocsService = Depends()):
+    """
+    Get basic POC info for public display (no admin required)
+    Returns only name, id, and description (no sensitive info)
+    """
+    pocs = await poc_service.get_all_pocs_public()
+    return JSONResponse(content=[{
+        "id": poc.id,
+        "name": poc.name,
+        "description": poc.description
+    } for poc in pocs])
