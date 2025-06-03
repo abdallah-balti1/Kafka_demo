@@ -1,0 +1,227 @@
+import axiosInstance from './axiosInstance';
+
+interface Poc {
+  id: string;
+  name: string;
+  description: string;
+  url?: string;
+  access_status: 'admin_access' | 'active' | 'expired' | 'no_access';
+  is_active: boolean;
+  is_expired: boolean;
+}
+
+export const getPocs = async (): Promise<{ data: Poc[] }> => {
+  return axiosInstance.get('/pocs');
+};
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { getPocs } from '../services/pocs';
+import { decodeToken } from '../utils/auth';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import LockIcon from '@mui/icons-material/Lock';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+
+interface Poc {
+  id: string;
+  name: string;
+  description: string;
+  url?: string;
+  access_status: 'admin_access' | 'active' | 'expired' | 'no_access';
+  is_active: boolean;
+  is_expired: boolean;
+}
+
+const HomePage = () => {
+  const [pocs, setPocs] = useState<Poc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'user'>('user');
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        setUserRole(decoded.is_admin ? 'admin' : 'user');
+      } catch (err) {
+        console.error("Token decoding failed:", err);
+      }
+    }
+
+    const fetchPocs = async () => {
+      try {
+        const response = await getPocs();
+        setPocs(response.data);
+      } catch (err) {
+        setError(err.message || "Failed to load POCs");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPocs();
+  }, []);
+
+  const handlePocClick = (poc: Poc) => {
+    if (userRole === 'admin') {
+      window.open(poc.url, '_blank');
+      return;
+    }
+
+    switch (poc.access_status) {
+      case 'active':
+        window.open(poc.url, '_blank');
+        break;
+      case 'expired':
+        alert('This POC access has expired');
+        break;
+      case 'no_access':
+        alert('You do not have access to this POC');
+        break;
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center p-8"><CircularProgress /></div>;
+  }
+
+  if (error) {
+    return <Alert severity="error" className="m-4">{error}</Alert>;
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Available POCs</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {pocs.map(poc => {
+          const isAdmin = userRole === 'admin';
+          const isClickable = isAdmin || poc.access_status === 'active';
+          const isExpired = poc.access_status === 'expired';
+          const noAccess = poc.access_status === 'no_access';
+
+          return (
+            <div
+              key={poc.id}
+              onClick={() => handlePocClick(poc)}
+              className={`p-4 border rounded-lg transition-all ${
+                isClickable 
+                  ? 'cursor-pointer hover:shadow-md hover:border-blue-400' 
+                  : 'cursor-not-allowed'
+              } ${
+                noAccess ? 'opacity-60 grayscale' : ''
+              } ${
+                isExpired ? 'border-red-200 bg-red-50' : ''
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <h3 className="font-semibold text-lg">{poc.name}</h3>
+                <div className="flex items-center">
+                  {isAdmin && <AdminPanelSettingsIcon className="text-green-600 ml-2" />}
+                  {isExpired && <EventBusyIcon className="text-red-500 ml-2" />}
+                  {noAccess && <LockIcon className="text-gray-500 ml-2" />}
+                </div>
+              </div>
+              <p className="text-gray-600 mt-2">{poc.description}</p>
+              {isExpired && (
+                <p className="text-red-500 text-sm mt-2">Access expired</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
+
+
+
+
+from typing import Annotated, List
+from uuid import UUID
+from fastapi import APIRouter, Depends
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+from src.main.web_api.dependencies.poc_depends import PocDependency
+from src.main.application.dto.poc_dto import PocDto
+
+poc_router = APIRouter()
+service_dependency = Annotated[IPocService, Depends(PocDependency.get_poc_service)]
+
+@poc_router.get("/", response_model=List[Dict])
+async def get_all(
+    service: service_dependency,
+    current_user = Depends(AuthDependency.get_current_user)
+) -> List[Dict]:
+    return service.get_all_pocs(
+        user_id=str(current_user.id),
+        is_admin=current_user.is_admin
+    )
+
+# Keep all other existing routes unchanged...
+
+
+
+
+
+import uuid
+from typing import List, Optional, Dict
+from datetime import datetime
+
+from src.main.application.dto.poc_dto import PocDto
+from src.main.application.exceptions.general_exceptions import ObjectAlreadyExistException, ObjectNotFoundException
+from src.main.application.mappers.poc_mapper import PocMapper
+from src.main.application.services.pocs.interface_poc_service import IPocService
+from src.main.domain.entities.poc import Poc
+from src.main.persistence.repository.iee.poc.interface_poc_repository import IPocRepository
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+
+class PocService(IPocService):
+    def __init__(self, poc_repository: IPocRepository):
+        self.poc_repository = poc_repository
+        self.poc_mapper = PocMapper()
+
+    def get_all_pocs(self, user_id: Optional[str] = None, is_admin: bool = False) -> List[Dict]:
+        pocs = self.poc_repository.get_all()
+        poc_dtos = self.poc_mapper.to_dtos(pocs)
+        
+        if is_admin:
+            return [self._enrich_for_admin(poc) for poc in poc_dtos]
+        else:
+            return [self._enrich_for_user(poc, user_id) for poc in poc_dtos]
+
+    def _enrich_for_admin(self, poc: PocDto) -> Dict:
+        return {
+            **poc.dict(),
+            "access_status": "admin_access",
+            "is_active": True,
+            "is_expired": False
+        }
+
+    def _enrich_for_user(self, poc: PocDto, user_id: Optional[str]) -> Dict:
+        user_relation = self.poc_repository.get_user_poc_relation(user_id, poc.id) if user_id else None
+        current_date = datetime.now().date()
+        
+        if user_relation:
+            is_active = user_relation.start_using <= current_date <= user_relation.end_using
+            return {
+                **poc.dict(exclude={"url"}),
+                "access_status": "active" if is_active else "expired",
+                "is_active": is_active,
+                "is_expired": not is_active
+            }
+        return {
+            **poc.dict(exclude={"url"}),
+            "access_status": "no_access",
+            "is_active": False,
+            "is_expired": False
+        }
+
+    # Keep all other existing methods unchanged...
