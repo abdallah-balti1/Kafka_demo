@@ -1,0 +1,164 @@
+import React, { useState, useEffect } from 'react';
+import { getPocs } from '../services/pocs';
+import { decodeToken } from '../utils/auth';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import LockIcon from '@mui/icons-material/Lock';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+
+interface PocApp {
+  id: string;
+  name: string;
+  url?: string;
+  access_status: 'admin_access' | 'active' | 'expired' | 'no_access';
+  is_active: boolean;
+  is_expired: boolean;
+}
+
+const HomePage = () => {
+  const [pocs, setPocs] = useState<PocApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>('guest');
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        setUserRole(decoded.role || 'guest');
+      } catch (err) {
+        console.error("Token decoding failed:", err);
+      }
+    }
+
+    const fetchData = async () => {
+      try {
+        const response = await getPocs();
+        setPocs(response);
+      } catch (err) {
+        setError(err.message || "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handlePocClick = (poc: PocApp) => {
+    if (userRole === 'admin' || poc.access_status === 'active') {
+      if (poc.url) {
+        window.open(poc.url, '_blank');
+      } else {
+        alert('No URL provided for this POC.');
+      }
+    } else if (poc.access_status === 'expired') {
+      alert('Access to this POC has expired.');
+    } else {
+      alert('You are not authorized to access this POC.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <CircularProgress />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <Alert severity="error" className="max-w-md">
+          {error}
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Welcome{userRole === 'admin' ? ' Admin' : ''} to the Dashboard
+        </h1>
+        <p className="text-gray-600">
+          {userRole === 'admin'
+            ? 'You have access to all POCs'
+            : 'View your assigned POCs below'}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8">
+        {pocs.map((poc) => {
+          const isClickable =
+            userRole === 'admin' || poc.access_status === 'active';
+
+          const getStatusIcon = () => {
+            switch (poc.access_status) {
+              case 'admin_access':
+                return (
+                  <span className="text-green-600 flex items-center">
+                    <AdminPanelSettingsIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Admin Access
+                  </span>
+                );
+              case 'active':
+                return null;
+              case 'expired':
+                return (
+                  <span className="text-orange-500 flex items-center">
+                    <EventBusyIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Access Expired
+                  </span>
+                );
+              case 'no_access':
+              default:
+                return (
+                  <span className="text-red-500 flex items-center">
+                    <LockIcon className="mr-1" style={{ fontSize: 16 }} />
+                    Not Authorized
+                  </span>
+                );
+            }
+          };
+
+          return (
+            <div
+              key={poc.id}
+              onClick={() => isClickable && handlePocClick(poc)}
+              className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center
+                ${isClickable
+                  ? 'cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200'
+                  : 'cursor-not-allowed border-gray-100 opacity-70 grayscale'}
+              `}
+            >
+              <div className="w-20 h-20 bg-gray-100 rounded-full mb-4 flex items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt={poc.name}
+                  className="w-16 h-16 object-contain"
+                />
+              </div>
+
+              <p className={`text-center font-semibold ${
+                isClickable ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {poc.name}
+              </p>
+
+              <div className="mt-2 flex items-center text-xs">
+                {getStatusIcon()}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
