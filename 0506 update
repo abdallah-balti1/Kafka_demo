@@ -19,3 +19,26 @@ def _enrich_for_user(self, poc: PocDto, user_id: Optional[str]) -> Dict:
         "is_active": False,
         "is_expired": False
     }
+
+
+
+@poc_router.get("/", response_model=List[Dict])
+async def get_all(
+    service: service_dependency,
+    current_user = Depends(AuthDependency.get_current_user)
+) -> List[Dict]:
+    return service.get_all_pocs(
+        user_id=str(current_user.id),
+        user_role=current_user.role  # not is_admin
+    )
+
+
+
+def get_all_pocs(self, user_id: Optional[str] = None, user_role: EnumRole = EnumRole.user) -> List[Dict]:
+    pocs = self.poc_repository.get_all()
+    poc_dtos = self.poc_mapper.to_dtos(pocs)
+
+    if user_role == EnumRole.admin:
+        return [self._enrich_for_admin(poc) for poc in poc_dtos]
+    else:
+        return [self._enrich_for_user(poc, user_id) for poc in poc_dtos]
