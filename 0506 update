@@ -1,0 +1,21 @@
+def _enrich_for_user(self, poc: PocDto, user_id: Optional[str]) -> Dict:
+    user_relation = self.poc_repository.get_user_poc_relation(user_id, poc.id) if user_id else None
+    current_date = datetime.now().date()
+
+    if user_relation:
+        is_active = user_relation.start_using <= current_date <= user_relation.end_using
+        return {
+            **poc.dict(),  # Include everything (including URL)
+            "access_status": "active" if is_active else "expired",
+            "is_active": is_active,
+            "is_expired": not is_active,
+            "url": poc.url if is_active else None  # Hide URL if expired
+        }
+
+    # If no relation found, return basic info without URL
+    return {
+        **poc.dict(exclude={"url"}),
+        "access_status": "no_access",
+        "is_active": False,
+        "is_expired": False
+    }
