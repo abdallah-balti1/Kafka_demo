@@ -1,0 +1,139 @@
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.openapi.utils import get_openapi
+
+from src.main.web_api.config_get_config import Configuration
+from src.main.web_api.controllers import liveness_controllers
+from src.main.web_api.controllers.auth_controllers import auth_router
+from src.main.web_api.controllers.management_users_pocs_controllers import app_router
+from src.main.web_api.controllers.pocs_controllers import poc_router
+from src.main.web_api.controllers.users_controllers import user_router
+
+from src.main.web_api.middlewares.basic_middleware import custom_basic_middleware
+from src.main.web_api.middlewares.logger import logger
+from src.main.web_api.middlewares.reverse_proxy_middleware import reverse_proxy_middleware
+
+# ─────────────────────────────────────────────────────────────
+# 🔧 Load config and environment
+load_dotenv()
+version = Configuration.get_version()
+config_var = Configuration.get_config_var()
+allowed_urls = config_var["allowed_urls"]
+
+# ─────────────────────────────────────────────────────────────
+# 🚀 Init FastAPI App
+app = FastAPI(
+    title="Taase API",
+    version="0.0.1",
+    root_path="/api",
+    openapi_url=f"/{version}/openapi.json",
+    docs_url=None  # disable default docs
+)
+
+# ─────────────────────────────────────────────────────────────
+# 🧩 Middlewares
+app.add_middleware(BaseHTTPMiddleware, dispatch=custom_basic_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=reverse_proxy_middleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_urls,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─────────────────────────────────────────────────────────────
+# 🔗 Routers
+app.include_router(user_router, prefix=f"/{version}/users", tags=["users"])
+app.include_router(poc_router, prefix=f"/{version}/pocs", tags=["pocs"])
+app.include_router(auth_router, prefix=f"/{version}/auth", tags=["auth"])
+app.include_router(app_router, prefix=f"/{version}/manage", tags=["manage"])
+app.include_router(liveness_controllers.router, prefix=f"/{version}", tags=["health"])
+
+# ─────────────────────────────────────────────────────────────
+# 🛡 Swagger UI with token from localStorage
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Taase API Docs</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+      </head>
+      <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+        <script>
+          const token = localStorage.getItem('access_token');
+          SwaggerUIBundle({{
+            url: '/{version}/openapi.json',
+            dom_id: '#swagger-ui',
+            layout: "BaseLayout",
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+            requestInterceptor: (req) => {{
+              if (token) {{
+                req.headers['Authorization'] = `Bearer ${token}`;
+              }}
+              return req;
+            }}
+          }});
+        </script>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+# ─────────────────────────────────────────────────────────────
+# 🔐 Add OpenAPI Bearer Auth globally
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="Taase API",
+        version="0.0.1",
+        description="Authenticated using Taase SSO token",
+        routes=app.routes,
+    )
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT"
+        }
+    }
+    openapi_schema["security"] = [{"BearerAuth": []}]
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+# ─────────────────────────────────────────────────────────────
+# 🔊 Startup
+logger.info("Backend is running")
+
+# ─────────────────────────────────────────────────────────────
+# 🏁 Entrypoint
+if __name__ == "__main__":
+    import uvicorn
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    certs_dir = os.path.join(base_dir, "certs")
+    ssl_keyfile = os.path.join(certs_dir, "key.pem")
+    ssl_certfile = os.path.join(certs_dir, "cert.pem")
+
+    uvicorn.run(
+        "main:app",
+        host="localhost",
+        port=8000,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        reload=True
+    )
