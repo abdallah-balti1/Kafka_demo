@@ -1,0 +1,36 @@
+from fastapi.responses import HTMLResponse
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Taase API Docs</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+      </head>
+      <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+        <script>
+          SwaggerUIBundle({{
+            url: '/{version}/openapi.json',
+            dom_id: '#swagger-ui',
+            layout: "BaseLayout",
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+            requestInterceptor: (req) => {{
+              const token = localStorage.getItem('access_token');
+              if (token) {{
+                req.headers['Authorization'] = `Bearer ${token}`;
+              }}
+              return req;
+            }}
+          }});
+        </script>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
