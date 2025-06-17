@@ -1,0 +1,180 @@
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2AuthorizationCodeBearer
+from sqlalchemy.orm import Session
+# ... (keep your existing imports)
+
+# Change this to OAuth2AuthorizationCodeBearer for Swagger support
+oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl="your_tasse_authorization_url",
+    tokenUrl="auth/token",  # Your token endpoint
+    scopes={
+        "openid": "OpenID scope",
+        "profile": "Profile information",
+    }
+)
+
+class AuthDependency:
+    @staticmethod
+    def get_auth_service(
+        db: Session = Depends(DbDependency.get_db_session),
+        config: Configuration = Depends(ConfigDependency.get_config),
+    ) -> IAuthentificationService:
+        user_service: IUserService = UserDependency.get_user_service(db)
+        security_service: ISecurityService = SecurityService(config.get_ivt_key())
+        tasse_service: ITBaseService = TasseService(
+            config.get_tasse_config(), config.get_cert_file()
+        )
+        return AuthentificationService(
+            user_service=user_service,
+            security_service=security_service,
+            tasse_service=tasse_service,
+        )
+
+    @staticmethod
+    def get_current_user(
+        token: str = Depends(oauth2_scheme),
+        auth_service: IAuthentificationService = Depends(get_auth_service),
+    ):
+        user = auth_service.verify_token(token)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Invalid token"
+            )
+        return user
+
+    @staticmethod
+    def require_admin(user=Depends(get_current_user)):
+        if user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Admin access required"
+            )
+        return user
+
+
+
+
+from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
+from auth_router import auth_router
+
+app = FastAPI()
+app.include_router(auth_router)
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title="Your API",
+        version="1.0.0",
+        routes=app.routes,
+    )
+    
+    # Add OAuth2 config to OpenAPI schema
+    openapi_schema["components"]["securitySchemes"] = {
+        "OAuth2": {
+            "type": "oauth2",
+            "flows": {
+                "authorizationCode": {
+                    "authorizationUrl": "your_tasse_authorization_url",
+                    "tokenUrl": "auth/token",
+                    "scopes": {
+                        "openid": "OpenID scope",
+                        "profile": "Profile information",
+                    }
+                }
+            }
+        }
+    }
+    
+    # Secure all endpoints by default
+    openapi_schema["security"] = [{"OAuth2": ["openid", "profile"]}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+
+
+
+
+from typing import Annotated
+import httpx
+from fastapi import APIRouter, Depends, Response, Request
+from fastapi.security import OAuth2AuthorizationCodeBearer
+
+# ... (keep your existing imports)
+
+auth_router = APIRouter()
+
+@auth_router.post("/token", response_model=dict)
+async def create_token(
+    request: Request,
+    code: str,
+    code_verifier: str = None,  # Make optional for Swagger flow
+    auth_service: auth_service_dependency,
+) -> dict:
+    # Check if this is coming from Swagger
+    if "swagger" in request.headers.get("referer", ""):
+        # Handle Swagger's OAuth2 flow
+        form_data = await request.form()
+        code = form_data.get("code")
+        redirect_uri = form_data.get("redirect_uri")
+        grant_type = form_data.get("grant_type", "authorization_code")
+        
+        async with httpx.AsyncClient(verify=cert_file) as client:
+            url = tasse_configuration["access_token_url"]
+            data = {
+                "grant_type": grant_type,
+                "code": code,
+                "redirect_uri": redirect_uri or tasse_configuration["redirect_url"],
+                "client_id": tasse_configuration["client_id"],
+                "client_secret": tasse_configuration["secret"],
+                "code_verifier": code_verifier or "",  # Swagger won't send this
+            }
+            
+            response_tasse = await client.post(url, data=data)
+            response_data = response_tasse.json()
+            
+            if response_tasse.status_code != 200:
+                raise ErrorConnectTasse(response_data)
+                
+            tasse_token = response_data['access_token']
+            custom_token = auth_service.return_token(tasse_token)
+            
+            return {"access_token": custom_token, "token_type": "bearer"}
+    else:
+        # Handle your normal frontend flow
+        async with httpx.AsyncClient(verify=cert_file) as client:
+            url = tasse_configuration["access_token_url"]
+            data = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_url": tasse_configuration["redirect_url"],
+                "client_id": tasse_configuration["client_id"],
+                "client_secret": tasse_configuration["secret"],
+                "code_verifier": code_verifier,
+            }
+            
+            response_tasse = await client.post(url, data=data)
+            response_data = response_tasse.json()
+            
+            if response_tasse.status_code != 200:
+                raise ErrorConnectTasse(response_data)
+                
+            tasse_token = response_data['access_token']
+            custom_token = auth_service.return_token(tasse_token)
+            
+            response = Response(content=custom_token)
+            response.set_cookie(
+                key="access_token",
+                value=custom_token,
+                httponly=True,
+                max_age=3600,
+                samesite="none",
+                secure=True
+            )
+            return response
