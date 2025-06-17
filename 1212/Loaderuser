@@ -1,0 +1,267 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { getUsersWithPocs, updateUser } from "services/users";
+import { assignUserToPoc, removeUserPoc } from "services/userDocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+import { ClipLoader } from "react-spinners";
+
+type Props = {
+  user: User;
+  onClose: () => void;
+  onSuccess: () => void;
+};
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+  // State
+  const [formData, setFormData] = useState<User>({ ...user });
+  const [allPocs, setAllPocs] = useState<Pocs[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState({
+    initial: true,
+    form: false,
+    pocs: false
+  });
+  const [error, setError] = useState("");
+
+  // Load all POCs and user's current assignment
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(prev => ({ ...prev, pocs: true }));
+      try {
+        // Load ALL POCs from the dedicated endpoint
+        const pocs = await fetchPocs();
+        setAllPocs(pocs);
+
+        // Check current assignment from users data
+        const users = await getUsersWithPocs();
+        const currentUser = users.find(u => u.userId === user.userId);
+        if (currentUser?.pocs?.[0]) {
+          setSelectedPocId(currentUser.pocs[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to load data:", err);
+        setError("Failed to load POC data");
+      } finally {
+        setIsLoading(prev => ({ ...prev, initial: false, pocs: false }));
+      }
+    };
+
+    loadData();
+  }, [user.userId]);
+
+  // Get current POC object from selected ID
+  const selectedPoc = useMemo(() => {
+    return allPocs.find(poc => poc.id === selectedPocId) || null;
+  }, [allPocs, selectedPocId]);
+
+  // Handle form changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPocId(e.target.value);
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(prev => ({ ...prev, form: true }));
+
+    try {
+      // Update user details
+      await updateUser(formData.userId, formData);
+
+      // Get current assignment before making changes
+      const users = await getUsersWithPocs();
+      const currentUser = users.find(u => u.userId === user.userId);
+      const currentPoc = currentUser?.pocs?.[0];
+
+      // Handle POC changes
+      if (selectedPocId && selectedPoc) {
+        // Assign new or update existing POC
+        await assignUserToPoc(
+          formData,
+          selectedPoc,
+          selectedPoc.startDate,
+          selectedPoc.endDate
+        );
+      } else if (currentPoc) {
+        // Remove existing POC if none selected
+        await removeUserPoc(formData, currentPoc);
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Submission error:", err);
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setIsLoading(prev => ({ ...prev, form: false }));
+    }
+  };
+
+  // Show loader if data isn't ready
+  if (isLoading.initial) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center">
+          <ClipLoader size={40} color="#059669" />
+          <p className="mt-4 text-gray-600">Loading user data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-gray-800">Edit User</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+              disabled={isLoading.form}
+            >
+              &times;
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* User Fields */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                User ID
+              </label>
+              <input
+                type="text"
+                value={formData.userId}
+                readOnly
+                className="w-full p-2 border border-gray-300 rounded-md bg-gray-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                First Name
+              </label>
+              <input
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required
+                disabled={isLoading.form}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required
+                disabled={isLoading.form}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                name="mail"
+                value={formData.mail}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required
+                disabled={isLoading.form}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleSelectChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                disabled={isLoading.form}
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                POC Assignment
+              </label>
+              <select
+                value={selectedPocId}
+                onChange={handlePocChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                disabled={isLoading.pocs || isLoading.form}
+              >
+                <option value="">--- No POC Assigned ---</option>
+                {allPocs.map(poc => (
+                  <option key={poc.id} value={poc.id}>
+                    {poc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              disabled={isLoading.form}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors flex items-center justify-center min-w-24"
+              disabled={isLoading.form}
+            >
+              {isLoading.form ? (
+                <ClipLoader size={20} color="#ffffff" className="mr-2" />
+              ) : null}
+              {isLoading.form ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UserEditModal;
