@@ -1,0 +1,255 @@
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from src.main.web_api.config.get_config import Configuration
+from src.main.web_api.controllers import liveness_controllers
+from src.main.web_api.controllers.auth_controllers import auth_router
+from src.main.web_api.controllers.management_users_pocs_controllers import app_router
+from src.main.web_api.controllers.pocs_controllers import poc_router
+from src.main.web_api.controllers.users_controllers import user_router
+from src.main.web_api.middlewares.basic_middleware import custom_basic_middleware
+from src.main.web_api.middlewares.logger import logger
+from src.main.web_api.middlewares.reverse_proxy_middleware import (
+    reverse_proxy_middleware,
+)
+
+load_dotenv()
+version = Configuration.get_version()
+config_var = Configuration.get_config_var()
+allowed_urls = config_var["allowed_urls"]
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    from fastapi.openapi.utils import get_openapi
+    openapi_schema = get_openapi(
+        title="Your API",
+        version=version,
+        routes=app.routes,
+    )
+    
+    # Add OAuth2 config to OpenAPI schema
+    openapi_schema["components"]["securitySchemes"] = {
+        "OAuth2": {
+            "type": "oauth2",
+            "flows": {
+                "authorizationCode": {
+                    "authorizationUrl": config_var["tasse_config"]["authorize_url"],
+                    "tokenUrl": f"/api/{version}/auth/token",
+                    "scopes": {
+                        "openid": "OpenID scope",
+                        "profile": "Profile information",
+                    }
+                }
+            }
+        }
+    }
+    
+    # Secure all endpoints by default
+    openapi_schema["security"] = [{"OAuth2": ["openid", "profile"]}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app = FastAPI(
+    version=version,
+    root_path="/api",
+    openapi_url=f"/{version}/openapi.json",
+    docs_url="/docs",
+    swagger_ui_oauth2_redirect_url=f"/api/{version}/docs/oauth2-redirect",
+    swagger_ui_init_oauth={
+        "clientId": config_var["tasse_config"]["client_id"],
+        "scopes": ["openid", "profile"],
+        "usePkceWithAuthorizationCodeGrant": True,
+    }
+)
+
+app.openapi = custom_openapi
+app.openapi_version = "3.0.2"
+
+# Middlewares
+app.add_middleware(BaseHTTPMiddleware, dispatch=custom_basic_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=reverse_proxy_middleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_urls,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Routers
+app.include_router(user_router, prefix=f"/{version}/users", tags=["users controllers"])
+app.include_router(poc_router, prefix=f"/{version}/pocs", tags=["pocs controllers"])
+app.include_router(auth_router, prefix=f"/{version}/auth", tags=["authentification controllers"])
+app.include_router(app_router, prefix=f"/{version}/manage", tags=["management users pocs controllers"])
+app.include_router(liveness_controllers.router, prefix=f"/{version}", tags=["liveness_readiness"])
+
+logger.info("Back is running")
+
+if __name__ == "__main__":
+    import uvicorn
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    certs_dir = os.path.join(base_dir, "certs")
+    ssl_keyfile = os.path.join(certs_dir, "key.pem")
+    ssl_certfile = os.path.join(certs_dir, "cert.pem")
+    
+    uvicorn.run(
+        "main:app",
+        host="localhost",
+        port=8080,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        reload=True
+    )
+
+
+
+
+from typing import Annotated
+import httpx
+from fastapi import APIRouter, Depends, Response, Request, Form
+from src.main.application.exceptions.auth_exceptions import ErrorConnectTasse
+from src.main.application.services.authentification.interface_authentification_service import IAuthentificationService
+from src.main.web_api.dependencies.auth_depends import AuthDependency
+from src.main.web_api.dependencies.config_depends import ConfigDependency
+
+auth_router = APIRouter()
+auth_service_dependency = Annotated[IAuthentificationService, Depends(AuthDependency.get_auth_service)]
+
+config = ConfigDependency.get_config()
+tasse_configuration = config.get_tasse_config()
+cert_file = config.get_cert_file()
+
+@auth_router.post("/token", response_model=dict)
+async def create_token(
+    request: Request,
+    code: str = Form(None),
+    code_verifier: str = Form(None),
+    grant_type: str = Form("authorization_code"),
+    redirect_uri: str = Form(None),
+    auth_service: auth_service_dependency,
+) -> dict:
+    # Handle both Swagger and frontend flows
+    form_data = await request.form()
+    code = code or form_data.get("code")
+    code_verifier = code_verifier or form_data.get("code_verifier")
+    redirect_uri = redirect_uri or form_data.get("redirect_uri") or tasse_configuration["redirect_url"]
+    grant_type = grant_type or form_data.get("grant_type", "authorization_code")
+
+    async with httpx.AsyncClient(verify=cert_file) as client:
+        url = tasse_configuration["access_token_url"]
+        data = {
+            "grant_type": grant_type,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": tasse_configuration["client_id"],
+            "client_secret": tasse_configuration["secret"],
+            "code_verifier": code_verifier or "",
+        }
+
+        response_tasse = await client.post(url, data=data)
+        response_data = response_tasse.json()
+        
+        if response_tasse.status_code != 200:
+            raise ErrorConnectTasse(response_data)
+        
+        tasse_token = response_data['access_token']
+        custom_token = auth_service.return_token(tasse_token)
+
+        # Check if this is a Swagger request
+        if "swagger-ui" in request.headers.get("user-agent", ""):
+            return {
+                "access_token": custom_token,
+                "token_type": "bearer",
+                "expires_in": 3600
+            }
+        else:
+            # Frontend flow with cookie
+            response = Response(content=custom_token)
+            response.set_cookie(
+                key="access_token",
+                value=custom_token,
+                httponly=True,
+                max_age=3600,
+                samesite="none",
+                secure=True
+            )
+            return response
+
+
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2AuthorizationCodeBearer
+from sqlalchemy.orm import Session
+from src.main.application.services.authentification.authentification_service import (
+    AuthentificationService,
+)
+from src.main.application.services.authentification.interface_authentification_service import (
+    IAuthentificationService,
+)
+from src.main.application.services.security.interface_security_service import (
+    ISecurityService,
+)
+from src.main.application.services.security.security_service import SecurityService
+from src.main.application.services.users.interface_user_service import IUserService
+from src.main.infrastructure.services.tasse.interface_tasse_service import ITBaseService
+from src.main.infrastructure.services.tasse.tasse_service import TasseService
+from src.main.web_api.config.get_config import Configuration
+from src.main.web_api.dependencies.config_depends import ConfigDependency
+from src.main.web_api.dependencies.db_depends import DbDependency
+from src.main.web_api.dependencies.user_depends import UserDependency
+
+config = ConfigDependency.get_config()
+tasse_config = config.get_tasse_config()
+
+oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl=tasse_config["authorize_url"],
+    tokenUrl=f"/api/{config.get_version()}/auth/token",
+    scopes={
+        "openid": "OpenID scope",
+        "profile": "Profile information",
+    }
+)
+
+class AuthDependency:
+    @staticmethod
+    def get_auth_service(
+        db: Session = Depends(DbDependency.get_db_session),
+        config: Configuration = Depends(ConfigDependency.get_config),
+    ) -> IAuthentificationService:
+        user_service: IUserService = UserDependency.get_user_service(db)
+        security_service: ISecurityService = SecurityService(config.get_ivt_key())
+        tasse_service: ITBaseService = TasseService(
+            config.get_tasse_config(), config.get_cert_file()
+        )
+        return AuthentificationService(
+            user_service=user_service,
+            security_service=security_service,
+            tasse_service=tasse_service,
+        )
+
+    @staticmethod
+    def get_current_user(
+        token: str = Depends(oauth2_scheme),
+        auth_service: IAuthentificationService = Depends(get_auth_service),
+    ):
+        user = auth_service.verify_token(token)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Invalid token"
+            )
+        return user
+
+    @staticmethod
+    def require_admin(user=Depends(get_current_user)):
+        if user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Admin access required"
+            )
+        return user
