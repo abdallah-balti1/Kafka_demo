@@ -1,0 +1,173 @@
+import React, { useState, useEffect } from "react";
+import { updatePocs } from "services/pocs";
+import { ClipLoader } from "react-spinners";
+
+type Props = {
+  pocs: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    url: string;
+  };
+  onClose: () => void;
+  onSuccess: () => void;
+  isLoading?: boolean; // Add loading prop from parent
+};
+
+const PocsEditModal: React.FC<Props> = ({ pocs, onClose, onSuccess, isLoading: parentLoading }) => {
+  const [formData, setFormData] = useState({ ...pocs });
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (pocs) {
+      setFormData({ ...pocs });
+      setIsInitialized(true);
+    }
+  }, [pocs]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+    
+    try {
+      await updatePocs(formData.id, formData);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Update error:", err);
+      setError("Failed to update POC. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Show loader if data isn't ready or parent is loading
+  if (!isInitialized || parentLoading) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center">
+          <ClipLoader size={40} color="#059669" /> {/* emerald-600 */}
+          <p className="mt-4 text-gray-600">Loading POC data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Edit POC</h2>
+          <button 
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            disabled={isSubmitting}
+          >
+            ✕
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              POC Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={formData.startDate}
+                onChange={handleChange}
+                className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-emerald-500"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={formData.endDate}
+                onChange={handleChange}
+                className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-emerald-500"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              URL
+            </label>
+            <input
+              type="url"
+              name="url"
+              value={formData.url}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md focus:ring-2 focus:ring-emerald-500"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors flex items-center justify-center min-w-24"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ClipLoader size={20} color="#ffffff" />
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default PocsEditModal;
