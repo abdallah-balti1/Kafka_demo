@@ -1,0 +1,192 @@
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
+import httpx
+from src.main.application.services.security.security_service import SecurityService
+from src.main.application.services.users.user_service import UserService
+from src.main.infrastructure.db.session import get_db
+from sqlalchemy.orm import Session
+from src.main.web_api.config_get_config import Configuration
+
+router = APIRouter()
+
+@router.post("/auth/token")
+async def exchange_token(request: Request, db: Session = Depends(get_db)):
+    config = Configuration()
+    params = dict(request.query_params)
+
+    code = params.get("code")
+    code_verifier = params.get("code_verifier")
+
+    if not code or not code_verifier:
+        raise HTTPException(status_code=400, detail="Missing code or code_verifier")
+
+    # 1. Call Taase token endpoint
+    try:
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                config.get_taase_config()["token_endpoint"],
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": config.get_taase_config()["redirect_uri_swagger"],
+                    "client_id": config.get_taase_config()["client_id"],
+                    "code_verifier": code_verifier,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            token_resp.raise_for_status()
+            taase_token = token_resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Failed to get token from Taase")
+
+    # 2. Decode and validate Taase JWT to extract user info
+    try:
+        from jose import jwt
+        decoded = jwt.decode(
+            taase_token["id_token"],
+            config.get_taase_config()["jwt_public_key"],
+            algorithms=["RS256"],
+            options={"verify_aud": False}  # adjust as needed
+        )
+        user_id = decoded.get("userId")
+        email = decoded.get("mail")
+        role = decoded.get("role")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid ID token from Taase")
+
+    # 3. Check if user has access in your DB
+    user_service = UserService(db)
+    user = user_service.get_user_by_external_id(user_id)
+    if not user:
+        raise HTTPException(status_code=403, detail="User is not authorized")
+
+    # 4. Generate your own JWT
+    security_service = SecurityService(config.get_jwt_key())
+    local_jwt = security_service.create_token({
+        "userId": user.external_id,
+        "mail": user.email,
+        "role": user.role,
+        "active": user.active,
+    })
+
+    # 5. Return token to frontend (Swagger will store it)
+    return JSONResponse(content={"access_token": local_jwt, "token_type": "bearer"})
+
+
+
+
+
+
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/callback-swagger", include_in_schema=False)
+async def callback_swagger(request: Request):
+    code = request.query_params.get("code")
+    if not code:
+        return HTMLResponse("Missing code", status_code=400)
+
+    html = f"""
+    <html>
+    <body>
+        <script>
+            const codeVerifier = localStorage.getItem("code_verifier");
+            fetch("/auth/token?code={code}&code_verifier=" + codeVerifier, {{
+                method: "POST"
+            }})
+            .then(res => res.json())
+            .then(data => {{
+                if (data.access_token) {{
+                    localStorage.setItem("access_token", data.access_token);
+                    window.location.href = "/docs";
+                }} else {{
+                    alert("Failed to retrieve token");
+                }}
+            }})
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
+
+
+
+
+
+
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    CLIENT_ID = "your-client-id"
+    REDIRECT_URI = "https://your-backend.com/callback-swagger"
+    AUTH_URL = "https://taase.com/authorize"
+    SCOPE = "openid profile email"
+    NONCE = "something-random"
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SSO Swagger</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+        <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+    </head>
+    <body>
+        <div style="padding: 10px;">
+            <button onclick="startSSO()">🔐 Login with SSO</button>
+        </div>
+        <div id="swagger-ui"></div>
+
+        <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+        <script>
+            async function startSSO() {{
+                const codeVerifier = generateCodeVerifier();
+                const codeChallenge = generateCodeChallenge(codeVerifier);
+                localStorage.setItem("code_verifier", codeVerifier);
+                const authUrl = `{AUTH_URL}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope={SCOPE}&code_challenge=${{codeChallenge}}&code_challenge_method=S256&nonce={NONCE}`;
+                window.location.href = authUrl;
+            }}
+
+            function generateCodeVerifier() {{
+                const array = new Uint8Array(32);
+                window.crypto.getRandomValues(array);
+                return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+            }}
+
+            function generateCodeChallenge(verifier) {{
+                const hash = CryptoJS.SHA256(verifier);
+                return CryptoJS.enc.Base64url.stringify(hash);
+            }}
+
+            SwaggerUIBundle({{
+                url: '/v0.0.1/openapi.json',
+                dom_id: '#swagger-ui',
+                requestInterceptor: (req) => {{
+                    const token = localStorage.getItem('access_token');
+                    if (token) {{
+                        req.headers['Authorization'] = `Bearer ${{token}}`;
+                    }}
+                    return req;
+                }},
+                layout: "BaseLayout"
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+
+
+@staticmethod
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    auth_service: IAuthentificationService = Depends(get_auth_service),
+):
+    user = auth_service.verify_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user
