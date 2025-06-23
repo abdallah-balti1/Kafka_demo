@@ -1,0 +1,175 @@
+Below is a “happy-path” playbook you can follow to get Langfuse v3 running on any Kubernetes cluster (EKS, GKE, AKS, or vanilla).
+All commands are copy-pasteable; adapt names / domains / sizes to your own platform.
+
+
+---
+
+0. Prereqs
+
+Item	Why you need it	Quick check
+
+kubectl & access to your cluster	Deploy & debug	kubectl get nodes
+Helm ≥ 3.11	Install the chart	helm version
+Cluster has a default StorageClass & supports LoadBalancer or Ingress	Persistent volumes + traffic	kubectl get sc
+Optionally: external PostgreSQL 14+, ClickHouse 23+ and Redis/Valkey 6+	Use managed DBs instead of in-cluster pods	n/a
+
+
+
+---
+
+1. Add the official chart repo
+
+helm repo add langfuse https://langfuse.github.io/langfuse-k8s
+helm repo update
+
+
+
+
+---
+
+2. Create a working namespace
+
+kubectl create namespace langfuse
+
+(Skip if you prefer default)
+
+
+---
+
+3. Generate secrets
+
+# One-liner helpers
+export LF_NEXTAUTH_SECRET=$(openssl rand -hex 32)
+export LF_SALT=$(openssl rand -hex 16)
+export LF_ENCRYPTION_KEY=$(openssl rand -hex 32)   # optional but recommended
+
+kubectl -n langfuse create secret generic langfuse-general \
+  --from-literal=nextauth-secret=$LF_NEXTAUTH_SECRET \
+  --from-literal=salt=$LF_SALT \
+  --from-literal=encryptionKey=$LF_ENCRYPTION_KEY
+
+If you’ll use managed databases, create one more secret per service with username / password and set deploy: false for that component (see step 4).
+
+
+---
+
+4. Craft values.yaml
+
+Below is the minimal file that works out-of-the-box (in-cluster Postgres, ClickHouse & Redis).
+Lines shown with # --> are the only things you must edit for production:
+
+# values.yaml
+langfuse:
+  nextauth:
+    secret:
+      secretKeyRef:   # we point to the secret created above
+        name: langfuse-general
+        key: nextauth-secret
+  salt:
+    secretKeyRef:
+      name: langfuse-general
+      key: salt
+  encryptionKey:
+    secretKeyRef:
+      name: langfuse-general
+      key: encryptionKey
+  ingress:           # --> flip enabled=true & set your host if you own a domain
+    enabled: false
+    hosts:
+      - host: langfuse.mycorp.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+# Persistent stores – deploy defaults.  For managed services set deploy:false
+postgresql:
+  deploy: true       # --> false if you use RDS, Cloud SQL, etc.
+  auth:
+    username: langfuse
+    password: "supersecret"   # ignored when using existingSecret
+clickhouse:
+  deploy: true       # --> false if you use ClickHouse Cloud, Altinity, etc.
+  auth:
+    password: "click-secret"
+redis:
+  deploy: true       # --> false if you have ElastiCache, Memorystore, etc.
+  auth:
+    password: "redis-secret"
+
+# Sizing – raise for prod workloads
+langfuse:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+(Full list of knobs: see Helm README) 
+
+
+---
+
+5. Install
+
+helm install langfuse langfuse/langfuse -n langfuse -f values.yaml
+# watch pods
+kubectl get pods -n langfuse -w
+
+The langfuse-web and langfuse-worker pods will restart a couple of times while databases come up—give it ~5 minutes on a fresh cluster. 
+
+
+---
+
+6. Smoke-test locally
+
+kubectl -n langfuse port-forward svc/langfuse-web 3000:80
+# visit http://localhost:3000
+
+Create the first user & organisation in the UI. 
+
+
+---
+
+7. Wire up real traffic
+
+1. Ingress / Load Balancer – turn on langfuse.ingress.enabled (see step 4) or patch the service to type: LoadBalancer.
+
+
+2. TLS – add cert-manager or your cloud’s managed cert to the ingress.
+
+
+3. SDK keys – in the UI → Settings → Projects → create a prod key; drop it in your application code.
+
+
+
+
+---
+
+8. Production hardening checklist
+
+Area	What to do
+
+Backups	Schedule snapshots for Postgres & S3 bucket; ClickHouse has built-in backups.
+Resources	Follow sizing table in the README – bump ClickHouse RAM first under load. 
+Updates	helm repo update && helm upgrade langfuse langfuse/langfuse -n langfuse 
+Auth	Enable SSO via additionalEnv (Okta, AzureAD, etc.). Examples are in the README. 
+Logging	Ship pod logs to your stack (CloudWatch, GCP Logging, etc.).
+
+
+
+---
+
+FAQ
+
+Question	Short answer
+
+Can I re-use managed Postgres/ClickHouse/Redis?	Yes – set deploy:false and point host, directUrl, & secrets. Example snippets are in the Helm README. 
+Upgrading from v2?	Spin up a v3 release next to v2 → migrate data → cut traffic. Detailed instructions in the upgrade guide. 
+Stuck pod / CrashLoop?	kubectl logs the failing pod; common culprits are wrong DB creds or insufficient PV / RAM.
+
+
+That’s it—Langfuse v3 should now be live on your cluster.
+Ping back if you hit an edge case or need provider-specific tips. Happy tracing!
+
