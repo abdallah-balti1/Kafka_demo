@@ -1,0 +1,56 @@
+import { Link } from 'react-router-dom';
+
+const Footer = () => {
+  return (
+    <footer className="bg-white border-t py-4 px-6">
+      <div className="container mx-auto flex justify-center">
+        <div className="flex space-x-6 text-sm text-gray-600">
+          <Link to="/about" className="hover:text-emerald-600 transition-colors">
+            About us
+          </Link>
+          <span>|</span>
+          <Link to="/contact" className="hover:text-emerald-600 transition-colors">
+            Contact us
+          </Link>
+          <span>|</span>
+          <Link to="/legal" className="hover:text-emerald-600 transition-colors">
+            Legal information
+          </Link>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
+
+
+
+
+import React from 'react';
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+import Footer from "./Footer";
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className="flex flex-1">
+        <Sidebar />
+        <div className="flex flex-col flex-1 ml-16"> {/* ml-16 matches sidebar width */}
+          <Header />
+          <main className="flex-1 p-6">
+            {children}
+          </main>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+};
+
+export default Layout;
