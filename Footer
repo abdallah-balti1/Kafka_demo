@@ -1,0 +1,100 @@
+import { Link } from "react-router-dom";
+
+export default function Footer() {
+  return (
+    <footer className="bg-emerald-800 text-white py-6 px-4">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
+        {/* Left Section - Logo & Company Name */}
+        <div className="flex items-center mb-4 md:mb-0">
+          <img 
+            src="/logo-white.png" 
+            alt="Company Logo" 
+            className="h-10 w-auto mr-3"
+          />
+          <span className="text-xl font-bold">My Company</span>
+        </div>
+
+        {/* Right Section - Links */}
+        <div className="flex flex-wrap justify-center gap-6">
+          <Link 
+            to="/about" 
+            className="hover:text-emerald-200 transition-colors"
+          >
+            About Us
+          </Link>
+          <Link 
+            to="/contact" 
+            className="hover:text-emerald-200 transition-colors"
+          >
+            Contact Us
+          </Link>
+          <Link 
+            to="/legal" 
+            className="hover:text-emerald-200 transition-colors"
+          >
+            Legal Information
+          </Link>
+          <Link 
+            to="/privacy" 
+            className="hover:text-emerald-200 transition-colors"
+          >
+            Privacy Policy
+          </Link>
+        </div>
+      </div>
+
+      {/* Copyright */}
+      <div className="text-center mt-6 text-sm text-emerald-200">
+        © {new Date().getFullYear()} My Company. All rights reserved.
+      </div>
+    </footer>
+  );
+}
+
+
+
+
+import { Outlet } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import Footer from "./Footer";
+
+export default function MainLayout() {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 ml-16 p-6"> {/* ml-16 matches sidebar width */}
+          <Outlet /> {/* This renders your page content */}
+        </main>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+
+
+/* Smooth scrolling for anchor links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Footer link animations */
+footer a {
+  position: relative;
+}
+
+footer a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -2px;
+  left: 0;
+  background-color: #a7f3d0; /* emerald-200 */
+  transition: width 0.3s ease;
+}
+
+footer a:hover::after {
+  width: 100%;
+}
