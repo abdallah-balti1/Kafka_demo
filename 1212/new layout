@@ -9,26 +9,25 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Sidebar + Content Row */}
-      <div className="flex flex-1">
-        <Sidebar />
+    <div className="flex min-h-screen">
+      {/* Sidebar */}
+      <Sidebar />
 
-        {/* Main Column */}
-        <div className="flex flex-col flex-1 ml-16"> {/* ml-16 = sidebar width */}
-          <Header />
+      {/* Main layout column (Header + Main + Footer) */}
+      <div className="flex flex-col flex-1">
+        {/* Header */}
+        <Header />
 
-          <main className="flex-1 p-4 overflow-auto">
-            {children}
-          </main>
-        </div>
+        {/* Main content fills remaining vertical space */}
+        <main className="flex-1 p-4">
+          {children}
+        </main>
+
+        {/* Footer sticks to bottom when content is short */}
+        <Footer />
       </div>
-
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };
 
 export default Layout;
-
