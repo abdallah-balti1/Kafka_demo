@@ -1,1 +1,34 @@
+import React from "react";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+import Footer from "./Footer";
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Sidebar + Content Row */}
+      <div className="flex flex-1">
+        <Sidebar />
+
+        {/* Main Column */}
+        <div className="flex flex-col flex-1 ml-16"> {/* ml-16 = sidebar width */}
+          <Header />
+
+          <main className="flex-1 p-4 overflow-auto">
+            {children}
+          </main>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <Footer />
+    </div>
+  );
+};
+
+export default Layout;
 
