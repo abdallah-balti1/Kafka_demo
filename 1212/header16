@@ -1,1 +1,52 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { decodeToken } from "utils/jwt";
+
+export default function Header() {
+  const navigate = useNavigate();
+  const [userId, setUserId] = useState<string>("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const handleLogOut = () => {
+    localStorage.removeItem("access_token");
+    navigate("/login");
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      const dataUser = decodeToken(token);
+      setUserId(dataUser?.userId);
+    }
+  }, []);
+
+  return (
+    <header className="flex justify-between items-center px-6 py-2 border-b-2 border-gray-300 bg-white relative">
+      {/* App name */}
+      <h1 className="text-2xl font-bold">AI DISCOVERY</h1>
+
+      {/* User dropdown */}
+      <div
+        onMouseEnter={() => setIsDropdownOpen(true)}
+        onMouseLeave={() => setIsDropdownOpen(false)}
+        className="relative"
+      >
+        <span className="text-lg font-medium cursor-pointer">{userId}</span>
+
+        {isDropdownOpen && (
+          <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-300 shadow-lg rounded-md z-50">
+            <ul className="py-2">
+              <li
+                onClick={handleLogOut}
+                className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-red-500"
+              >
+                Logout
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
 
