@@ -16,22 +16,22 @@ export default function Header() {
     const token = localStorage.getItem("access_token");
     if (token) {
       const dataUser = decodeToken(token);
-      setUserId(dataUser?.userId);
+      setUserId(dataUser?.userId || "");
     }
   }, []);
 
   return (
     <header className="flex justify-between items-center px-6 py-2 border-b-2 border-gray-300 bg-white relative">
-      {/* App name */}
       <h1 className="text-2xl font-bold">AI DISCOVERY</h1>
 
-      {/* User dropdown */}
       <div
+        className="relative"
         onMouseEnter={() => setIsDropdownOpen(true)}
         onMouseLeave={() => setIsDropdownOpen(false)}
-        className="relative"
       >
-        <span className="text-lg font-medium cursor-pointer">{userId}</span>
+        <span className="text-lg font-medium cursor-pointer text-black">
+          {userId || "User"}
+        </span>
 
         {isDropdownOpen && (
           <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-300 shadow-lg rounded-md z-50">
@@ -49,4 +49,3 @@ export default function Header() {
     </header>
   );
 }
-
