@@ -1,84 +1,51 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { decoderToken } from "utils/jwt";
 
-const UserDropdown = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+export default function Header() {
+    const navigate = useNavigate();
+    const [userId, setUserId] = useState<string>("");
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+    const handleLogOut = () => {
+        localStorage.removeItem("access_token");
+        navigate("/login");
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    useEffect(() => {
+        const token = localStorage.getItem("access_token");
+        if (token) {
+            const decoded = decoderToken(token);
+            setUserId(decoded?.userId || "");
+        }
+    }, []);
 
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 focus:outline-none"
-      >
-        <span className="text-gray-700">Username</span>
-        <svg
-          className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+    return (
+        <header className="flex justify-between items-center px-6 py-2 border-b-2 border-gray-300 bg-white relative">
+            {/* App name */}
+            <h1 className="text-2xl font-bold">AT DISCOVERY</h1>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-          <Link
-            to="/profile"
-            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            onClick={() => setIsOpen(false)}
-          >
-            Profile
-          </Link>
-          <Link
-            to="/settings"
-            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            onClick={() => setIsOpen(false)}
-          >
-            Settings
-          </Link>
-          <Link
-            to="/logout"
-            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            onClick={() => setIsOpen(false)}
-          >
-            Logout
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-};
+            {/* User dropdown */}
+            <div
+                onMouseEnter={() => setIsDropdownOpen(true)}
+                onMouseLeave={() => setIsDropdownOpen(false)}
+                className="relative"
+            >
+                <span className="text-lg font-medium cursor-pointer">{userId}</span>
 
-
-
-import React from 'react';
-import UserDropdown from './UserDropdown';
-
-const Header = () => {
-  return (
-    <header className="bg-white shadow-sm py-4 px-6 flex justify-between items-center">
-      <div className="text-xl font-semibold">Dashboard</div>
-      <div className="flex items-center space-x-4">
-        <UserDropdown />
-      </div>
-    </header>
-  );
-};
-
-export default Header;
+                {isDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-300 shadow-lg rounded-md z-50">
+                        <ul className="py-2">
+                            <li
+                                onClick={handleLogOut}
+                                className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-red-500"
+                            >
+                                Logout
+                            </li>
+                        </ul>
+                    </div>
+                )}
+            </div>
+        </header>
+    );
+}
