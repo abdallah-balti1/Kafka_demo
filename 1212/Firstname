@@ -1,0 +1,14 @@
+useEffect(() => {
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    const decoded = decodeToken(token);
+    const firstName = decoded?.firstName || "";
+    const lastName = decoded?.lastName || "";
+    const formattedName =
+      firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase() +
+      " " +
+      lastName.toUpperCase();
+
+    setUserId(formattedName);
+  }
+}, []);
