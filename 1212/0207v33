@@ -1,0 +1,138 @@
+If the domain is always the same (constant), we can simplify the implementation by hardcoding the domain in the service layer. Here's the optimized solution:
+
+### 1. Updated Vault Service (`hashicorp_vault_service.py`)
+
+```python
+import os
+from dotenv import load_dotenv
+from hvac import Client
+from hvac.api.auth_methods import Kubernetes
+from typing import Optional
+from src.main.infrastructure.services.secrets.interface_secret_services import ISecretService
+
+class HashicorpVaultService(ISecretService):
+    def __init__(self, config: dict, cert: str):
+        self.config = config
+        self.cert = cert
+        self._client = None
+        self.DOMAIN = "discovery"  # Hardcoded constant domain
+
+    @property
+    def client(self) -> Client:
+        if not self._client:
+            self._client = Client(
+                url=self.config["K8s_Vault"]["hvault_url"],
+                namespace=f"BNPPAN/AMBE/{self.config['K8s_Vault']['ecosystem']}",
+                verify=self.cert
+            )
+            self._authenticate()
+        return self._client
+
+    def get_poc_token(self, poc_name: str) -> Optional[str]:
+        """
+        Retrieve token for a specific POC from Vault
+        Path structure: secret/discovery/poc_name
+        """
+        try:
+            secret_path = f"{self.DOMAIN}/{poc_name}"
+            response = self.client.secrets.kv.read_secret_version(
+                path=secret_path,
+                mount_point="secret",
+                raise_on_deleted_version=True
+            )
+            return response["data"]["data"]["token"]
+        except Exception as e:
+            print(f"Error retrieving token for {poc_name}: {str(e)}")
+            return None
+
+    # ... keep existing _authenticate() and _read_kubernetes_token() methods ...
+```
+
+### 2. Simplified FastAPI Controller (`vault_controllers.py`)
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Path
+from src.main.infrastructure.services.secrets.hashicorp_vault_service import HashicorpVaultService
+from src.main.web_api.dependencies import get_vault_service
+
+router = APIRouter(prefix="/vault", tags=["Vault Secrets"])
+
+@router.get("/tokens/{poc_name}")
+async def get_poc_token(
+    poc_name: str = Path(..., description="POC name", example="poc1"),
+    vault_service: HashicorpVaultService = Depends(get_vault_service)
+):
+    """
+    Retrieve token for a specific POC from Vault
+    - Path structure: secret/discovery/poc_name
+    - Returns the token if found
+    """
+    token = vault_service.get_poc_token(poc_name)
+    if not token:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Token not found for POC '{poc_name}'"
+        )
+    return {
+        "poc": poc_name,
+        "token": token
+    }
+```
+
+### 3. Updated API Usage
+
+**Request:**
+```
+GET /api/v0.0.1/vault/tokens/poc1
+```
+
+**Vault Path:**
+```
+secret/discovery/poc1
+```
+
+**Response:**
+```json
+{
+    "poc": "poc1",
+    "token": "s.8d7f9e0a1b2c3d4e5f6g7h8i9j0"
+}
+```
+
+### Key Changes:
+
+1. **Simplified Path**:
+   - Removed domain parameter from API endpoint
+   - Hardcoded domain in service layer (`self.DOMAIN = "discovery"`)
+
+2. **Cleaner Interface**:
+   - Single parameter endpoint (`/tokens/{poc_name}`)
+   - More intuitive API design
+
+3. **Maintained Security**:
+   - Same authentication and authorization
+   - Same error handling
+   - Same Vault path structure internally
+
+4. **Easier Maintenance**:
+   - Single place to change domain if needed (service class)
+   - No domain validation needed in controller
+
+### Migration Considerations:
+
+1. If the domain might change in future:
+```python
+# In config.py
+"VAULT_DOMAIN": os.getenv("VAULT_DOMAIN", "discovery")
+
+# In vault_service.py
+self.DOMAIN = self.config["VAULT_DOMAIN"]
+```
+
+2. For backward compatibility, you could keep both endpoints:
+```python
+@router.get("/tokens/{poc_name}")  # New simplified endpoint
+@router.get("/tokens/domain/{poc_name}")  # Old endpoint (marked as deprecated)
+```
+
+This solution provides a cleaner API while maintaining all security and architectural benefits of your current implementation.
