@@ -1,0 +1,120 @@
+Understood! Since you have dependency files organized by domain, we'll integrate the Vault service dependency into your existing structure. Here's the complete solution:
+
+### 1. First, add the Vault dependency to the appropriate file (likely `poc_depends.py`):
+
+```python
+# src/main/web_api/dependencies/poc_depends.py
+from fastapi import Depends
+from src.main.infrastructure.services.secrets.hashicorp_vault_service import HashicorpVaultService
+from src.main.web_api.config import get_config
+
+def get_vault_service() -> HashicorpVaultService:
+    """Dependency for Vault service"""
+    config = get_config()
+    cert_path = config["SSL"]["cert_path"]  # Adjust according to your config
+    return HashicorpVaultService(config, cert_path)
+```
+
+### 2. Update your Vault controller to use the existing dependency:
+
+```python
+# src/main/web_api/controllers/vault_controllers.py
+from fastapi import APIRouter, Depends, HTTPException, Path
+from src.main.web_api.dependencies.poc_depends import get_vault_service
+from src.main.infrastructure.services.secrets.hashicorp_vault_service import HashicorpVaultService
+
+router = APIRouter(prefix="/vault", tags=["Vault Secrets"])
+
+@router.get("/tokens/{poc_name}")
+async def get_poc_token(
+    poc_name: str = Path(..., description="POC name", example="poc1"),
+    vault_service: HashicorpVaultService = Depends(get_vault_service)
+):
+    """
+    Retrieve token for a specific POC from Vault
+    Path structure: secret/discovery/{poc_name}
+    """
+    token = vault_service.get_poc_token(poc_name)
+    if not token:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Token not found for POC '{poc_name}'"
+        )
+    return {
+        "poc": poc_name,
+        "token": token,
+        "path": f"secret/discovery/{poc_name}"  # For debugging
+    }
+```
+
+### 3. Keep your optimized `HashicorpVaultService` (with hardcoded domain):
+
+```python
+# src/main/infrastructure/services/secrets/hashicorp_vault_service.py
+class HashicorpVaultService(ISecretService):
+    def __init__(self, config: dict, cert: str):
+        self.config = config
+        self.cert = cert
+        self._client = None
+        self.DOMAIN = "discovery"  # Hardcoded constant domain
+
+    # ... rest of the implementation remains the same ...
+```
+
+### 4. Update your main.py to include the router:
+
+```python
+# Add to your existing imports
+from src.main.web_api.controllers.vault_controllers import router as vault_router
+
+# Add with other router includes
+app.include_router(
+    vault_router,
+    prefix=f"/{version}",
+    tags=["Vault Secrets"]
+)
+```
+
+### Key Advantages:
+
+1. **Consistent Architecture**:
+   - Follows your existing dependency pattern (`*_depends.py`)
+   - Maintains clean separation of concerns
+
+2. **Simplified Usage**:
+   ```http
+   GET /api/v0.0.1/vault/tokens/poc1
+   ```
+
+3. **Debugging Friendly**:
+   - Returns the full Vault path in response
+   - Clear error messages
+
+4. **Maintainable**:
+   - Domain can be easily changed in one place (`self.DOMAIN`)
+   - Proper type hints throughout
+
+### Error Handling Example:
+
+If the POC doesn't exist in Vault:
+```json
+{
+    "detail": "Token not found for POC 'nonexistent_poc'"
+}
+```
+
+### Testing Suggestions:
+
+1. Unit tests for `HashicorpVaultService`
+2. Integration tests for the API endpoint
+3. Mock Vault responses in tests using:
+   ```python
+   from unittest.mock import patch
+
+   @patch('hvac.Client.secrets.kv.read_secret_version')
+   def test_get_poc_token(mock_read):
+       mock_read.return_value = {'data': {'data': {'token': 'test-token'}}}
+       # Test your endpoint
+   ```
+
+This solution integrates seamlessly with your existing architecture while providing a clean, maintainable way to retrieve POC tokens from Vault.
