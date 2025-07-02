@@ -1,0 +1,204 @@
+Here's the complete solution using path parameters to retrieve tokens from Vault with your existing infrastructure:
+
+### 1. Updated Vault Service (`hashicorp_vault_service.py`)
+
+```python
+import os
+from dotenv import load_dotenv
+from hvac import Client
+from hvac.api.auth_methods import Kubernetes
+from typing import Optional, Dict
+from src.main.infrastructure.services.secrets.interface_secret_services import ISecretService
+
+class HashicorpVaultService(ISecretService):
+    def __init__(self, config: Dict, cert: str):
+        self.config = config
+        self.cert = cert
+        self._client = None
+
+    @property
+    def client(self) -> Client:
+        """Lazy-loaded Vault client with authentication"""
+        if not self._client:
+            self._client = Client(
+                url=self.config["K8s_Vault"]["hvault_url"],
+                namespace=f"BNPPAN/AMBE/{self.config['K8s_Vault']['ecosystem']}",
+                verify=self.cert
+            )
+            self._authenticate()
+        return self._client
+
+    def _authenticate(self):
+        """Authenticate using Kubernetes method"""
+        jwt_token = self._read_kubernetes_token(
+            self.config["K8s_Vault"]["token"],
+            self.config["env"]
+        )
+        Kubernetes(self._client.adapter).login(
+            role=self.config["K8s_Vault"]["k8s_role"],
+            jwt=jwt_token,
+            use_token=True,
+            mount_point=f"kubernetes_{self.config['K8s_Vault']['namespace']}"
+        )
+
+    def get_poc_token(self, domain: str, poc_name: str) -> Optional[str]:
+        """
+        Retrieve token for a specific POC from Vault
+        Path structure: secret/domain/poc_name
+        """
+        try:
+            secret_path = f"{domain}/{poc_name}"
+            response = self.client.secrets.kv.read_secret_version(
+                path=secret_path,
+                mount_point="secret",
+                raise_on_deleted_version=True
+            )
+            return response["data"]["data"]["token"]
+        except Exception as e:
+            print(f"Error retrieving token for {domain}/{poc_name}: {str(e)}")
+            return None
+
+    def _read_kubernetes_token(self, kubernetes_token_path: str, env: str) -> str:
+        """Read Kubernetes JWT token from file or environment"""
+        try:
+            if env != "LOCAL":
+                with open(kubernetes_token_path) as f:
+                    return f.read()
+            else:
+                load_dotenv()
+                return os.getenv("TOKEN_K8S")
+        except Exception as e:
+            print(f"Error reading Kubernetes token: {str(e)}")
+            raise
+```
+
+### 2. FastAPI Controller (`vault_controllers.py`)
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Path
+from typing import Optional
+from src.main.infrastructure.services.secrets.hashicorp_vault_service import HashicorpVaultService
+from src.main.web_api.dependencies import get_vault_service
+
+router = APIRouter(prefix="/vault", tags=["Vault Secrets"])
+
+@router.get("/tokens/{domain}/{poc_name}")
+async def get_poc_token(
+    domain: str = Path(..., description="Domain name", example="discovery"),
+    poc_name: str = Path(..., description="POC name", example="poc1"),
+    vault_service: HashicorpVaultService = Depends(get_vault_service)
+):
+    """
+    Retrieve token for a specific POC from Vault
+    - Path structure: secret/domain/poc_name
+    - Returns the token if found
+    """
+    token = vault_service.get_poc_token(domain, poc_name)
+    if not token:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Token not found for {domain}/{poc_name}"
+        )
+    return {
+        "domain": domain,
+        "poc": poc_name,
+        "token": token
+    }
+```
+
+### 3. Dependency Injection (`dependencies.py`)
+
+```python
+from fastapi import Depends
+from src.main.infrastructure.services.secrets.hashicorp_vault_service import HashicorpVaultService
+from src.main.web_api.config import get_config
+
+def get_vault_service():
+    config = get_config()
+    cert_path = config["SSL"]["cert_path"]  # Adjust according to your config
+    return HashicorpVaultService(config, cert_path)
+```
+
+### 4. Configuration Example (`config.py`)
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_config():
+    return {
+        "K8s_Vault": {
+            "hvault_url": os.getenv("VAULT_URL"),
+            "ecosystem": os.getenv("VAULT_ECOSYSTEM"),
+            "token": "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            "k8s_role": os.getenv("VAULT_K8S_ROLE"),
+            "namespace": os.getenv("VAULT_NAMESPACE")
+        },
+        "env": os.getenv("ENVIRONMENT", "LOCAL"),
+        "SSL": {
+            "cert_path": os.getenv("SSL_CERT_PATH", "/etc/ssl/certs/ca-certificates.crt")
+        }
+    }
+```
+
+### 5. Update Main Application (`main.py`)
+
+```python
+# Add to your existing imports
+from src.main.web_api.controllers.vault_controllers import router as vault_router
+
+# Add to your router includes
+app.include_router(
+    vault_router,
+    prefix=f"/{version}",
+    tags=["Vault Secrets"]
+)
+```
+
+### Key Improvements:
+
+1. **Path Parameter Implementation**:
+   - Uses `/vault/tokens/{domain}/{poc_name}` structure
+   - Matches your Vault path structure `secret/domain/poc_name`
+
+2. **Error Handling**:
+   - Proper error handling at both service and API layers
+   - Returns 404 when token not found
+
+3. **Security**:
+   - Maintains existing Kubernetes authentication
+   - Proper secret management
+
+4. **Clean Architecture**:
+   - Separates concerns (controller, service, config)
+   - Uses dependency injection
+   - Type hints throughout
+
+5. **Configuration**:
+   - Environment variable based
+   - Supports both local and Kubernetes environments
+
+### Usage Example:
+
+1. Request:
+   ```
+   GET /api/v0.0.1/vault/tokens/discovery/poc1
+   ```
+
+2. Vault Path:
+   ```
+   secret/discovery/poc1
+   ```
+
+3. Response:
+   ```json
+   {
+       "domain": "discovery",
+       "poc": "poc1",
+       "token": "s.8d7f9e0a1b2c3d4e5f6g7h8i9j0"
+   }
+   ```
+
+This solution provides a clean, maintainable way to retrieve POC tokens from Vault while maintaining your existing security and architecture standards.
