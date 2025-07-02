@@ -1,0 +1,156 @@
+Here's a professional solution for implementing token retrieval from Vault in your FastAPI backend using clean architecture principles:
+
+### Recommended Approach: Path Parameters with Validation
+
+```python
+# src/main/web_api/controllers/vault_controllers.py
+from fastapi import APIRouter, Depends, HTTPException
+from src.main.core.vault_service import VaultService  # Your Vault service layer
+from src.main.core.auth.dependencies import verify_token  # Auth dependency
+
+router = APIRouter(prefix="/vault", tags=["vault tokens"])
+
+@router.get("/tokens/{poc_name}")
+async def get_poc_token(
+    poc_name: str,
+    vault: VaultService = Depends(VaultService),
+    _: str = Depends(verify_token)  # Authentication
+):
+    """
+    Retrieve token for a specific POC from Vault
+    - Validates poc_name against registered POCs
+    - Returns the appropriate token
+    """
+    try:
+        if not vault.is_valid_poc(poc_name):
+            raise HTTPException(
+                status_code=404,
+                detail=f"POC '{poc_name}' not found or not authorized"
+            )
+        
+        token = vault.get_poc_token(poc_name)
+        return {"poc": poc_name, "token": token}
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving token: {str(e)}"
+        )
+```
+
+### Architecture Structure
+
+```
+src/
+├── main/
+│   ├── core/
+│   │   ├── vault_service.py          # Vault business logic
+│   │   └── models/
+│   │       └── poc.py                # POC domain models
+│   ├── web_api/
+│   │   ├── controllers/
+│   │   │   └── vault_controllers.py  # API endpoint
+│   │   └── config/
+│   │       └── vault_config.py       # Vault configuration
+├── tests/
+│   └── unit/
+│       └── test_vault_service.py     # Unit tests
+```
+
+### Vault Service Implementation
+
+```python
+# src/main/core/vault_service.py
+import hvac
+from typing import Dict
+from src.main.config.vault_config import VAULT_CONFIG
+
+class VaultService:
+    def __init__(self):
+        self.client = hvac.Client(
+            url=VAULT_CONFIG['url'],
+            token=VAULT_CONFIG['token']
+        )
+        self._valid_pocs = self._load_valid_pocs()
+
+    def _load_valid_pocs(self) -> Dict:
+        """Load valid POCs from config/database"""
+        return {
+            'poc1': 'path/to/poc1/creds',
+            'poc2': 'path/to/poc2/creds',
+            # ... other POCs
+        }
+
+    def is_valid_poc(self, poc_name: str) -> bool:
+        return poc_name in self._valid_pocs
+
+    def get_poc_token(self, poc_name: str) -> str:
+        """Retrieve token from Vault for specific POC"""
+        secret_path = self._valid_pocs.get(poc_name)
+        if not secret_path:
+            raise ValueError(f"Invalid POC name: {poc_name}")
+        
+        response = self.client.read(secret_path)
+        if not response or 'data' not in response:
+            raise ValueError("No data returned from Vault")
+        
+        return response['data']['token']
+```
+
+### Why This Approach is Better
+
+1. **Clean Architecture Benefits**:
+   - Separation of concerns (router vs service layer)
+   - Easy to mock and test
+   - Configuration separate from business logic
+
+2. **Security**:
+   - Token validation before any operation
+   - Proper error handling
+   - Vault authentication encapsulated
+
+3. **Maintainability**:
+   - Easy to add new POCs by extending the valid_pocs dict
+   - Consistent API structure
+   - Proper typing and documentation
+
+4. **RESTful Design**:
+   - Proper use of path parameters (`/vault/tokens/poc1`)
+   - Clear resource naming
+   - Standard HTTP methods
+
+### Register the Router in main.py
+
+```python
+# Add to your existing main.py
+from src.main.web_api.controllers.vault_controllers import router as vault_router
+
+app.include_router(
+    vault_router,
+    prefix=f"/{version}/vault",
+    tags=["vault tokens"]
+)
+```
+
+### Alternative: Query Parameters Approach
+
+If you prefer query parameters (not recommended for this use case):
+
+```python
+@router.get("/tokens/")
+async def get_poc_token(
+    poc_name: str = Query(..., description="Name of the POC"),
+    vault: VaultService = Depends(VaultService)
+):
+    # Implementation remains the same
+```
+
+### Recommendation
+
+The path parameter approach (`/vault/tokens/{poc_name}`) is more:
+- RESTful (treating each POC as a resource)
+- Cache-friendly
+- Easier to document and understand
+- More secure (clearly shows what's being accessed)
+
+This implementation follows clean architecture principles while providing a secure, maintainable way to access Vault tokens for your POCs.
