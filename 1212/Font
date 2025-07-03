@@ -1,0 +1,9 @@
+import { BNPColors, fontFamilies } from './style.ts'; // adjust path as needed
+
+// Then use inline styles
+<span 
+  className="text-lg font-semibold" 
+  style={{ fontFamily: fontFamilies.bnppSans || 'BNPP Sans, sans-serif' }}
+>
+  The asset manager for changing world
+</span>
