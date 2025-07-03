@@ -1,0 +1,77 @@
+import { Link } from 'react-router-dom';
+
+const Footer = () => {
+  return (
+    <footer className="bg-white border-t-4 border-emerald-600 py-6 px-6 w-full relative">
+      {/* Green decorative border line */}
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700"></div>
+      
+      <div className="container mx-auto flex flex-col md:flex-row justify-between items-center">
+        {/* Left side - Logo and Company Name */}
+        <div className="flex items-center mb-4 md:mb-0">
+          <img
+            src="/bnp-logo.svg"
+            alt="Company Logo"
+            className="h-8 mr-3"
+          />
+          <span 
+            className="text-lg font-semibold text-gray-800"
+            style={{ 
+              fontFamily: 'BNPP Sans, sans-serif', 
+              fontSize: '16px',
+              color: '#2c3e50'
+            }}
+          >
+            The asset manager for changing world
+          </span>
+        </div>
+
+        {/* Right side - Links */}
+        <div className="flex space-x-8 text-sm text-gray-600">
+          <Link 
+            to="/about" 
+            className="hover:text-emerald-600 transition-colors duration-200 font-medium"
+            style={{ fontFamily: 'BNPP Sans, sans-serif' }}
+          >
+            About us
+          </Link>
+          <span className="text-gray-400">|</span>
+          <Link 
+            to="/contact" 
+            className="hover:text-emerald-600 transition-colors duration-200 font-medium"
+            style={{ fontFamily: 'BNPP Sans, sans-serif' }}
+          >
+            Contact us
+          </Link>
+          <span className="text-gray-400">|</span>
+          <Link 
+            to="/legal" 
+            className="hover:text-emerald-600 transition-colors duration-200 font-medium"
+            style={{ fontFamily: 'BNPP Sans, sans-serif' }}
+          >
+            Legal information
+          </Link>
+        </div>
+      </div>
+
+      {/* Bottom section with additional BNP styling */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center text-xs text-gray-500">
+          <div style={{ fontFamily: 'BNPP Sans, sans-serif' }}>
+            © 2024 BNP Paribas Asset Management. All rights reserved.
+          </div>
+          <div className="mt-2 sm:mt-0">
+            <span 
+              className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium"
+              style={{ fontFamily: 'BNPP Sans, sans-serif' }}
+            >
+              Sustainable Finance
+            </span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
