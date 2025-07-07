@@ -1,0 +1,342 @@
+// chat.component.scss - Add these styles to your existing SCSS file
+
+/* Loading Animations */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 18px;
+  border: 1px solid #e9ecef
+
+
+
+<!-- chat.component.html - Updated template with loading animations -->
+<app-breadcrumb [title]="'Dynatrace Assistant'" [items]="['SL1 / Assistants']" [active_item]="'Dynatrace'"></app-breadcrumb>
+
+<!-- Container-fluid starts-->
+<div class="container-fluid">
+  <div class="row">
+    <div class="col call-chat-body">
+      <div class="card">
+        <div class="card-body p-0">
+          <div class="row chat-box">
+            <div class="col pe-0 chat-right-aside">
+              <!-- Chat start -->
+              <div class="chat">
+                <!-- Chat header start -->
+                <div class="chat-header d-flex justify-content-between me-3">
+                  <div class="about">
+                    <div class="name">AI Dynatrace Assistant</div>
+                  </div>
+                  <div class="text-end">
+                    <a class="btn btn-outline-dark" href="javascript:void(0)" 
+                       (click)="openSettingsModal(true)">
+                      <span class="name">{{ 'Mode: ' + (currentMode | uppercase) + ', Application: ' + (currentApplication | uppercase) }}</span>
+                    </a>
+                  </div>
+                </div>
+                <!-- Chat header end -->
+
+                <!-- Chat history start -->
+                <div class="chat-history chat-msg-box custom-scrollbar">
+                  <ul>
+                    <li *ngFor="let chat of chats"
+                        [ngClass]="{'clearfix': chat.sender == currentUserId }">
+                      <div class="message other-message pull-right" 
+                           *ngIf="chat.sender != currentUserId; else myChat">
+                        <img class="rounded-circle float-start chat-user-img img-30" 
+                             src="../../assets/images/logo-dynatrace.jpg" alt="">
+                        <div class="message-data text-end">
+                          <span class="message-data-time">{{chat.time | date : 'dd/MM/yyyy HH:mm'}}</span>
+                        </div>
+                        
+                        <!-- Show loading animation for AI messages -->
+                        <div *ngIf="chat.isLoading" class="typing-indicator">
+                          <div class="typing-dots">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                          </div>
+                        </div>
+                        
+                        <!-- Show actual message content when not loading -->
+                        <div *ngIf="!chat.isLoading">
+                          <pre *ngIf="chat.isJson">{{ chat.message | formatJson }}</pre>
+                          <span *ngIf="!chat.isJson" [innerHTML]="chat.message"></span>
+                          <div class="text-end">
+                            <a *ngIf="!chat.isError" href="javascript:void(0)" 
+                               (click)="onClickCopy(chat.message)">
+                              <span class="badge badge-success me-3">COPY</span>
+                            </a>
+                            <a *ngIf="!chat.isError && currentMode == modes.Discovery && !chat.isJson" 
+                               href="javascript:void(0)" 
+                               (click)="onClickGenerateSyntheticScript()">
+                              <span class="badge badge-primary me-3">GENERATE SYNTHETIC SCRIPT</span>
+                            </a>
+                            <a *ngIf="!chat.isError && (currentMode == modes.Synthetic || chat.isJson)" 
+                               href="javascript:void(0)" 
+                               (click)="onClickSendToDynatrace(chat.message)">
+                              <span class="badge badge-primary me-3">SEND TO DYNATRACE</span>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                  
+                  <!-- Typing indicator for AI responses -->
+                  <div *ngIf="isTyping" class="message other-message pull-right">
+                    <img class="rounded-circle float-end chat-user-img img-30" 
+                         src="../../assets/images/profil.png" alt="">
+                    <div class="message-data">
+                      <span class="message-data-time">{{chat.time | date : 'dd/MM/yyyy HH:mm'}}</span>
+                    </div>
+                    <div class="typing-indicator">
+                      <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Chat history end -->
+
+                <!-- Chat input start -->
+                <div class="chat-message clearfix">
+                  <div class="row">
+                    <div class="col-xl-12 d-flex">
+                      <div class="input-group text-box">
+                        <input class="form-control input-txt-bx" 
+                               [class.border-danger]="error"
+                               [(ngModel)]="chatText" 
+                               id="message-to-send" 
+                               type="text"
+                               name="message" 
+                               placeholder="Type a message ......" 
+                               [disabled]="isLoading"
+                               (keydown.enter)="sendMessage()">
+                        <div class="input-group-append">
+                          <button class="btn btn-primary" 
+                                  [disabled]="isLoading"
+                                  (click)="sendMessage()" 
+                                  type="button">
+                            <span *ngIf="!isLoading">
+                              {{ currentMode == null ? 'SEND' : (currentMode == modes.Discovery ? 'DISCOVERY' : 'SYNTHETIC') }}
+                            </span>
+                            <span *ngIf="isLoading" class="btn-loading-text">
+                              <span class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="sr-only">Loading...</span>
+                              </span>
+                              Sending...
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Progress bar for loading -->
+                  <div *ngIf="isLoading" class="progress-loader">
+                    <div class="progress-bar-animated"></div>
+                  </div>
+                </div>
+                <!-- Chat input end -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Container-fluid ends -->
+
+
+
+// chat.model.ts - Updated model to include loading state
+export class ChatModel {
+  public sender: string;
+  public message: string;
+  public time: Date;
+  public isError: boolean;
+  public isJson: boolean;
+  public isLoading: boolean; // Add loading property
+
+  constructor(
+    sender: string,
+    message: string,
+    time: Date,
+    isError: boolean,
+    isJson: boolean,
+    isLoading: boolean = false // Default to false
+  ) {
+    this.sender = sender;
+    this.message = message;
+    this.time = time;
+    this.isError = isError;
+    this.isJson = isJson;
+    this.isLoading = isLoading;
+  }
+}
+
+
+
+// chat.component.ts - Updated TypeScript file
+import { AfterViewInit, Component, OnInit } from '@angular/core';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { ChatModel } from '../../models/chat.model';
+import { ChatService, GlobalService } from '../../services';
+import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
+import { modes } from '../../data/global.data';
+import { Toast } from 'src/app/helpers/toast';
+
+@Component({
+  selector: 'app-chat',
+  templateUrl: './chat.component.html',
+  styleUrls: ['./chat.component.scss']
+})
+export class ChatComponent implements OnInit, AfterViewInit {
+  public chatText: string;
+  public error: boolean;
+  public chats: Array<ChatModel>;
+  public currentUserId: string = 'f18564';
+  public applications = [
+    { endPoint: "", name: "Smart Allocation" }
+  ];
+  public modes = modes;
+  public currentApplication: string;
+  public currentMode: string | null;
+  public isLoading: boolean = false; // Add loading state
+  public isTyping: boolean = false;  // Add typing indicator state
+
+  constructor(
+    private chatService: ChatService,
+    private modalService: NgbModal,
+    private globalService: GlobalService
+  ) {
+    this.chatText = '';
+    this.error = false;
+    this.chats = [];
+    this.currentApplication = this.applications[0].name;
+    this.currentMode = null;
+  }
+
+  ngOnInit(): void { }
+
+  ngAfterViewInit(): void {
+    this.globalService.currentMode$.subscribe(mode => {
+      if (mode != this.currentMode) {
+        this.chats = [];
+        this.chatText = '';
+        this.error = false;
+      }
+      this.currentMode = mode;
+    });
+
+    if (!this.currentMode) {
+      this.openSettingsModal(false);
+    }
+  }
+
+  openSettingsModal(canClose: boolean) {
+    this.modalService.open(SettingsModalComponent, canClose ? { size: 'lg', centered: true } : { size: 'lg', centered: true, backdrop: 'static', keyboard: false });
+  }
+
+  onClickCopy(message: string) {
+    navigator.clipboard.writeText(message)
+      .then(() => {
+        Toast.fire(
+          '',
+          'Message copied!',
+          'success'
+        );
+      });
+  }
+
+  onClickSendToDynatrace(message: string) {
+    Toast.fire(
+      '',
+      'This feature is under development and will be available in V2!',
+      'success'
+    );
+  }
+
+  onClickGenerateSyntheticScript() {
+    this.chatText = 'Create the corresponding synthetic test for this call.';
+    this.sendMessage(false);
+  }
+
+  public sendMessage(showMessage: boolean = true): void {
+    if (!this.chatText.trim()) {
+      this.error = true;
+      return;
+    }
+
+    // Start loading
+    this.isLoading = true;
+    this.error = false;
+
+    if (showMessage) {
+      // Set loading to true for the new message
+      const chat = new ChatModel(this.currentUserId, this.chatText, new Date(), false, false, true);
+      this.chats.push(chat);
+      this.scrollToBottom();
+    }
+
+    // Show typing indicator
+    this.isTyping = true;
+
+    this.chatService.sendMessage(this.chatText)
+      .subscribe({
+        next: (result: any) => {
+          // Hide loading and typing
+          this.isLoading = false;
+          this.isTyping = false;
+          
+          // Update the loading state of the last message
+          if (this.chats.length > 0) {
+            this.chats[this.chats.length - 1].isLoading = false;
+          }
+
+          if (result.answer === 'error') {
+            this.chats.push(new ChatModel('AI', "I'm unable to provide a suitable answer to the given question. Please rephrase your query or try asking a different question.", new Date(), true, false, false));
+          } else {
+            console.log(result.answer);
+            if (result.answer instanceof Object) {
+              this.chats.push(new ChatModel('AI', result.answer, new Date(), false, true, false));
+            } else {
+              let formattedResult = result.answer.replaceAll(/\n/g, '<br/>');
+              this.chats.push(new ChatModel('AI', formattedResult, new Date(), false, false, false));
+            }
+          }
+          this.scrollToBottom();
+        },
+        error: (error) => {
+          // Hide loading and typing
+          this.isLoading = false;
+          this.isTyping = false;
+          
+          // Update the loading state of the last message
+          if (this.chats.length > 0) {
+            this.chats[this.chats.length - 1].isLoading = false;
+          }
+
+          this.chats.push(new ChatModel('AI', "I'm unable to provide a suitable answer to the given question. Please rephrase your query or try asking a different question.", new Date(), true, false, false));
+          this.scrollToBottom();
+        }
+      });
+
+    this.chatText = '';
+  }
+
+  private scrollToBottom(): void {
+    setTimeout(() => {
+      const chatHistory = document.querySelector('.chat-history');
+      if (chatHistory) {
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      }
+    }, 100);
+  }
+}
