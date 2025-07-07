@@ -1,0 +1,80 @@
+public sendMessage(showMessage: boolean = true): void {
+    if (!this.chatText) {
+        this.error = true;
+    } else {
+        if (showMessage === true) {
+            this.error = false;
+            const chat = new ChatModel(
+                this.currentUserUid, 
+                this.chatText, 
+                new Date(), 
+                false, 
+                false, 
+                true  // Set isLoading to true
+            );
+            this.chats.push(chat);
+            
+            this.chatService.sendMessage(this.chatText)
+                .subscribe({
+                    next: (result: any) => {
+                        chat.isLoading = false;
+                        // Handle response...
+                    },
+                    error: (error) => {
+                        chat.isLoading = false;
+                        // Handle error...
+                    }
+                });
+            
+            this.chatText = '';
+        }
+    }
+}
+
+
+.professional-spinner {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: middle;
+  
+  .spinner-dots {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    
+    div {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #4CAF50;
+      margin: 0 3px;
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+    
+    .dot1 {
+      animation-delay: -0.32s;
+    }
+    
+    .dot2 {
+      animation-delay: -0.16s;
+    }
+  }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { 
+    transform: scale(0);
+  } 40% { 
+    transform: scale(1.0);
+  }
+}
+
+
+
+<div *ngIf="chat.isLoading" class="professional-spinner">
+  <div class="spinner-dots">
+    <div class="dot1"></div>
+    <div class="dot2"></div>
+    <div class="dot3"></div>
+  </div>
+</div>
