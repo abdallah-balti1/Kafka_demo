@@ -2,10 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug Vite React App",
       "type": "pwa-chrome",
       "request": "launch",
-      "name": "Debug React App",
-      "url": "http://localhost:3000",
+      "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}/src",
       "sourceMaps": true,
       "breakOnLoad": true
