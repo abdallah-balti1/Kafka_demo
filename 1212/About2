@@ -1,72 +1,14 @@
-import React from 'react';
-
-/**
- * AboutPage Component
- * 
- * Displays functional and technical overviews of the application.
- * Utilizes BNPP Sans font and follows a clean, structured layout.
- */
-const AboutPage: React.FC = () => {
-  const textStyles = {
-    fontFamily: 'BNPP Sans, sans-serif',
-  };
-
-  return (
-    <main className="max-w-4xl mx-auto px-6 py-10">
-      {/* Page Header */}
-      <header className="mb-10">
-        <h1 
-          className="text-4xl font-bold text-gray-800 mb-2" 
-          style={textStyles}
-        >
-          About My Application
-        </h1>
-        <div className="w-20 h-1 bg-blue-600"></div>
-      </header>
-
-      {/* Functional Overview Section */}
-      <section aria-labelledby="functional-overview" className="mb-12">
-        <h2 
-          id="functional-overview"
-          className="text-2xl font-semibold text-gray-700 mb-4"
-          style={textStyles}
-        >
-          Functional Overview
-        </h2>
-        <p 
-          className="text-lg text-gray-600 leading-relaxed"
-          style={textStyles}
-        >
-          My Application is a platform designed to provide a structured and isolated hosting 
-          environment specifically for <strong>TI TEST</strong>. This environment supports the 
-          execution of various tests without affecting production systems, ensuring a 
-          <strong> secure, controlled, and scalable</strong> platform for test experimentation.
-        </p>
-      </section>
-
-      {/* Technical Overview Section */}
-      <section aria-labelledby="technical-overview">
-        <h2 
-          id="technical-overview"
-          className="text-2xl font-semibold text-gray-700 mb-4"
-          style={textStyles}
-        >
-          Technical Overview
-        </h2>
-        <ul className="list-disc pl-6 space-y-2">
-          <li className="text-lg text-gray-600 leading-relaxed" style={textStyles}>
-            Provisions resources and services for <strong>TI experiments on DWZR</strong>
-          </li>
-          <li className="text-lg text-gray-600 leading-relaxed" style={textStyles}>
-            Manages data connections via the <strong>DataHub</strong>
-          </li>
-          <li className="text-lg text-gray-600 leading-relaxed" style={textStyles}>
-            Implements <strong>strict security protocols</strong>
-          </li>
-        </ul>
-      </section>
-    </main>
-  );
-};
-
-export default AboutPage;
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "pwa-chrome",
+      "request": "launch",
+      "name": "Debug React App",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/src",
+      "sourceMaps": true,
+      "breakOnLoad": true
+    }
+  ]
+}
