@@ -1,25 +1,24 @@
-{
-  "version": "0.2.0",
+"version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Chrome",
+      "name": "Launch Chrome (Vite HTTPS)",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:3000",
+      "url": "https://localhost:5173",
       "webRoot": "${workspaceFolder}",
       "sourceMapPathOverrides": {
-        "webpack:///src/*": "${webRoot}/src/*",
-        "webpack:///./src/*": "${webRoot}/src/*",
-        "webpack:///./*": "${webRoot}/*",
-        "webpack:////*": "*",
-        "webpack:///./~/*": "${webRoot}/node_modules/*"
+        "/@fs/*": "*",
+        "/src/*": "${webRoot}/src/*",
+        "/*": "*",
+        "/./~/*": "${webRoot}/node_modules/*"
       },
       "skipFiles": [
-        "${workspaceFolder}/node_modules/**/*.js",
-        "${workspaceFolder}/build/**/*.js"
+        "${workspaceFolder}/node_modules/**/*.js"
       ],
-      "smartStep": true,
-      "sourceMaps": true
+      "sourceMaps": true,
+      "runtimeArgs": [
+        "--ignore-certificate-errors",
+        "--ignore-ssl-errors",
+        "--ignore-certificate-errors-spki-list"
+      ]
     }
-  ]
-}
