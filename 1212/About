@@ -1,0 +1,212 @@
+import React from 'react';
+import { Code, Shield, Database, Users, Zap, CheckCircle } from 'lucide-react';
+
+const AboutPage: React.FC = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden bg-green-600 text-white">
+        <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="relative max-w-7xl mx-auto px-6 py-20">
+          <div className="text-center">
+            <h1 className="text-5xl font-bold mb-6 text-white">
+              About My Application
+            </h1>
+            <p className="text-xl text-green-100 max-w-3xl mx-auto leading-relaxed">
+              A comprehensive platform designed to provide structured and isolated hosting environments 
+              specifically for IT testing and experimentation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-16">
+        {/* Overview Section */}
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Functional Overview</h2>
+            <div className="w-24 h-1 bg-green-600 mx-auto"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Secure Environment</h3>
+                  <p className="text-gray-600">
+                    Our platform provides a controlled and secure environment for testing various applications 
+                    without affecting production systems.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <Code className="w-6 h-6 text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Isolated Testing</h3>
+                  <p className="text-gray-600">
+                    Each testing environment is completely isolated, ensuring that experiments don't 
+                    interfere with each other or production systems.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-lg p-8 border-l-4 border-green-600">
+              <div className="text-center">
+                <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Zap className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Scalable Platform</h3>
+                <p className="text-gray-600 mb-6">
+                  Built for teams and organizations that need reliable testing infrastructure.
+                </p>
+                <div className="flex justify-center space-x-8">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">99.9%</div>
+                    <div className="text-sm text-gray-500">Uptime</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-600">24/7</div>
+                    <div className="text-sm text-gray-500">Available</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Technical Overview */}
+        <div className="mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Technical Overview</h2>
+            <div className="w-24 h-1 bg-green-600 mx-auto"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-600 hover:shadow-lg transition-shadow">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                <Database className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Data Management</h3>
+              <p className="text-gray-600 mb-4">
+                Advanced data connection management via secure protocols and databases.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  DNZR Integration
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  Secure Protocols
+                </li>
+              </ul>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-yellow-500 hover:shadow-lg transition-shadow">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
+                <Shield className="w-6 h-6 text-yellow-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Security First</h3>
+              <p className="text-gray-600 mb-4">
+                Implementation of strict security protocols to protect your testing environment.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  End-to-End Encryption
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  Access Control
+                </li>
+              </ul>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-gray-600 hover:shadow-lg transition-shadow">
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Team Collaboration</h3>
+              <p className="text-gray-600 mb-4">
+                Built for teams with collaborative features and shared testing environments.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  Multi-user Support
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  Role Management
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Features */}
+        <div className="mb-20">
+          <div className="bg-green-50 rounded-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Platform Capabilities</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="flex items-start space-x-3">
+                <div className="w-2 h-2 bg-green-600 rounded-full mt-2"></div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">TI Experiments on DNZR</h4>
+                  <p className="text-gray-600 text-sm">Advanced testing capabilities for TI operations</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Data Connection Management</h4>
+                  <p className="text-gray-600 text-sm">Secure database connectivity solutions</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-2 h-2 bg-green-600 rounded-full mt-2"></div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Strict Security Protocols</h4>
+                  <p className="text-gray-600 text-sm">Enterprise-grade security implementation</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Isolated Environment</h4>
+                  <p className="text-gray-600 text-sm">Completely separated testing infrastructure</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Call to Action */}
+        <div className="text-center bg-green-600 rounded-lg p-12 text-white">
+          <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+          <p className="text-xl text-green-100 mb-8 max-w-2xl mx-auto">
+            Join teams who trust our platform for their critical testing infrastructure needs.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button className="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+              Start Testing
+            </button>
+            <button className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-600 transition-colors">
+              Documentation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AboutPage;
