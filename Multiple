@@ -1,0 +1,179 @@
+import React, { useState } from 'react';
+
+const UserForm = () => {
+  const [formData, setFormData] = useState({
+    role: '',
+    active: false
+  });
+  
+  // For single POC selection (POC tester)
+  const [selectedPocId, setSelectedPocId] = useState('');
+  
+  // For multiple POC selection (SQUAD team, Admin)
+  const [selectedPocIds, setSelectedPocIds] = useState([]);
+
+  // Sample POCs data - replace with your actual data
+  const pocs = [
+    { id: '1', name: 'John Doe' },
+    { id: '2', name: 'Jane Smith' },
+    { id: '3', name: 'Mike Johnson' },
+    { id: '4', name: 'Sarah Wilson' },
+    { id: '5', name: 'David Brown' }
+  ];
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (name === 'role') {
+      // Reset POC selections when role changes
+      setSelectedPocId('');
+      setSelectedPocIds([]);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSinglePocChange = (e) => {
+    setSelectedPocId(e.target.value);
+  };
+
+  const handleMultiplePocChange = (pocId) => {
+    setSelectedPocIds(prev => {
+      if (prev.includes(pocId)) {
+        // Remove if already selected
+        return prev.filter(id => id !== pocId);
+      } else {
+        // Add if not selected
+        return [...prev, pocId];
+      }
+    });
+  };
+
+  const handleSubmit = () => {
+    // Prepare data for submission
+    const submitData = {
+      ...formData,
+      pocs: formData.role === 'user' ? [selectedPocId] : selectedPocIds
+    };
+    
+    console.log('Form data to submit:', submitData);
+    // Here you would typically send the data to your backend
+  };
+
+  const isPocTester = formData.role === 'user';
+  const isMultipleSelection = formData.role === 'admin' || formData.role === 'squad';
+
+  return (
+    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg">
+      <div className="space-y-6">
+        {/* Role Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Role
+          </label>
+          <select
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">Select Role</option>
+            <option value="user">POC tester</option>
+            <option value="squad">SQUAD team</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+
+        {/* Active Checkbox */}
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            name="active"
+            checked={formData.active}
+            onChange={handleChange}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label className="text-sm font-medium text-gray-700">Active</label>
+        </div>
+
+        {/* POC Selection - Single (for POC tester) */}
+        {isPocTester && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select POC
+            </label>
+            <select
+              value={selectedPocId}
+              onChange={handleSinglePocChange}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">— Select a POC —</option>
+              {pocs.map((poc) => (
+                <option key={poc.id} value={poc.id}>
+                  {poc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* POC Selection - Multiple (for SQUAD team and Admin) */}
+        {isMultipleSelection && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select POCs (multiple allowed)
+            </label>
+            <div className="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto">
+              {pocs.map((poc) => (
+                <div key={poc.id} className="flex items-center space-x-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id={`poc-${poc.id}`}
+                    checked={selectedPocIds.includes(poc.id)}
+                    onChange={() => handleMultiplePocChange(poc.id)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label 
+                    htmlFor={`poc-${poc.id}`}
+                    className="text-sm text-gray-700 cursor-pointer"
+                  >
+                    {poc.name}
+                  </label>
+                </div>
+              ))}
+            </div>
+            {selectedPocIds.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedPocIds.length} POC(s) selected
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          disabled={!formData.role || (isPocTester && !selectedPocId) || (isMultipleSelection && selectedPocIds.length === 0)}
+        >
+          Submit
+        </button>
+
+        {/* Debug Info */}
+        <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
+          <p><strong>Role:</strong> {formData.role}</p>
+          <p><strong>Active:</strong> {formData.active ? 'Yes' : 'No'}</p>
+          <p><strong>Selected POC(s):</strong> {isPocTester ? selectedPocId : selectedPocIds.join(', ')}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UserForm;
