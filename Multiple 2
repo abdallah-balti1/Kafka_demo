@@ -1,0 +1,285 @@
+import React, { useState, useEffect } from "react";
+import { createUser } from "services/users";
+import { assignUserToPoc } from "services/userPocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+
+interface UserCreateFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const UserCreateForm: React.FC<UserCreateFormProps> = ({
+  onSuccess,
+  onCancel,
+}) => {
+  const [formData, setFormData] = useState<User>({
+    userId: "",
+    firstName: "",
+    lastName: "",
+    mail: "",
+    role: "user",
+    active: true,
+  });
+
+  const [pocs, setPocs] = useState<Pocs[]>([]);
+  // For single POC selection (POC tester)
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+  // For multiple POC selection (SQUAD team and Admin)
+  const [selectedPocIds, setSelectedPocIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadPocs = async () => {
+      const result = await fetchPocs();
+      setPocs(result);
+    };
+    loadPocs();
+  }, []);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type, ariaChecked } = e.target;
+    
+    // Reset POC selections when role changes
+    if (name === "role") {
+      setSelectedPocId("");
+      setSelectedPocIds([]);
+    }
+    
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: type === "checkbox" ? ariaChecked : value,
+    }));
+  };
+
+  // Handle single POC selection for POC tester
+  const handleSinglePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPocId(e.target.value);
+  };
+
+  // Handle multiple POC selection for SQUAD team and Admin
+  const handleMultiplePocChange = (pocId: string) => {
+    setSelectedPocIds(prev => {
+      if (prev.includes(pocId)) {
+        // Remove if already selected
+        return prev.filter(id => id !== pocId);
+      } else {
+        // Add if not selected
+        return [...prev, pocId];
+      }
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate POC selection based on role
+    if (formData.role === "user" && !selectedPocId) {
+      alert("Please select a POC");
+      return;
+    }
+    
+    if ((formData.role === "squad" || formData.role === "admin") && selectedPocIds.length === 0) {
+      alert("Please select at least one POC");
+      return;
+    }
+
+    try {
+      await createUser(formData);
+
+      // Get the selected POC(s) based on role
+      const selectedPoc = formData.role === "user" 
+        ? pocs.find((p) => p.id === selectedPocId)
+        : null;
+
+      const selectedPocsForMultiple = formData.role === "squad" || formData.role === "admin"
+        ? pocs.filter((p) => selectedPocIds.includes(p.id))
+        : [];
+
+      // Handle POC assignment based on role
+      if (formData.role === "user" && selectedPoc) {
+        // Single POC assignment for POC tester
+        const startUsing = new Date().toISOString().split("T")[0];
+        const endUsing = new Date(new Date().setMonth(new Date().getMonth() + 1))
+          .toISOString()
+          .split("T")[0];
+
+        await assignUserToPoc(formData, selectedPoc, startUsing, endUsing);
+      } else if ((formData.role === "squad" || formData.role === "admin") && selectedPocsForMultiple.length > 0) {
+        // Multiple POC assignment for SQUAD team and Admin
+        const startUsing = new Date().toISOString().split("T")[0];
+        const endUsing = new Date(new Date().setMonth(new Date().getMonth() + 1))
+          .toISOString()
+          .split("T")[0];
+
+        // Assign user to each selected POC
+        for (const poc of selectedPocsForMultiple) {
+          await assignUserToPoc(formData, poc, startUsing, endUsing);
+        }
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating user or assigning POC:", error);
+    }
+  };
+
+  // Helper variables for conditional rendering
+  const isPocTester = formData.role === "user";
+  const isMultipleSelection = formData.role === "squad" || formData.role === "admin";
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4"
+      style={{ fontFamily: "BNPP Sans, sans-serif" }}
+    >
+      <div>
+        <label className="block font-medium">UID</label>
+        <input
+          type="text"
+          name="userId"
+          value={formData.userId}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">First Name</label>
+        <input
+          type="text"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Last Name</label>
+        <input
+          type="text"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Email</label>
+        <input
+          type="email"
+          name="mail"
+          value={formData.mail}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Role</label>
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        >
+          <option value="user">POC tester</option>
+          <option value="squad">SQUAD team</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          name="active"
+          checked={formData.active}
+          onChange={handleChange}
+        />
+        <label>Active</label>
+      </div>
+
+      {/* Single POC Selection for POC Tester */}
+      {isPocTester && (
+        <div>
+          <label className="block font-medium">Select POC</label>
+          <select
+            value={selectedPocId}
+            onChange={handleSinglePocChange}
+            className="w-full border p-2 rounded"
+            required
+          >
+            <option value="">— Select a POC —</option>
+            {pocs.map((poc) => (
+              <option key={poc.id} value={poc.id}>
+                {poc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Multiple POC Selection for SQUAD Team and Admin */}
+      {isMultipleSelection && (
+        <div>
+          <label className="block font-medium">Select POCs (multiple allowed)</label>
+          <div className="border p-3 rounded max-h-40 overflow-y-auto bg-gray-50">
+            {pocs.map((poc) => (
+              <div key={poc.id} className="flex items-center space-x-2 mb-2">
+                <input
+                  type="checkbox"
+                  id={`poc-${poc.id}`}
+                  checked={selectedPocIds.includes(poc.id)}
+                  onChange={() => handleMultiplePocChange(poc.id)}
+                  className="h-4 w-4"
+                />
+                <label 
+                  htmlFor={`poc-${poc.id}`}
+                  className="text-sm cursor-pointer"
+                >
+                  {poc.name}
+                </label>
+              </div>
+            ))}
+          </div>
+          {selectedPocIds.length > 0 && (
+            <p className="text-sm text-gray-600 mt-1">
+              {selectedPocIds.length} POC(s) selected
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-300 px-4 py-2 rounded inline-flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-400 transition-all duration-200 shadow-sm hover:shadow-md"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
+          disabled={
+            (isPocTester && !selectedPocId) || 
+            (isMultipleSelection && selectedPocIds.length === 0)
+          }
+        >
+          Create
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default UserCreateForm;
