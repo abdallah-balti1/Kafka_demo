@@ -1,0 +1,230 @@
+import React, { useState, useEffect } from "react";
+import { getUsersWithPocs, updateUser } from "services/users";
+import { assignUserToPoc, removeUserPoc } from "services/userPocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+import { ClipLoader } from "react-spinners";
+
+type Props = {
+  user: User;
+  onClose: () => void;
+  onSuccess: () => void;
+};
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState<User>({ ...user });
+  const [allPocs, setAllPocs] = useState<Pocs[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+  const [selectedPocIds, setSelectedPocIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState({
+    initial: true,
+    form: false,
+    pocs: false,
+  });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading((prev) => ({ ...prev, pocs: true }));
+      try {
+        console.log("[LOADING] Starting to load POCs and user data...");
+        const [pocs, users] = await Promise.all([
+          fetchPocs(),
+          getUsersWithPocs(),
+        ]);
+        
+        console.log("[LOADING] Loaded POCs:", pocs.length);
+        console.log("[LOADING] Loaded users:", users.length);
+        
+        setAllPocs(pocs);
+        const currentUser = users.find((u) => u.userId === user.userId);
+        
+        if (currentUser) {
+          console.log("[LOADING] Found current user with role:", currentUser.role);
+          console.log("[LOADING] Current user POCs:", currentUser.pocs?.length || 0);
+          
+          if (currentUser.role === "poc_tester" && currentUser.pocs?.[0]) {
+            console.log("[LOADING] Setting single POC:", currentUser.pocs[0].id);
+            setSelectedPocId(currentUser.pocs[0].id);
+          } else if (
+            (currentUser.role === "squad_team" || currentUser.role === "admin") &&
+            currentUser.pocs
+          ) {
+            const pocIds = currentUser.pocs.map((poc) => poc.id);
+            console.log("[LOADING] Setting multiple POCs:", pocIds);
+            setSelectedPocIds(pocIds);
+          }
+        }
+      } catch (err) {
+        console.error("[ERROR] Failed to load data:", err);
+        setError("Failed to load POC data");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, initial: false, pocs: false }));
+      }
+    };
+    loadData();
+  }, [user.userId]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    console.log("[FORM] Role changed to:", value);
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSinglePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    console.log("[FORM] Single POC selected:", e.target.value);
+    setSelectedPocId(e.target.value);
+  };
+
+  const handleMultiplePocChange = (pocId: string) => {
+    setSelectedPocIds((prev) => {
+      const newIds = prev.includes(pocId)
+        ? prev.filter((id) => id !== pocId)
+        : [...prev, pocId];
+      console.log("[FORM] Multiple POCs selected:", newIds);
+      return newIds;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading((prev) => ({ ...prev, form: true }));
+
+    try {
+      console.log("[SUBMIT] Starting submission process...");
+      console.log("[SUBMIT] Form data:", formData);
+      console.log("[SUBMIT] Selected POC IDs:", selectedPocIds);
+
+      // First update the user's basic info
+      console.log("[SUBMIT] Updating user info...");
+      await updateUser(formData.userId, formData);
+      
+      // Get fresh data after update
+      console.log("[SUBMIT] Fetching updated user data...");
+      const users = await getUsersWithPocs();
+      const currentUser = users.find((u) => u.userId === user.userId);
+      const currentPocs = currentUser?.pocs || [];
+      
+      console.log("[SUBMIT] Current POCs before changes:", currentPocs.map(p => p.id));
+
+      if (formData.role === "poc_tester") {
+        console.log("[SUBMIT] Handling single POC assignment");
+        if (selectedPocId) {
+          const selectedPoc = allPocs.find((poc) => poc.id === selectedPocId);
+          if (selectedPoc) {
+            console.log("[SUBMIT] Removing all existing POCs first...");
+            await Promise.all(
+              currentPocs.map((poc) => {
+                console.log(`[SUBMIT] Removing POC ${poc.id}`);
+                return removeUserPoc(formData, poc);
+              })
+            );
+            
+            console.log(`[SUBMIT] Adding new POC ${selectedPoc.id}`);
+            await assignUserToPoc(formData, selectedPoc, selectedPoc.startDate, selectedPoc.endDate);
+          }
+        } else {
+          console.log("[SUBMIT] No POC selected, removing all");
+          await Promise.all(
+            currentPocs.map((poc) => {
+              console.log(`[SUBMIT] Removing POC ${poc.id}`);
+              return removeUserPoc(formData, poc);
+            })
+          );
+        }
+      } else if (formData.role === "squad_team" || formData.role === "admin") {
+        console.log("[SUBMIT] Handling multiple POC assignment");
+        const selectedPocs = allPocs.filter((poc) => selectedPocIds.includes(poc.id));
+        
+        console.log("[SUBMIT] Selected POCs to assign:", selectedPocs.map(p => p.id));
+        
+        // Create a map of current POCs for quick lookup
+        const currentPocMap = new Map(currentPocs.map(poc => [poc.id, poc]));
+        
+        // Process additions and removals
+        const additions = [];
+        const removals = [];
+        
+        console.log("[SUBMIT] Determining POCs to add/remove...");
+        for (const poc of allPocs) {
+          const shouldHavePoc = selectedPocIds.includes(poc.id);
+          const hasPoc = currentPocMap.has(poc.id);
+          
+          if (shouldHavePoc && !hasPoc) {
+            console.log(`[SUBMIT] POC ${poc.id} needs to be added`);
+            additions.push(poc);
+          } else if (!shouldHavePoc && hasPoc) {
+            console.log(`[SUBMIT] POC ${poc.id} needs to be removed`);
+            removals.push(currentPocMap.get(poc.id)!);
+          }
+        }
+        
+        console.log("[SUBMIT] POCs to add:", additions.map(p => p.id));
+        console.log("[SUBMIT] POCs to remove:", removals.map(p => p.id));
+        
+        // Execute additions and removals
+        console.log("[SUBMIT] Processing additions...");
+        const addResults = await Promise.all(
+          additions.map(poc => {
+            console.log(`[SUBMIT] Adding POC ${poc.id}`);
+            return assignUserToPoc(formData, poc, poc.startDate, poc.endDate);
+          })
+        );
+        
+        console.log("[SUBMIT] Processing removals...");
+        const removeResults = await Promise.all(
+          removals.map(poc => {
+            console.log(`[SUBMIT] Removing POC ${poc.id}`);
+            return removeUserPoc(formData, poc);
+          })
+        );
+        
+        console.log("[SUBMIT] Add results:", addResults);
+        console.log("[SUBMIT] Remove results:", removeResults);
+      }
+
+      console.log("[SUBMIT] Submission successful!");
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("[ERROR] Submission failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, form: false }));
+    }
+  };
+
+  if (isLoading.initial) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-3 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center">
+          <ClipLoader size={40} color="#059669" />
+          <p className="mt-4 text-gray-600">Loading user data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isPocTester = formData.role === "poc_tester";
+  const isMultipleSelection = formData.role === "squad_team" || formData.role === "admin";
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      style={{ fontFamily: "EWPP Sans, sans-serif" }}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <form onSubmit={handleSubmit} className="p-6">
+          {/* ... (rest of your JSX remains exactly the same) ... */}
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UserEditModal;
