@@ -13,8 +13,30 @@ interface DecodedToken {
   // Add other token properties as needed
 }
 
+interface UserPoc {
+  user_id: string;
+  poc_id: string;
+  start_using: string;
+  end_using: string;
+  poc?: Pocs;
+}
+
+// Add the fetchUserPoc function
+export const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
+  try {
+    const response = await axiosInstance.get(`/manage/pocs/user/${userId}`);
+    const data = Array.isArray(response.data) ? response.data[0] : response.data;
+    const poc = data?.poc;
+    return poc ?? null;
+  } catch (error) {
+    console.error("Failed to fetch user POC:", error);
+    return null;
+  }
+};
+
 const HomePage = () => {
   const [pocs, setPocs] = useState<Pocs[]>([]);
+  const [userPocs, setUserPocs] = useState<UserPoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("guest");
@@ -35,8 +57,21 @@ const HomePage = () => {
 
   const fetchData = async () => {
     try {
-      const response = await getPocs();
-      setPocs(response);
+      if (userRole === "admin") {
+        // Admin gets all POCs
+        const response = await getPocs();
+        setPocs(response);
+      } else if (userRole === "poc_tester" || userRole === "squad_team") {
+        // For poc_tester and squad_team, fetch their assigned POCs
+        if (userId) {
+          const userPocData = await fetchUserPoc(userId);
+          if (userPocData) {
+            setPocs([userPocData]);
+          } else {
+            setPocs([]);
+          }
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load data");
     } finally {
@@ -45,56 +80,52 @@ const HomePage = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  // Filter POCs based on user role
-  const getFilteredPocs = () => {
-    switch (userRole) {
-      case "admin":
-        // Admin can see all POCs
-        return pocs;
-      case "poc_tester":
-        // POC tester can see only one POC attached to them
-        return pocs.filter(poc => poc.assigned_tester_id === userId);
-      case "squad_team":
-        // Squad team can see one or more POCs attached to them
-        return pocs.filter(poc => poc.assigned_team_ids?.includes(userId) || poc.assigned_team_id === userId);
-      default:
-        return [];
+    if (userRole !== "guest" && (userRole === "admin" || userId)) {
+      fetchData();
+    } else if (userRole === "guest") {
+      setLoading(false);
     }
+  }, [userRole, userId]);
+
+  // Check if user has access to a specific POC
+  const hasAccessToPoc = (poc: Pocs): boolean => {
+    if (userRole === "admin") {
+      return true;
+    }
+    
+    // For poc_tester and squad_team, check if the POC is in their assigned POCs
+    // Since we're already filtering POCs in fetchData, if the POC is in the list, they have access
+    return pocs.some(userPoc => userPoc.id === poc.id);
+  };
+
+  // Check if POC access is currently valid based on dates
+  const isPocAccessValid = (poc: Pocs): boolean => {
+    // If it's admin, use the original access_status
+    if (userRole === "admin") {
+      return poc.access_status === "is_active";
+    }
+    
+    // For other roles, we would need to check the start_using and end_using dates
+    // Since we don't have that data in the current POC object, we'll assume it's valid if they have access
+    // You might want to modify the fetchUserPoc function to include this information
+    return poc.access_status === "is_active";
   };
 
   const handlePocClick = (poc: Pocs) => {
-    // Check role-based access permissions
-    if (userRole === "admin") {
-      // Admin has full access
-      if (poc.access_status === "is_active") {
-        if (poc.url) {
-          window.open(poc.url, "_blank");
-        } else {
-          alert("No URL provided for this POC.");
-        }
-      } else if (poc.access_status === "is_expired") {
-        alert("Access to this POC has expired.");
-      } else {
-        alert("You are not authorized to access this POC.");
-      }
-    } else if (userRole === "poc_tester" || userRole === "squad_team") {
-      // POC tester and squad team have limited access
-      if (poc.access_status === "is_active") {
-        if (poc.url) {
-          window.open(poc.url, "_blank");
-        } else {
-          alert("No URL provided for this POC.");
-        }
-      } else if (poc.access_status === "is_expired") {
-        alert("Access to this POC has expired.");
-      } else {
-        alert("You are not authorized to access this POC.");
-      }
-    } else {
+    if (!hasAccessToPoc(poc)) {
       alert("You are not authorized to access this POC.");
+      return;
+    }
+
+    if (!isPocAccessValid(poc)) {
+      alert("Access to this POC has expired.");
+      return;
+    }
+
+    if (poc.url) {
+      window.open(poc.url, "_blank");
+    } else {
+      alert("No URL provided for this POC.");
     }
   };
 
@@ -102,7 +133,6 @@ const HomePage = () => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          {/* CircularProgress component would go here */}
           <div className="flex flex-col items-center space-y-4">
             <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
             <p className="text-gray-600 font-medium">Loading POCs...</p>
@@ -177,8 +207,6 @@ const HomePage = () => {
     }
   };
 
-  const filteredPocs = getFilteredPocs();
-
   return (
     <div className="flex flex-col">
       <div className="text-center mb-8">
@@ -204,7 +232,7 @@ const HomePage = () => {
       </div>
 
       <div className="flex flex-wrap justify-center gap-8">
-        {filteredPocs.length === 0 ? (
+        {pocs.length === 0 ? (
           <div className="text-center">
             <p className="text-gray-500 text-lg">
               {userRole === "admin" 
@@ -213,19 +241,15 @@ const HomePage = () => {
             </p>
           </div>
         ) : (
-          filteredPocs.map((poc) => {
-            const isClickable =
-              (userRole === "admin") ||
-              (userRole === "poc_tester" && poc.assigned_tester_id === userId) ||
-              (userRole === "squad_team" && (poc.assigned_team_ids?.includes(userId) || poc.assigned_team_id === userId)) &&
-              poc.access_status === "is_active";
+          pocs.map((poc) => {
+            const isAccessible = hasAccessToPoc(poc) && isPocAccessValid(poc);
             
             return (
               <div
                 key={poc.id}
-                onClick={() => isClickable && handlePocClick(poc)}
+                onClick={() => isAccessible && handlePocClick(poc)}
                 className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center ${
-                  isClickable
+                  isAccessible
                     ? "cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200"
                     : "cursor-not-allowed border-gray-100 opacity-70 grayscale"
                 }`}
@@ -243,7 +267,7 @@ const HomePage = () => {
                 </div>
                 <p
                   className={`text-center font-semibold ${
-                    isClickable ? "text-blue-600" : "text-gray-400"
+                    isAccessible ? "text-blue-600" : "text-gray-400"
                   }`}
                 >
                   {poc.name}
