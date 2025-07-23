@@ -1,1 +1,263 @@
+import React, { useState, useEffect } from "react";
+import { getPocs } from "services/pocs";
+import { Pocs } from "schemas/pocs";
+import { decodeToken } from "utils/auth";
+import Alert from "@mui/material/Alert";
+import LockIcon from "@mui/icons-material/Lock";
+import EventBusyIcon from "@mui/icons-material/EventBusy";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 
+interface DecodedToken {
+  role: string;
+  userId: string;
+  // Add other token properties as needed
+}
+
+const HomePage = () => {
+  const [pocs, setPocs] = useState<Pocs[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("guest");
+  const [userId, setUserId] = useState<string>("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const decoded = decodeToken(token) as DecodedToken;
+        setUserRole(decoded.role || "guest");
+        setUserId(decoded.userId || "");
+      } catch (err) {
+        console.error("Token decoding failed", err);
+      }
+    }
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const response = await getPocs();
+      setPocs(response);
+    } catch (err: any) {
+      setError(err.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Filter POCs based on user role
+  const getFilteredPocs = () => {
+    switch (userRole) {
+      case "admin":
+        // Admin can see all POCs
+        return pocs;
+      case "poc_tester":
+        // POC tester can see only one POC attached to them
+        return pocs.filter(poc => poc.assigned_tester_id === userId);
+      case "squad_team":
+        // Squad team can see one or more POCs attached to them
+        return pocs.filter(poc => poc.assigned_team_ids?.includes(userId) || poc.assigned_team_id === userId);
+      default:
+        return [];
+    }
+  };
+
+  const handlePocClick = (poc: Pocs) => {
+    // Check role-based access permissions
+    if (userRole === "admin") {
+      // Admin has full access
+      if (poc.access_status === "is_active") {
+        if (poc.url) {
+          window.open(poc.url, "_blank");
+        } else {
+          alert("No URL provided for this POC.");
+        }
+      } else if (poc.access_status === "is_expired") {
+        alert("Access to this POC has expired.");
+      } else {
+        alert("You are not authorized to access this POC.");
+      }
+    } else if (userRole === "poc_tester" || userRole === "squad_team") {
+      // POC tester and squad team have limited access
+      if (poc.access_status === "is_active") {
+        if (poc.url) {
+          window.open(poc.url, "_blank");
+        } else {
+          alert("No URL provided for this POC.");
+        }
+      } else if (poc.access_status === "is_expired") {
+        alert("Access to this POC has expired.");
+      } else {
+        alert("You are not authorized to access this POC.");
+      }
+    } else {
+      alert("You are not authorized to access this POC.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          {/* CircularProgress component would go here */}
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+            <p className="text-gray-600 font-medium">Loading POCs...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Alert severity="error" className="max-w-md">
+          {error}
+        </Alert>
+      </div>
+    );
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "admin_access":
+        return (
+          <span className="text-green-600 flex items-center">
+            <AdminPanelSettingsIcon className="mr-1" style={{ fontSize: 16 }} />
+            Admin Access
+          </span>
+        );
+      case "is_active":
+        return null;
+      case "is_expired":
+        return (
+          <span className="text-orange-500 flex items-center">
+            <EventBusyIcon className="mr-1" style={{ fontSize: 16 }} />
+            Access Expired
+          </span>
+        );
+      case "no_access":
+      default:
+        return (
+          <span className="text-red-500 flex items-center">
+            <LockIcon className="mr-1" style={{ fontSize: 16 }} />
+            Not Authorized
+          </span>
+        );
+    }
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "Admin";
+      case "poc_tester":
+        return "POC Tester";
+      case "squad_team":
+        return "Squad Team";
+      default:
+        return "User";
+    }
+  };
+
+  const getRoleDescription = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "You have access to all POCs";
+      case "poc_tester":
+        return "You have access to your assigned POC";
+      case "squad_team":
+        return "You have access to your assigned POCs";
+      default:
+        return "View your assigned POCs below";
+    }
+  };
+
+  const filteredPocs = getFilteredPocs();
+
+  return (
+    <div className="flex flex-col">
+      <div className="text-center mb-8">
+        <div className="flex justify-center mb-6">
+          <img
+            src="/AID_logo.png"
+            alt="Company Logo"
+            className="h-20 w-auto object-contain transition-transform hover:scale-105"
+          />
+        </div>
+        <h1
+          className="text-3xl font-bold text-gray-800 mb-2"
+          style={{ fontFamily: "BNPP Sans, sans-serif" }}
+        >
+          Welcome {getRoleDisplayName(userRole)} to the Dashboard
+        </h1>
+        <p
+          className="text-gray-600"
+          style={{ fontFamily: "BNPP Sans, sans-serif" }}
+        >
+          {getRoleDescription(userRole)}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8">
+        {filteredPocs.length === 0 ? (
+          <div className="text-center">
+            <p className="text-gray-500 text-lg">
+              {userRole === "admin" 
+                ? "No POCs available" 
+                : "No POCs assigned to you"}
+            </p>
+          </div>
+        ) : (
+          filteredPocs.map((poc) => {
+            const isClickable =
+              (userRole === "admin") ||
+              (userRole === "poc_tester" && poc.assigned_tester_id === userId) ||
+              (userRole === "squad_team" && (poc.assigned_team_ids?.includes(userId) || poc.assigned_team_id === userId)) &&
+              poc.access_status === "is_active";
+            
+            return (
+              <div
+                key={poc.id}
+                onClick={() => isClickable && handlePocClick(poc)}
+                className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center ${
+                  isClickable
+                    ? "cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200"
+                    : "cursor-not-allowed border-gray-100 opacity-70 grayscale"
+                }`}
+              >
+                <div className="w-20 h-20 bg-gray-100 rounded-full mb-4 flex items-center justify-center">
+                  <img
+                    src={
+                      poc.name === "My Referencial Assistant"
+                        ? "/mra.png"
+                        : "/vite.svg"
+                    }
+                    alt={poc.name}
+                    className="w-16 h-16 object-contain"
+                  />
+                </div>
+                <p
+                  className={`text-center font-semibold ${
+                    isClickable ? "text-blue-600" : "text-gray-400"
+                  }`}
+                >
+                  {poc.name}
+                </p>
+                <div className="mt-2 flex items-center text-xs">
+                  {getStatusIcon(poc.access_status)}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
