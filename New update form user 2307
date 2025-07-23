@@ -1,0 +1,426 @@
+import React, { useState, useEffect } from "react";
+import { getUsersWithPocs, updateUser } from "services/users";
+import { assignUserToPoc, removeUserPoc, assignUserToMultiplePocs, removeAllUserPocs } from "services/userPocService";
+import { fetchPocs } from "services/pocs";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+import { ClipLoader } from "react-spinners";
+
+type Props = {
+  user: User;
+  onClose: () => void;
+  onSuccess: () => void;
+};
+
+const UserEditModal: React.FC<Props> = ({ user, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState<User>({ ...user });
+  const [allPocs, setAllPocs] = useState<Pocs[]>([]);
+  const [selectedPocId, setSelectedPocId] = useState<string>("");
+  const [selectedPocIds, setSelectedPocIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState({
+    initial: true,
+    form: false,
+    pocs: false,
+  });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(prev => ({ ...prev, pocs: true }));
+      try {
+        const pocs = await fetchPocs();
+        setAllPocs(pocs);
+        const users = await getUsersWithPocs();
+        const currentUser = users.find((u) => u.userId === user.userId);
+        
+        if (currentUser) {
+          if (currentUser.role === "poc_tester" && currentUser.pocs?.[0]) {
+            setSelectedPocId(currentUser.pocs[0].id);
+          } else if (
+            (currentUser.role === "squad_team" || currentUser.role === "admin") &&
+            currentUser.pocs
+          ) {
+            setSelectedPocIds(currentUser.pocs.map((poc) => poc.id));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load data:", err);
+        setError("Failed to load POC data");
+      } finally {
+        setIsLoading(prev => ({ ...prev, initial: false, pocs: false }));
+      }
+    };
+    loadData();
+  }, [user.userId]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSinglePocChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPocId(e.target.value);
+  };
+
+  const handleMultiplePocChange = (pocId: string) => {
+    setSelectedPocIds(prev =>
+      prev.includes(pocId) ? prev.filter((id) => id !== pocId) : [...prev, pocId]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(prev => ({ ...prev, form: true }));
+    
+    try {
+      // Update user basic information
+      await updateUser(formData.userId, formData);
+      const users = await getUsersWithPocs();
+      const currentUser = users.find((u) => u.userId === user.userId);
+      const currentPocs = currentUser?.pocs || [];
+
+      if (formData.role === "poc_tester") {
+        if (selectedPocId) {
+          const selectedPoc = allPocs.find((poc) => poc.id === selectedPocId);
+          if (selectedPoc && !currentPocs.some((poc) => poc.id === selectedPoc.id)) {
+            await assignUserToPoc(formData, selectedPoc, selectedPoc.startDate, selectedPoc.endDate);
+          }
+        }
+      } else if (formData.role === "squad_team" || formData.role === "admin") {
+        // Handle multiple POC selection
+        if (selectedPocIds.length > 0) {
+          // Use the new function to assign multiple POCs
+          await assignUserToMultiplePocs(formData, selectedPocIds, allPocs);
+        } else {
+          // If no POCs selected, remove all existing assignments
+          await removeAllUserPocs(formData);
+        }
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error("Submission error:", err);
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setIsLoading(prev => ({ ...prev, form: false }));
+    }
+  };
+
+  if (isLoading.initial) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center">
+          <ClipLoader size={40} color="#059669" />
+          <p className="mt-4 text-gray-600">Loading user data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isPocTester = formData.role === "poc_tester";
+  const isMultipleSelection = formData.role === "squad_team" || formData.role === "admin";
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         style={{ fontFamily: "BMV Sans, sans-serif" }}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-gray-800">Edit User</h2>
+            <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl" disabled={isLoading.form}>
+              &times;
+            </button>
+          </div>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
+              <input type="text" name="userId" value={formData.userId} readOnly className="w-full p-2 border border-gray-300 rounded-md bg-gray-50" />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <input 
+                type="text" 
+                name="firstName" 
+                value={formData.firstName} 
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required 
+                disabled={isLoading.form} 
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <input 
+                type="text" 
+                name="lastName" 
+                value={formData.lastName} 
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required 
+                disabled={isLoading.form} 
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input 
+                type="email" 
+                name="mail" 
+                value={formData.mail} 
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                required 
+                disabled={isLoading.form} 
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <select 
+                name="role" 
+                value={formData.role} 
+                onChange={handleSelectChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                disabled={isLoading.form}
+              >
+                <option value="poc_tester">POC tester</option>
+                <option value="squad_team">SQUAD team</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            
+            {isPocTester && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select POC</label>
+                <select 
+                  value={selectedPocId} 
+                  onChange={handleSinglePocChange}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  disabled={isLoading.pocs || isLoading.form}
+                >
+                  <option value="">-- Select a POC --</option>
+                  {allPocs.map((poc) => (
+                    <option key={poc.id} value={poc.id}>
+                      {poc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {isMultipleSelection && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select POCs (multiple allowed)</label>
+                <div className="border p-3 rounded max-h-40 overflow-y-auto bg-gray-50">
+                  {allPocs.map((poc) => (
+                    <div key={poc.id} className="flex items-center space-x-2 mb-2">
+                      <input 
+                        type="checkbox" 
+                        id={`poc-${poc.id}`} 
+                        checked={selectedPocIds.includes(poc.id)}
+                        onChange={() => handleMultiplePocChange(poc.id)} 
+                        className="h-4 w-4" 
+                      />
+                      <label htmlFor={`poc-${poc.id}`} className="text-sm cursor-pointer">
+                        {poc.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                
+                {selectedPocIds.length > 0 && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedPocIds.length} POC(s) selected
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors" disabled={isLoading.form}>
+              Cancel
+            </button>
+            <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors flex items-center justify-center min-w-24" disabled={isLoading.form}>
+              {isLoading.form ? <ClipLoader size={20} color="#ffffff" className="mr-2" /> : null}
+              {isLoading.form ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UserEditModal;
+
+
+
+
+import axiosInstance from "utils/customizedAxios";
+import { User } from "schemas/user";
+import { Pocs } from "schemas/pocs";
+
+export const assignUserToPoc = async (
+  user: User,
+  poc: Pocs | null,
+  startDate: string,
+  endDate: string
+): Promise<void> => {
+  try {
+    const payload = {
+      user: {
+        userId: user.userId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        mail: user.mail,
+        role: user.role,
+        active: user.active,
+        pocs: []
+      },
+      poc: {
+        id: poc?.id,
+        name: poc?.name,
+        startDate: startDate,
+        endDate: endDate,
+        url: poc?.url
+      },
+      startUsing: startDate,
+      endUsing: endDate
+    };
+
+    // If poc is null, we're removing all POCs
+    if (!poc) {
+      await removeUserPoc(user, poc);
+      return;
+    }
+
+    try {
+      // Get current user assignments
+      const checkResponse = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
+      const existingAssignment = Array.isArray(checkResponse.data)
+        ? checkResponse.data[0]
+        : checkResponse.data;
+
+      // If user has existing POC assignments, update them
+      if (existingAssignment?.poc) {
+        await axiosInstance.put("/manage/user/poc", payload);
+      } else {
+        // If no existing assignments, create new one
+        await axiosInstance.post("/manage/user/poc", payload);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // User not found in POC assignments, create new
+        await axiosInstance.post("/manage/user/poc", payload);
+      } else {
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    console.error("POC assignment error:", {
+      error: error.response?.data || error.message,
+      user: user.userId,
+      poc: poc?.id
+    });
+    throw new Error(
+      error.response?.data?.message ||
+      "Failed to assign user to POC"
+    );
+  }
+};
+
+// New function to handle multiple POC assignments
+export const assignUserToMultiplePocs = async (
+  user: User,
+  pocIds: string[],
+  allPocs: Pocs[]
+): Promise<void> => {
+  try {
+    // Remove all existing POC assignments first
+    await removeAllUserPocs(user);
+
+    // Assign user to each selected POC
+    for (const pocId of pocIds) {
+      const poc = allPocs.find(p => p.id === pocId);
+      if (poc) {
+        await assignUserToPoc(user, poc, poc.startDate || '', poc.endDate || '');
+      }
+    }
+  } catch (error: any) {
+    console.error("Multiple POC assignment error:", error);
+    throw new Error("Failed to assign user to multiple POCs");
+  }
+};
+
+// Helper function to remove all POC assignments for a user
+export const removeAllUserPocs = async (user: User): Promise<void> => {
+  try {
+    const checkResponse = await axiosInstance.get(`/manage/pocs/user/${user.userId}`);
+    const existingAssignments = Array.isArray(checkResponse.data) 
+      ? checkResponse.data 
+      : [checkResponse.data];
+
+    // Remove each existing assignment
+    for (const assignment of existingAssignments) {
+      if (assignment?.poc) {
+        await removeUserPoc(user, assignment.poc);
+      }
+    }
+  } catch (error: any) {
+    if (error.response?.status !== 404) {
+      throw error;
+    }
+    // 404 means no existing assignments, which is fine
+  }
+};
+
+export const removeUserPoc = async (
+  user: User,
+  poc: Pocs
+): Promise<void> => {
+  const payload = {
+    user: {
+      userId: user.userId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mail: user.mail,
+      role: user.role,
+      active: user.active,
+      pocs: []
+    },
+    poc: {
+      id: poc?.id,
+      name: poc?.name,
+      startDate: poc?.startDate,
+      endDate: poc?.endDate,
+      url: poc?.url
+    },
+    startUsing: poc?.startDate,
+    endUsing: poc?.endDate,
+  };
+
+  await axiosInstance.delete("/manage/user/poc", { data: payload });
+};
+
+interface PocAccessStatus {
+  authorized: boolean;
+  url?: string;
+  status: 'authorized' | 'invalid_date' | 'not_authorized';
+}
