@@ -7,6 +7,9 @@ import LockIcon from "@mui/icons-material/Lock";
 import EventBusyIcon from "@mui/icons-material/EventBusy";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 
+// You need to import axiosInstance from your axios configuration
+// import { axiosInstance } from "path/to/your/axios/config";
+
 interface DecodedToken {
   role: string;
   userId: string;
@@ -21,9 +24,10 @@ interface UserPoc {
   poc?: Pocs;
 }
 
-// Add the fetchUserPoc function
-export const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
+// Add the fetchUserPoc function - make sure to import axiosInstance
+const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
   try {
+    // Replace 'axiosInstance' with your actual axios instance import
     const response = await axiosInstance.get(`/manage/pocs/user/${userId}`);
     const data = Array.isArray(response.data) ? response.data[0] : response.data;
     const poc = data?.poc;
@@ -36,7 +40,6 @@ export const fetchUserPoc = async (userId: string): Promise<Pocs | null> => {
 
 const HomePage = () => {
   const [pocs, setPocs] = useState<Pocs[]>([]);
-  const [userPocs, setUserPocs] = useState<UserPoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("guest");
@@ -51,12 +54,24 @@ const HomePage = () => {
         setUserId(decoded.userId || "");
       } catch (err) {
         console.error("Token decoding failed", err);
+        setUserRole("guest");
+        setUserId("");
       }
+    } else {
+      setUserRole("guest");
+      setUserId("");
     }
   }, []);
 
   const fetchData = async () => {
+    if (!userRole || userRole === "guest") {
+      setLoading(false);
+      return;
+    }
+
     try {
+      setLoading(true);
+      
       if (userRole === "admin") {
         // Admin gets all POCs
         const response = await getPocs();
@@ -70,62 +85,61 @@ const HomePage = () => {
           } else {
             setPocs([]);
           }
+        } else {
+          setPocs([]);
         }
+      } else {
+        setPocs([]);
       }
     } catch (err: any) {
+      console.error("Error fetching data:", err);
       setError(err.message || "Failed to load data");
+      setPocs([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch data when userRole and userId are set
   useEffect(() => {
-    if (userRole !== "guest" && (userRole === "admin" || userId)) {
+    if (userRole && userRole !== "guest") {
       fetchData();
-    } else if (userRole === "guest") {
+    } else {
       setLoading(false);
     }
   }, [userRole, userId]);
 
-  // Check if user has access to a specific POC
-  const hasAccessToPoc = (poc: Pocs): boolean => {
-    if (userRole === "admin") {
-      return true;
-    }
-    
-    // For poc_tester and squad_team, check if the POC is in their assigned POCs
-    // Since we're already filtering POCs in fetchData, if the POC is in the list, they have access
-    return pocs.some(userPoc => userPoc.id === poc.id);
-  };
-
-  // Check if POC access is currently valid based on dates
-  const isPocAccessValid = (poc: Pocs): boolean => {
-    // If it's admin, use the original access_status
-    if (userRole === "admin") {
-      return poc.access_status === "is_active";
-    }
-    
-    // For other roles, we would need to check the start_using and end_using dates
-    // Since we don't have that data in the current POC object, we'll assume it's valid if they have access
-    // You might want to modify the fetchUserPoc function to include this information
-    return poc.access_status === "is_active";
-  };
-
   const handlePocClick = (poc: Pocs) => {
-    if (!hasAccessToPoc(poc)) {
-      alert("You are not authorized to access this POC.");
-      return;
-    }
-
-    if (!isPocAccessValid(poc)) {
-      alert("Access to this POC has expired.");
-      return;
-    }
-
-    if (poc.url) {
-      window.open(poc.url, "_blank");
+    // For non-admin users, if the POC is in their list, they should have access
+    // Only check the POC's access_status
+    if (userRole === "admin") {
+      // Admin access logic
+      if (poc.access_status === "is_active") {
+        if (poc.url) {
+          window.open(poc.url, "_blank");
+        } else {
+          alert("No URL provided for this POC.");
+        }
+      } else if (poc.access_status === "is_expired") {
+        alert("Access to this POC has expired.");
+      } else {
+        alert("You are not authorized to access this POC.");
+      }
+    } else if (userRole === "poc_tester" || userRole === "squad_team") {
+      // For poc_tester and squad_team, if the POC is in their list and active, they can access it
+      if (poc.access_status === "is_active") {
+        if (poc.url) {
+          window.open(poc.url, "_blank");
+        } else {
+          alert("No URL provided for this POC.");
+        }
+      } else if (poc.access_status === "is_expired") {
+        alert("Access to this POC has expired.");
+      } else {
+        alert("This POC is currently not available.");
+      }
     } else {
-      alert("No URL provided for this POC.");
+      alert("You are not authorized to access this POC.");
     }
   };
 
@@ -162,7 +176,12 @@ const HomePage = () => {
           </span>
         );
       case "is_active":
-        return null;
+        return (
+          <span className="text-green-600 flex items-center">
+            <AdminPanelSettingsIcon className="mr-1" style={{ fontSize: 16 }} />
+            Active
+          </span>
+        );
       case "is_expired":
         return (
           <span className="text-orange-500 flex items-center">
@@ -242,14 +261,16 @@ const HomePage = () => {
           </div>
         ) : (
           pocs.map((poc) => {
-            const isAccessible = hasAccessToPoc(poc) && isPocAccessValid(poc);
+            // For non-admin users, if the POC is in their filtered list, they have access to it
+            // Only check if it's active
+            const isClickable = poc.access_status === "is_active";
             
             return (
               <div
                 key={poc.id}
-                onClick={() => isAccessible && handlePocClick(poc)}
+                onClick={() => isClickable && handlePocClick(poc)}
                 className={`bg-white shadow-lg rounded-xl p-6 border transition-all w-64 flex flex-col items-center ${
-                  isAccessible
+                  isClickable
                     ? "cursor-pointer hover:shadow-xl hover:scale-105 border-gray-200"
                     : "cursor-not-allowed border-gray-100 opacity-70 grayscale"
                 }`}
@@ -267,7 +288,7 @@ const HomePage = () => {
                 </div>
                 <p
                   className={`text-center font-semibold ${
-                    isAccessible ? "text-blue-600" : "text-gray-400"
+                    isClickable ? "text-blue-600" : "text-gray-400"
                   }`}
                 >
                   {poc.name}
