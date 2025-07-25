@@ -1,0 +1,80 @@
+<nb-card [nbSpinner]="loading" 
+         nbSpinnerStatus="danger" 
+         nbSpinnerSize="large" 
+         nbSpinnerMessage="">
+  
+  <nb-card-body>
+    <div class="row">
+      <div class="chat-header">{{ headText }}</div>
+    </div>
+
+    <!-- Read-only notification for archived discussions -->
+    <div *ngIf="isReadOnlyDiscussion()" class="read-only-banner">
+      <nb-alert status="warning">
+        <i class="fas fa-lock"></i>
+        This is an archived conversation. You can view and rate messages but cannot send new messages.
+        <a href="javascript:void(0)" (click)="openRatingDiscussionModal()">Rate this conversation</a>
+      </nb-alert>
+    </div>
+
+    <div class="chat-messages" #scrollContainer>
+      <ng-container *ngFor="let msg of messages">
+        <div *ngIf="msg.loading" class="loading-message">
+          <div class="typing-indicator">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+      </ng-container>
+
+      <app-chat-base 
+        *ngIf="msg.loading"
+        [message]="msg.text"
+        [reply]="msg.reply" 
+        [showBotActions] = "showBotActions && !isReadOnlyDiscussion()"
+        [sender]="msg.sender"
+        [date]="msg.date"
+        [user]="msg.user.avatar"
+        [customMessageData]="msg.customMessageData"
+        [onActions]="msg.reply ? showBotActions : false"
+        [canThumbUp]="msg.reply ? showBotActions && !isReadOnlyDiscussion() : false"
+        [canThumbDown]="msg.reply ? showBotActions : false"
+        [onThumbDownCallback]="onThumbDownCallback(msg)"></app-chat-base>
+    </div>
+
+    <!-- Chat Footer - Hidden for read-only discussions -->
+    <div *ngIf="!isReadOnlyDiscussion()" class="chat-footer">
+      <app-chat-input 
+        [canSend]="canSend()"
+        [allowFiles]="false"
+        (send)="handleSendMessage($event)"></app-chat-input>
+    </div>
+
+    <!-- Alternative footer for read-only discussions -->
+    <div *ngIf="isReadOnlyDiscussion()" class="read-only-footer">
+      <button class="btn btn-primary" (click)="openRatingDiscussionModal()">
+        <i class="fas fa-star"></i> Rate this conversation
+      </button>
+    </div>
+  </nb-card-body>
+</nb-card>
+
+<!-- Comment Message Modal -->
+<ng-template #commentMessage let-data let-ref="dialogRef">
+  <nb-card size="small" style="width: 600px !important;">
+    <nb-card-header>Enter your comment</nb-card-header>
+    <nb-card-body>
+      <textarea 
+        nbInput 
+        fullWidth 
+        rows="6" 
+        [(ngModel)]="messageComment" 
+        placeholder="Your comment..."></textarea>
+    </nb-card-body>
+    <nb-card-footer>
+      <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;">
+        <button class="btn btn-danger" nbButton status="danger" (click)="ref.close()">Cancel</button>
+        <button class="btn btn-success" nbButton status="change" (click)="submit(ref)">Submit</button>
+      </div>
+    </nb-card-footer>
+  </nb-card>
+</ng-
