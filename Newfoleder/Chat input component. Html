@@ -1,0 +1,18 @@
+<div class="chat-input-wrapper" [ngClass]="{'disabled-input': disabled}">
+  <input
+    type="text"
+    [(ngModel)]="message"
+    (keydown)="onKeyDown($event)"
+    [disabled]="!canSend || disabled"
+    [placeholder]="disabled ? 'This conversation is disabled' : 'Type a message'"
+  />
+  
+  <button
+    class="send-btn"
+    [disabled]="!canSend || !message.trim() || disabled"
+    (click)="handleSend()">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+      <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+    </svg>
+  </button>
+</div>
