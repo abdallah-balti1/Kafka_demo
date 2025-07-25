@@ -1,0 +1,66 @@
+<ng-template #editDataDialog let-data let-ref="dialogRef">
+    <nb-card size="small" style="width: 400px !important; 
+    max-width: 90vw !important;">
+        <nb-card-header>Enter your New discussion name</nb-card-header>
+        <nb-card-body>
+            <div style="display:flex; justify-content:center; margin: 10px;">
+
+                <input [(ngModel)]="newDiscussionName" nbInput type="text" maxlength="15" placeholder="Name">
+            </div>
+        </nb-card-body>
+        <nb-card-footer>
+            <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;">
+                <button class="btn btn-danger" nbButton status="danger" (click)="ref.close()">Cancel</button>
+                <button class="btn btn-success" nbButton status="Change" (click)="submit(ref)">Submit</button>
+            </div>
+        </nb-card-footer>
+    </nb-card>
+</ng-template>
+
+<nb-card class="custom-sidebar">
+<nb-card-header>
+    <nb-actions >
+        <nb-action class="control-item">
+            <nb-search type="rotate-layout" onSearchInput="onSearch($event)"></nb-search>
+        </nb-actions>
+        <nb-action icon="plus-square-outline" [routerLink]="''"></nb-action>
+    </nb-actions>
+</nb-card-header>
+<nb-list>
+    <nb-list-item *ngFor="let discussion of activeDiscussions; let i = index" 
+                  class="hoverable-item" 
+                  [ngClass]="{'selected-item':selectedItemIndex == i, 'disabled-conversation': discussion.isDisabled}">
+        <div class="conversation-row">
+            <div class="conversation-info" 
+                 (click)="!discussion.isDisabled && changeDiscussion(discussion.id, i)" 
+                 [style.cursor]="discussion.isDisabled ? 'not-allowed' : 'pointer'"
+                 [style.opacity]="discussion.isDisabled ? '0.5' : '1'">
+                <div class="conversation-title">{{discussion.name}}</div>
+                <div class="conversation-messages">{{discussion.totalMessages + ' / 10'}}</div>
+                <bar-rating class="conversation-rating" [rate]="discussion.rate" theme="stars" [readOnly]="true"></bar-rating>
+            </div>
+        </div>
+        <nb-actions class="conversation-actions">
+            <nb-action class="action-icon" 
+                       nbTooltip="{{(!editDiscussionToolTip | translate)}}" 
+                       nbTooltipStatus="primary"
+                       *ngIf="!discussion.isDisabled"
+                       (click)="openEditDiscussionDialog(editDataDialog, discussion.id)">
+                <span class="list-edit-btn">✏️</span>
+            </nb-action>
+            <nb-action class="action-icon" 
+                       nbTooltip="{{( archiveDiscussionToolTip | translate)}}" 
+                       *ngIf="!discussion.isDisabled"
+                       (click)="disableDiscussion(discussion.id)">
+                <span class="list-edit-btn">🗃️</span>
+            </nb-action>
+            <nb-action class="action-icon" 
+                       nbTooltip="Archive Discussion" 
+                       *ngIf="discussion.isDisabled"
+                       (click)="disableDiscussion(discussion.id)">
+                <span class="list-edit-btn">📦</span>
+            </nb-action>
+        </nb-actions>
+    </nb-list-item>
+</nb-list>
+</nb-card>
