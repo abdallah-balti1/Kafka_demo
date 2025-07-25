@@ -1,0 +1,27 @@
+<!-- app-bg-animations/app-bg-animations -->
+<nb-card style="display: flex; justify-content:center; margin:18px -{{dashboardTitle | translate}} "> </nb-card>
+
+<nb-card>
+  <nb-card-body>
+    <form [formGroup]="form">
+      <textarea 
+        nbInput 
+        fullWidth 
+        rows="5" 
+        formControlName="message" 
+        placeholder="{{dashboardTextHolder | translate}}"
+        (keydown.enter)="createDiscussion()"></textarea>
+    </form>
+    <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;">
+      <button 
+        nbButton 
+        ghost 
+        status="primary" 
+        (click)="createDiscussion()" 
+        style="width: 100%;">
+        <nb-icon icon="paper-plane"></nb-icon>
+        Send
+      </button>
+    </div>
+  </nb-card-body>
+</nb-card>
