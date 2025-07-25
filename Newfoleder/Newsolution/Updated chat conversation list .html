@@ -1,0 +1,97 @@
+<ng-template #editdatadialog let-data let-ref="dialogRef">
+  <nb-card size="small" style="width: 400px !important;">
+    <nb-card-header>Enter your new discussion name</nb-card-header>
+    <nb-card-body>
+      <div style="display: flex; justify-content: center; margin: 10px;">
+        <input [(ngModel)]="newDiscussionName" nbInput type="text" maxlength="15" placeholder="Name">
+      </div>
+    </nb-card-body>
+    <nb-card-footer>
+      <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;">
+        <button class="btn btn-danger" nbButton status="danger" (click)="ref.close()">Cancel</button>
+        <button class="btn btn-success" nbButton status="change" (click)="submit(ref)">Submit</button>
+      </div>
+    </nb-card-footer>
+  </nb-card>
+</ng-template>
+
+<nb-card class="custom-sidebar">
+  <nb-card-header>
+    <nb-actions>
+      <nb-action class="control-item">
+        <nb-search type="rotate-layout" onSearchInput="onSearch($event)"></nb-search>
+      </nb-actions>
+      <nb-action icon="plus-square-outline" [routerLink]="''" (click)="createDiscussion()"></nb-action>
+    </nb-actions>
+  </nb-card-header>
+  
+  <nb-list>
+    <!-- Active Discussions Section -->
+    <nb-list-item *ngFor="let discussion of activeDiscussions; let i = index" 
+                  class="hoverable-item" 
+                  [ngClass]="{'selected-item': selectedItemIndex == i}">
+      <div class="conversation-row">
+        <div class="conversation-info" (click)="changeDiscussion(discussion.id, i)">
+          <div class="conversation-title">{{discussion.name}}</div>
+          <div class="conversation-messages">{{discussion.totalMessages || 10}}</div>
+        </div>
+        <bar-rating class="conversation-rating" 
+                   [rate]="discussion.rate" 
+                   theme="stars" 
+                   [readOnly]="false"
+                   (click)="openNewrateDialog()"></bar-rating>
+      </div>
+      
+      <nb-actions class="conversation-actions">
+        <nb-action class="action-icon" 
+                   nbTooltip="{{!discussion.isActive ? 'Enable Discussion' : 'Disable Discussion'}}" 
+                   (click)="!discussion.isActive ? enableDiscussion(discussion.id) : disableDiscussion(discussion.id)">
+          <span class="list-edit-btn">
+            <i class="{{!discussion.isActive ? 'fas fa-play' : 'fas fa-pause'}}"></i>
+          </span>
+        </nb-action>
+        
+        <nb-action class="action-icon" 
+                   nbTooltip="{{!archivedDiscussionToolTip ? 'Archive Discussion' : (translate)}}" 
+                   (click)="openEditDiscussionDialog(editdatadialog, discussion.id)">
+          <span class="list-edit-btn">
+            <i class="fas fa-edit"></i>
+          </span>
+        </nb-action>
+      </nb-actions>
+    </nb-list-item>
+
+    <!-- Archived/Read-only Discussions Section -->
+    <div *ngIf="archivedDiscussions.length > 0" class="archived-section">
+      <div class="section-header">
+        <h6>Archived Conversations (Read-only)</h6>
+      </div>
+      
+      <nb-list-item *ngFor="let discussion of archivedDiscussions; let i = index" 
+                    class="hoverable-item archived-discussion">
+        <div class="conversation-row">
+          <div class="conversation-info" (click)="changeDiscussion(discussion.id, i)">
+            <div class="conversation-title disabled-title">{{discussion.name}}</div>
+            <div class="conversation-messages">{{discussion.totalMessages || 10}}</div>
+            <small class="archived-label">Read-only</small>
+          </div>
+          <bar-rating class="conversation-rating" 
+                     [rate]="discussion.rate" 
+                     theme="stars" 
+                     [readOnly]="false"
+                     (click)="openNewrateDialog()"></bar-rating>
+        </div>
+        
+        <nb-actions class="conversation-actions">
+          <nb-action class="action-icon" 
+                     nbTooltip="Enable Discussion" 
+                     (click)="enableDiscussion(discussion.id)">
+            <span class="list-edit-btn">
+              <i class="fas fa-play"></i>
+            </span>
+          </nb-action>
+        </nb-actions>
+      </nb-list-item>
+    </div>
+  </nb-list>
+</nb-card>
