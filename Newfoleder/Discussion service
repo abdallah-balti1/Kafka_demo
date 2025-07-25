@@ -1,0 +1,34 @@
+// Add these methods to your existing DiscussionService
+
+// Method to disable a discussion permanently (mark as old)
+disableDiscussionPermanently(discussionId: number) {
+  const command = {
+    discussionId: discussionId,
+    active: false,
+    isDisabled: true // Add this field
+  };
+  
+  return this.http.post(`${this.baseUrl}/disable-discussion`, command);
+}
+
+// Method to check if a discussion is disabled
+isDiscussionDisabled(discussionId: number): boolean {
+  // You can implement this based on your backend logic
+  // For example, check if the discussion has reached max messages
+  // or if it has been manually disabled
+  return false; // Replace with actual logic
+}
+
+// Update your existing disableDiscussion method to handle the isDisabled flag
+disableDiscussion(command: any) {
+  return this.http.post(`${this.baseUrl}/disable-discussion`, command).pipe(
+    tap(() => {
+      // Emit event to notify components about the change
+      this.discussionDisabled.next(command.discussionId);
+    })
+  );
+}
+
+// Add this observable to notify when discussions are disabled
+private discussionDisabledSubject = new Subject<number>();
+public discussionDisabled = this.discussionDisabledSubject.asObservable();
