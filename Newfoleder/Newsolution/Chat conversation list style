@@ -1,0 +1,226 @@
+.custom-sidebar {
+  height: 100vh;
+  overflow-y: auto;
+
+  nb-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-basic-color-3);
+  }
+
+  nb-list {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+}
+
+.hoverable-item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-basic-color-4);
+
+  &:hover {
+    background-color: var(--background-basic-color-2);
+  }
+
+  &.selected-item {
+    background-color: var(--color-primary-100);
+    border-left: 3px solid var(--color-primary-500);
+  }
+
+  &.archived-discussion {
+    opacity: 0.7;
+    background-color: var(--background-basic-color-1);
+    
+    &:hover {
+      background-color: var(--background-basic-color-2);
+    }
+  }
+}
+
+.conversation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conversation-info {
+  flex: 1;
+  min-width: 0; // Allow text truncation
+  cursor: pointer;
+
+  .conversation-title {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-basic-color);
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &.disabled-title {
+      color: var(--text-disabled-color);
+      font-style: italic;
+    }
+  }
+
+  .conversation-messages {
+    font-size: 0.75rem;
+    color: var(--text-hint-color);
+  }
+
+  .archived-label {
+    font-size: 0.7rem;
+    color: var(--color-warning-500);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.conversation-rating {
+  flex-shrink: 0;
+  
+  ::ng-deep {
+    .star {
+      font-size: 12px;
+    }
+  }
+}
+
+.conversation-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+
+  .action-icon {
+    padding: 0.25rem;
+    border-radius: 50%;
+    
+    &:hover {
+      background-color: var(--background-basic-color-3);
+    }
+
+    .list-edit-btn {
+      font-size: 0.8rem;
+      color: var(--text-hint-color);
+      
+      &:hover {
+        color: var(--color-primary-500);
+      }
+    }
+  }
+}
+
+.hoverable-item:hover .conversation-actions {
+  opacity: 1;
+}
+
+.section-header {
+  padding: 0.5rem 1rem;
+  background-color: var(--background-basic-color-2);
+  border-bottom: 1px solid var(--border-basic-color-3);
+  
+  h6 {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-hint-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.archived-section {
+  margin-top: 1rem;
+  border-top: 2px solid var(--border-basic-color-3);
+}
+
+// Loading states
+.loading-discussion {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-hint-color);
+}
+
+// Empty states
+.empty-discussions {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-hint-color);
+  
+  .empty-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+  }
+  
+  .empty-text {
+    font-size: 0.9rem;
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .conversation-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .conversation-actions {
+    opacity: 1; // Always show on mobile
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+// Dark theme adjustments
+[nb-theme="dark"] {
+  .hoverable-item {
+    &.archived-discussion {
+      background-color: var(--background-basic-color-2);
+    }
+    
+    &.selected-item {
+      background-color: var(--color-primary-200);
+      color: var(--text-basic-color);
+    }
+  }
+  
+  .conversation-info .conversation-title.disabled-title {
+    color: var(--text-disabled-color);
+  }
+}
+
+// Animation for status changes
+.status-transition {
+  transition: all 0.3s ease;
+}
+
+// Status indicators
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.5rem;
+  
+  &.active {
+    background-color: var(--color-success-500);
+  }
+  
+  &.archived {
+    background-color: var(--color-basic-500);
+  }
+  
+  &.read-only {
+    background-color: var(--color-warning-500);
+  }
+}
