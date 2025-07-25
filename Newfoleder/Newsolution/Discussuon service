@@ -1,0 +1,99 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
+import { GlobalService } from '../global.service';
+import { Discussion } from 'src/app/models/discussion';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class DiscussionService {
+  
+  private ratingUpdatedSource = new Subject<any>();
+  public ratingUpdatedR = this.ratingUpdatedSource.asObservable();
+
+  constructor(private http: HttpClient, private globalService: GlobalService) { }
+
+  getDiscussions(userprofileCode: string): Observable<any> {
+    return this.http.get(`${this.globalService.baseUrl}/api/Discussion/GetDiscussions/${userprofileCode}`);
+  }
+
+  createDiscussion(discussionName: string, userId: string): Observable<any> {
+    const payload = {
+      name: discussionName,
+      userId: userId
+    };
+    return this.http.post(`${this.globalService.baseUrl}/api/Discussion/CreateDiscussion`, payload);
+  }
+
+  updateDiscussion(discussionData: any): Observable<any> {
+    return this.http.put(`${this.globalService.baseUrl}/api/Discussion/UpdateDiscussion`, discussionData);
+  }
+
+  deleteDiscussion(discussionId: number): Observable<any> {
+    return this.http.delete(`${this.globalService.baseUrl}/api/Discussion/DeleteDiscussion/${discussionId}`);
+  }
+
+  // Disable/Enable discussion - this will control if user can chat or just view
+  disableDiscussion(command: { discussionId: number, active: boolean }): Observable<any> {
+    return this.http.put(`${this.globalService.baseUrl}/api/Discussion/ToggleDiscussionStatus`, command);
+  }
+
+  // Archive discussion (make it read-only)
+  archiveDiscussion(discussionId: number): Observable<any> {
+    const command = { discussionId: discussionId, active: false };
+    return this.http.put(`${this.globalService.baseUrl}/api/Discussion/ArchiveDiscussion`, command);
+  }
+
+  // Enable discussion for chatting (unarchive)
+  enableDiscussion(discussionId: number): Observable<any> {
+    const command = { discussionId: discussionId, active: true };
+    return this.http.put(`${this.globalService.baseUrl}/api/Discussion/EnableDiscussion`, command);
+  }
+
+  // Get discussion details
+  getDiscussionById(discussionId: number): Observable<Discussion> {
+    return this.http.get<Discussion>(`${this.globalService.baseUrl}/api/Discussion/GetDiscussion/${discussionId}`);
+  }
+
+  // Rate discussion
+  rateDiscussion(ratingData: { discussionId: number, rating: number, comment?: string }): Observable<any> {
+    return this.http.post(`${this.globalService.baseUrl}/api/Discussion/RateDiscussion`, ratingData);
+  }
+
+  // Rate message
+  rateMessage(ratingData: { messageId: number, rating: number, comment?: string }): Observable<any> {
+    return this.http.post(`${this.globalService.baseUrl}/api/Discussion/RateMessage`, ratingData);
+  }
+
+  // Check if discussion is active (allows chatting)
+  isDiscussionActive(discussionId: number): Observable<boolean> {
+    return this.http.get<boolean>(`${this.globalService.baseUrl}/api/Discussion/IsActive/${discussionId}`);
+  }
+
+  // Get only active discussions
+  getActiveDiscussions(userprofileCode: string): Observable<any> {
+    return this.http.get(`${this.globalService.baseUrl}/api/Discussion/GetActiveDiscussions/${userprofileCode}`);
+  }
+
+  // Get only archived discussions
+  getArchivedDiscussions(userprofileCode: string): Observable<any> {
+    return this.http.get(`${this.globalService.baseUrl}/api/Discussion/GetArchivedDiscussions/${userprofileCode}`);
+  }
+
+  // Disable all discussions for a user (when creating new one)
+  disableAllUserDiscussions(userId: string): Observable<any> {
+    return this.http.put(`${this.globalService.baseUrl}/api/Discussion/DisableAllUserDiscussions/${userId}`, {});
+  }
+
+  // Emit rating updated event
+  emitRatingUpdated(data: any): void {
+    this.ratingUpdatedSource.next(data);
+  }
+
+  // Get discussion status
+  getDiscussionStatus(discussionId: number): Observable<{ isActive: boolean, canChat: boolean, isArchived: boolean }> {
+    return this.http.get<{ isActive: boolean, canChat: boolean, isArchived: boolean }>
+      (`${this.globalService.baseUrl}/api/Discussion/GetDiscussionStatus/${discussionId}`);
+  }
+}
