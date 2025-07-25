@@ -1,0 +1,111 @@
+export class Discussion {
+  public id: number;
+  public name: string;
+  public userId: string;
+  public startDate: Date;
+  public endDate: Date;
+  public isActive: boolean;
+  public formattedEndDate: string;
+  public totalTokens: number;
+  public formattedStartDate: string;
+  public completionTokens: number;
+  public totalCost: number;
+  public message: string;
+  public selected: boolean;
+  public rate: number;
+  public totalMessages: number;
+  public canChat: boolean; // New property to control if user can chat
+  public isArchived: boolean; // New property to mark as archived
+  public lastMessageDate: Date; // Track last activity
+  public isReadOnly: boolean; // Computed property for UI
+
+  constructor(
+    id: number,
+    name: string,
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    isActive: boolean,
+    formattedEndDate: string,
+    totalTokens: number,
+    formattedStartDate: string,
+    completionTokens: number,
+    totalCost: number,
+    message: string,
+    selected: boolean,
+    rate: number
+  ) {
+    this.id = id;
+    this.name = name;
+    this.userId = userId;
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.isActive = isActive;
+    this.formattedEndDate = formattedEndDate;
+    this.totalTokens = totalTokens;
+    this.formattedStartDate = formattedStartDate;
+    this.completionTokens = completionTokens;
+    this.totalCost = totalCost;
+    this.message = message;
+    this.selected = selected;
+    this.rate = rate;
+    this.totalMessages = 0;
+    this.canChat = isActive; // By default, only active discussions allow chatting
+    this.isArchived = !isActive; // Archived if not active
+    this.lastMessageDate = endDate || new Date();
+  }
+
+  // Computed property to check if discussion is read-only
+  get isReadOnly(): boolean {
+    return !this.isActive || this.isArchived || !this.canChat;
+  }
+
+  // Method to archive the discussion
+  archive(): void {
+    this.isActive = false;
+    this.canChat = false;
+    this.isArchived = true;
+    this.selected = false;
+  }
+
+  // Method to enable the discussion for chatting
+  enable(): void {
+    this.isActive = true;
+    this.canChat = true;
+    this.isArchived = false;
+  }
+
+  // Method to disable the discussion (make read-only)
+  disable(): void {
+    this.isActive = false;
+    this.canChat = false;
+    this.selected = false;
+  }
+
+  // Check if this discussion can receive new messages
+  canReceiveMessages(): boolean {
+    return this.isActive && this.canChat && !this.isArchived;
+  }
+
+  // Get display status for UI
+  getDisplayStatus(): string {
+    if (this.isActive && this.canChat) {
+      return 'Active';
+    } else if (this.isArchived) {
+      return 'Archived';
+    } else {
+      return 'Read-only';
+    }
+  }
+
+  // Get status color for UI
+  getStatusColor(): string {
+    if (this.isActive && this.canChat) {
+      return 'success';
+    } else if (this.isArchived) {
+      return 'basic';
+    } else {
+      return 'warning';
+    }
+  }
+}
