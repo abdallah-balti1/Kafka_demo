@@ -1,0 +1,61 @@
+<nb-card [nbSpinner]="loading" *ngIf="discussionId != undefined && discussionId > 0 && currentDiscussion != undefined && currentDiscussion.isActive"
+    nbSpinnerStatus="danger"
+    nbSpinnerSize="large"
+    nbSpinnerMessage="">
+  <nb-card-body>
+    <div class="row">
+      <div class="chat-box">
+        <div class="chat-header">{{ headText }}</div>
+      </div>
+    </div>
+
+    <div class="chat-messages" #scrollContainer>
+      <ng-container *ngFor="let msg of messages">
+        <div *ngIf="msg.loading" class="loading-message">
+          <div class="typing-indicator">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </ng-container>
+      <app-chat-base
+        *ngIf="msg.loading"
+        [message]="msg.text"
+        [reply]="msg.reply"
+        [sender]="msg.sender"
+        [date]="msg.date" 
+        [avatar]="msg.user.avatar"
+        [customMessage]="msg.customMessageData"
+        [showActions]="msg.reply ? showBotActions : showUserActions"
+        [canThumbsUp]="msg.reply ? showBotActions : false"
+        [canThumbsDown]="msg.reply ? canThumbsDownCallback(msg)"
+        [onThumbsUp]="onThumbsUpCallback(msg)"
+        [onThumbsDown]="onThumbsDownCallback(msg)">
+      </app-chat-base>
+    </div>
+  </nb-card-body>
+
+  <div class="chat-footer">
+    <app-chat-input
+      [canSend]="canSend()"
+      [allowFiles]="false"
+      [disabled]="currentDiscussion?.isDisabled || false"
+      (send)="handleSendMessage($event)">
+    </app-chat-input>
+  </div>
+</nb-card>
+
+<ng-template #commentMessage let-data let-ref="dialogRef">
+  <nb-card size="small" style="width: 600px !important;
+      max-width: 90vw !important;">
+    <nb-card-header>Enter your comment</nb-card-header>
+    <nb-card-body>
+      <textarea nbInput fullWidth rows="3" [(ngModel)]="messageComment" placeholder="your comment"></textarea>
+    </nb-card-body>
+    <nb-card-footer>
+      <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;">
+        <button class="btn btn-danger" nbButton status="danger" (click)="ref.close()">Cancel</button>
+        <button class="btn btn-success" nbButton status="Change" (click)="submit(ref)">Submit</button>
+      </div>
+    </nb-card-footer>
+  </nb-card>
+</ng-template>
