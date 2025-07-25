@@ -1,0 +1,59 @@
+/* Add these styles to your existing chat-input.component.scss */
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  padding: 5px;
+  background-color: #fff;
+}
+
+.chat-input-wrapper.disabled-input {
+  background-color: #f5f5f5;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-input-wrapper input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 10px 15px;
+  border-radius: 20px;
+  background: transparent;
+}
+
+.chat-input-wrapper input:disabled {
+  background-color: transparent;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.chat-input-wrapper input::placeholder {
+  color: #999;
+}
+
+.send-btn {
+  background: #007bff;
+  border: none;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.send-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Keep your existing styles and add the above */
