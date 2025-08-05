@@ -1,176 +1,312 @@
-Parfait ! Voici la solution complète, proprement découpée en trois fichiers, pour :
-
-1. Afficher une discussion nouvellement créée dans la liste (sidebar),
+Merci pour les captures ! Voici une version mise à jour et complète de ton discussion.service.ts, qui intègre les éléments suivants :
 
 
-2. Griser et désactiver les discussions qui ont plus d'une heure.
+---
 
+✅ Changements apportés :
+
+Ajout d’un Subject pour émettre les nouvelles discussions en temps réel.
+
+Ajout du champ isExpired pour griser automatiquement les discussions vieilles de plus d’une heure.
+
+TypeScript propre avec les types génériques (Observable<ItemResponse<Discussion>>, etc.).
+
+Regroupement logique et lisibilité améliorée.
 
 
 
 ---
 
-✅ 1. discussion.service.ts
-
-Ajoute le système d’événements via un Subject.
+✅ Nouveau fichier discussion.service.ts complet :
 
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
+import { retry, catchError } from 'rxjs/operators';
 
-export interface Discussion {
-  id: number;
-  name: string;
-  startDate: string; // ou Date
-  isExpired?: boolean;
-}
+import {
+  CHAT_WITH_API_BASE_URL,
+  API_VERSION,
+  getHttpHeaders,
+  handleError
+} from '../../helpers';
+
+import {
+  ItemResponse,
+  ListItemResponse
+} from '../../models';
+
+import { Discussion } from 'src/app/models/discussion';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DiscussionService {
+  private requestUrl = `${CHAT_WITH_API_BASE_URL}/api/${API_VERSION}/discussions`;
+
+  // Pour la mise à jour des ratings (déjà présent)
+  private ratingUpdateSource = new Subject<{ id: number; rating: number }>();
+  ratingUpdated$ = this.ratingUpdateSource.asObservable();
+
+  // ✅ Pour notifier les nouvelles discussions créées
+  private newDiscussionSource = new Subject<Discussion>();
+  newDiscussion$ = this.newDiscussionSource.asObservable();
+
+  // Local cache (optionnel)
   private discussions: Discussion[] = [];
 
-  // Observable pour suivre les nouvelles discussions
-  private newDiscussionSource = new Subject<Discussion>();
-  public newDiscussion$ = this.newDiscussionSource.asObservable();
+  constructor(public httpClient: HttpClient) {}
 
-  constructor() {}
-
-  getDiscussions(): Discussion[] {
-    return this.discussions;
+  // ✅ Notifier une nouvelle discussion
+  emitNewDiscussion(discussion: Discussion): void {
+    discussion.isExpired = false;
+    this.discussions.unshift(discussion);
+    this.newDiscussionSource.next(discussion);
   }
 
-  setDiscussions(discussions: Discussion[]) {
+  // ✅ Calcul automatique de l'expiration (1 heure)
+  setDiscussionsWithExpiration(discussions: Discussion[]) {
     const now = Date.now();
     this.discussions = discussions.map(disc => {
       const start = new Date(disc.startDate).getTime();
-      disc.isExpired = now - start > 3600000; // > 1h
+      disc.isExpired = now - start > 3600000;
       return disc;
     });
   }
 
-  emitNewDiscussion(disc: Discussion) {
-    // ajoute localement si tu veux aussi garder une copie
-    this.discussions.unshift(disc);
-    this.newDiscussionSource.next(disc);
+  // Utilisé pour mettre à jour une note
+  notifyRatingUpdate(data: { id: number; rating: number }) {
+    this.ratingUpdateSource.next(data);
+  }
+
+  // 🔍 Rechercher une discussion
+  search(query: any) {
+    const data = {
+      SearchedText: query.term
+    };
+    const url = `${this.requestUrl}/search`;
+    return this.httpClient.post<any>(url, data, getHttpHeaders());
+  }
+
+  // 📥 Récupérer les discussions de l'utilisateur
+  getDiscussions(userProfileCode: string): Observable<ListItemResponse<Discussion>> {
+    const params = new HttpParams().set('userProfileCode', userProfileCode);
+    const httpOptions = {
+      getHttpHeaders,
+      params
+    };
+
+    const result = this.httpClient
+      .get<ListItemResponse<Discussion>>(this.requestUrl, httpOptions)
+      .pipe(retry(1), catchError(handleError));
+
+    return result;
+  }
+
+  // 🚫 Désactiver / archiver une discussion
+  disableDiscussion(command: any): Observable<ItemResponse<Discussion>> {
+    const url = `${this.requestUrl}/archive`;
+    return this.httpClient.put<ItemResponse<Discussion>>(url, command, getHttpHeaders());
+  }
+
+  // ✏️ Mettre à jour une discussion existante
+  updateDiscussion(discussion: any): Observable<any> {
+    const url = `${this.requestUrl}/update`;
+    return this.httpClient.put(url, discussion);
   }
 }
 
 
 ---
 
-✅ 2. chat-conversation-list.component.ts
+✅ Prochaine étape
 
-Ton composant qui affiche la sidebar (liste des discussions).
+Assure-toi que ton composant chat-conversation-list.component.ts :
 
-import { Component, OnInit } from '@angular/core';
-import { DiscussionService, Discussion } from '../services/discussion.service';
+S’abonne à newDiscussion$ pour afficher les nouvelles discussions immédiatement.
+
+Utilise discussion.isExpired pour afficher ou griser les discussions.
+
+
+Souhaites-tu que je mette à jour aussi ce composant avec les dernières bonnes pratiques ?
+
+
+
+
+
+
+
+
+
+
+Voici la version mise à jour complète de ton fichier chat-conversation-list.component.ts, intégrant :
+
+L’abonnement à newDiscussion$ pour faire apparaître une discussion immédiatement après sa création.
+
+La logique permettant de griser les discussions vieilles de plus d’une heure (isExpired).
+
+La protection pour empêcher le clic sur ces discussions expirées.
+
+
+
+---
+
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Router, ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { DiscussionService } from 'src/app/services/ChatWith/discussion.service';
+import { SignalRService } from 'src/app/services/signalr.service';
+import { HelperService } from 'src/app/services/helper.service';
+import { Discussion } from 'src/app/models/discussion';
 
 @Component({
   selector: 'app-chat-conversation-list',
   templateUrl: './chat-conversation-list.component.html',
   styleUrls: ['./chat-conversation-list.component.scss']
 })
-export class ChatConversationListComponent implements OnInit {
-  activeDiscussions: Discussion[] = [];
+export class ChatConversationListComponent implements OnInit, OnDestroy {
+  public activeDiscussions: Discussion[] = [];
+  public archivedDiscussions: Discussion[] = [];
+  private subscriptions: Subscription = new Subscription();
 
-  constructor(private discussionService: DiscussionService) {}
+  constructor(
+    private discussionService: DiscussionService,
+    private signalRService: SignalRService,
+    private helperService: HelperService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
 
   ngOnInit(): void {
-    // Initialisation
-    const stored = this.discussionService.getDiscussions();
-    this.activeDiscussions = stored;
+    // 1. Charger les discussions existantes via getDiscussions() — en supposant que tu appelles aussi discussionService.setDiscussionsWithExpiration(...)
+    this.subscriptions.add(
+      this.helperService.selectDiscussions$.subscribe(val => {
+        // Exemple : tu pourrais également initier le chargement ici
+      })
+    );
+    this.loadAllDiscussions();
 
-    // Abonnement pour les nouvelles discussions
-    this.discussionService.newDiscussion$.subscribe((newDisc: Discussion) => {
-      newDisc.isExpired = false; // fraîchement créée
-      this.activeDiscussions.unshift(newDisc);
+    // 2. Réagir à une nouvelle discussion émise
+    this.subscriptions.add(
+      this.discussionService.newDiscussion$.subscribe(newDisc => {
+        newDisc.isExpired = false;
+        this.activeDiscussions.unshift(newDisc);
+        // Optionnel : sélectionner automatiquement la nouvelle discussion
+      })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+  }
+
+  loadAllDiscussions(): void {
+    this.helperService.setLoading(true);
+    const userProfileCode = this.helperService.currentUserProfileCode;
+    this.discussionService.getDiscussions(userProfileCode).subscribe(result => {
+      const discussions = this.fromQueryResultToDiscussionList(result);
+      this.discussionService.setDiscussionsWithExpiration(discussions);
+      this.activeDiscussions = this.discussionService.getDiscussions().filter(d => !d.isExpired);
+      this.archivedDiscussions = this.discussionService.getDiscussions().filter(d => d.isExpired);
+      this.helperService.setLoading(false);
     });
   }
 
-  changeDiscussion(id: number, index: number) {
+  fromQueryResultToDiscussionList(result: any): Discussion[] {
+    const items: Discussion[] = [];
+    result.items.forEach((item: any) => {
+      const disc = new Discussion(
+        item.item.id,
+        item.item.name,
+        item.item.userUid,
+        item.item.startDate,
+        item.item.endDate,
+        item.item.isActive,
+        item.item.formatedEndDate,
+        item.item.totalTokens,
+        item.item.promptTokens,
+        item.item.completionTokens,
+        item.item.totalCost,
+        item.item.message,
+        false, // isExpired initialisé à false, calculé plus tard
+        item.item.rate
+      );
+      disc.totalMessages = item.item.totalMessages;
+      items.push(disc);
+    });
+    return items;
+  }
+
+  changeDiscussion(discussionId: number, index: number): void {
     const discussion = this.activeDiscussions[index];
-    if (discussion.isExpired) return; // protection en double
+    if (discussion.isExpired) {
+      return;
+    }
+    this.helperService.setLoading(true);
+    this.signalRService.sendDiscussionIdEvent(discussionId);
+    this.activeDiscussions.forEach((item, i) => {
+      item.selected = (i === index);
+    });
+    this.router.navigate(['/pages/chat/discussion/', discussionId]).then(success => {
+      if (!success) {
+        this.signalRService.disconnectFromDiscussion(discussionId.toString());
+      }
+      this.helperService.setLoading(false);
+    });
+  }
 
-    // Redirige ou change la vue ici
-    console.log('Switching to discussion:', id);
+  createDiscussion(): void {
+    this.signalRService.createDiscussion('new discussion').then(discussionId => {
+      if (discussionId !== -1) {
+        const newDisc = new Discussion(
+          discussionId,
+          'new discussion',
+          this.helperService.currentUserUid,
+          new Date().toISOString(),
+          null,
+          true,
+          '',
+          0,
+          0,
+          0,
+          0,
+          '',
+          false,
+          0
+        );
+        this.discussionService.emitNewDiscussion(newDisc);
+      }
+    });
   }
 }
 
 
 ---
 
-✅ 3. chat-conversation-list.component.html
+🚧 Ce que fait cette version
 
-Ton template Angular, avec la gestion des discussions expirées.
+Éléments	Fonctionnalité
 
-<div class="discussion-list">
-  <div
-    *ngFor="let discussion of activeDiscussions; let i = index"
-    class="discussion-item"
-    [class.expired]="discussion.isExpired"
-    (click)="changeDiscussion(discussion.id, i)"
-  >
-    {{ discussion.name }}
-    <span *ngIf="discussion.isExpired">(expirée)</span>
-  </div>
-</div>
-
-
----
-
-✅ 4. chat-conversation-list.component.scss
-
-Ajoute une classe pour styliser les discussions inactives.
-
-.discussion-list {
-  .discussion-item {
-    padding: 10px;
-    cursor: pointer;
-    transition: 0.2s;
-
-    &.expired {
-      opacity: 0.5;
-      pointer-events: none; // Désactive le clic
-      font-style: italic;
-    }
-
-    &:hover {
-      background-color: #f2f2f2;
-    }
-  }
-}
-
-
----
-
-✅ 5. Exemple d'utilisation dans un autre composant (création discussion)
-
-createDiscussion() {
-  const newDiscussion = {
-    id: Date.now(),
-    name: 'Nouvelle discussion',
-    startDate: new Date().toISOString(),
-  };
-
-  // Envoie dans le service
-  this.discussionService.emitNewDiscussion(newDiscussion);
-}
-
-
----
-
-🧪 Résultat attendu
-
-✅ Une discussion nouvellement créée apparaît immédiatement en haut.
-
-❌ Si la discussion a plus d’1h, elle est grisée et impossible à ouvrir.
-
-⚙️ Plus besoin de window.location.reload().
+setDiscussionsWithExpiration()	Calcule isExpired pour chaque discussion en fonction du startDate
+.newDiscussion$	Permet d’afficher en temps réel une nouvelle discussion dans la sidebar
+changeDiscussion()	Empêche la sélection des discussions expirées
+createDiscussion()	Intègre la nouvelle discussion dans le service pour publication à tous les abonnés
 
 
 
 ---
 
-Souhaitez-tu que je regroupe tout ça dans un .zip ou projet Angular de démo que tu peux tester localement ?
+✅ Actions requises :
+
+1. Mets à jour ton service DiscussionService avec la version fournie précédemment.
+
+
+2. Assure-toi dans ton template chat-conversation-list.component.html qu’il applique une classe CSS expired aux éléments discutés via une condition *ngFor.
+
+
+3. Ajoute le style .expired { opacity: 0.5; pointer-events: none; } pour griser les items expirés.
+
+
+
+Si tu veux, je peux aussi t’envoyer le markup HTML et le CSS à adapter en plus !
 
