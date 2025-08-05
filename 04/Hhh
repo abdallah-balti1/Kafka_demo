@@ -1,4 +1,8 @@
-this.discussionService.getDiscussions().subscribe(discussions => {
+this.discussionService.getDiscussions().subscribe(response => {
+  const items = response.items;
+
+  const discussions = items.map(item => item.data); // assuming 'data' holds the actual Discussion
+
   this.activeDiscussions = discussions.filter(d => !d.isExpired);
   this.archivedDiscussions = discussions.filter(d => d.isExpired);
 });
