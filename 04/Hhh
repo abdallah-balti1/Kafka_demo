@@ -1,0 +1,9 @@
+this.discussionService.getDiscussions().pipe(
+  map(discussions => ({
+    active: discussions.filter(d => !d.isExpired),
+    archived: discussions.filter(d => d.isExpired)
+  }))
+).subscribe(({ active, archived }) => {
+  this.activeDiscussions = active;
+  this.archivedDiscussions = archived;
+});
