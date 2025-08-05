@@ -1,101 +1,176 @@
-Top ! Merci pour tous ces screenshots — ils clarifient beaucoup la structure de ton composant ChatConversationListComponent et du service DiscussionService.
+Parfait ! Voici la solution complète, proprement découpée en trois fichiers, pour :
 
-Voici comment tu peux aborder tes deux besoins, avec des suggestions précises sur l’endroit où intégrer le code :
+1. Afficher une discussion nouvellement créée dans la liste (sidebar),
+
+
+2. Griser et désactiver les discussions qui ont plus d'une heure.
+
+
 
 
 ---
 
-1️⃣ Faire apparaître automatiquement une nouvelle discussion dans la sidebar
+✅ 1. discussion.service.ts
 
-✅ Ce qui se passe :
+Ajoute le système d’événements via un Subject.
 
-Tu appelles signalRService.createDiscussion(...) et ensuite tu fais quelque chose comme :
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Subject } from 'rxjs';
 
-this.activeDiscussions.push(this.newDiscussion);
-
-C’est bien pour ajouter localement, mais si tu veux être plus réactif et garantir une cohérence côté UI, je recommande l’utilisation d’un service central et d’un observable.
-
-🛠️ Ce que tu peux faire :
-
-DiscussionService : ajoute un Subject<Discussion> (ou BehaviorSubject) nommé par exemple newDiscussion$.
-
-
-private newDiscussionSource = new Subject<Discussion>();
-public newDiscussion$ = this.newDiscussionSource.asObservable();
-
-emitNewDiscussion(disc: Discussion) {
-  this.newDiscussionSource.next(disc);
+export interface Discussion {
+  id: number;
+  name: string;
+  startDate: string; // ou Date
+  isExpired?: boolean;
 }
 
-Juste après ton createDiscussion(...) réussi, appelle :
+@Injectable({
+  providedIn: 'root'
+})
+export class DiscussionService {
+  private discussions: Discussion[] = [];
 
+  // Observable pour suivre les nouvelles discussions
+  private newDiscussionSource = new Subject<Discussion>();
+  public newDiscussion$ = this.newDiscussionSource.asObservable();
 
-this.discussionService.emitNewDiscussion(this.newDiscussion);
+  constructor() {}
 
-Dans chat-conversation-list.component.ts, abonne-toi dans ngOnInit() :
+  getDiscussions(): Discussion[] {
+    return this.discussions;
+  }
 
+  setDiscussions(discussions: Discussion[]) {
+    const now = Date.now();
+    this.discussions = discussions.map(disc => {
+      const start = new Date(disc.startDate).getTime();
+      disc.isExpired = now - start > 3600000; // > 1h
+      return disc;
+    });
+  }
 
-this.discussionService.newDiscussion$.subscribe(disc => {
-  this.activeDiscussions.unshift(disc);
-});
-
-Ainsi, chaque nouvelle discussion arrive de façon réactive et s’affiche sans rechargement manuel ni window.location.reload().
+  emitNewDiscussion(disc: Discussion) {
+    // ajoute localement si tu veux aussi garder une copie
+    this.discussions.unshift(disc);
+    this.newDiscussionSource.next(disc);
+  }
+}
 
 
 ---
 
-2️⃣ Griser les discussions inactives depuis plus d’une heure
+✅ 2. chat-conversation-list.component.ts
 
-✅ Logique à appliquer :
+Ton composant qui affiche la sidebar (liste des discussions).
 
-Tu dois calculer l’âge de chaque discussion (à partir d’un timestamp, par exemple createdAt ou startDate) dès que tu charges ta liste.
+import { Component, OnInit } from '@angular/core';
+import { DiscussionService, Discussion } from '../services/discussion.service';
 
-🛠️ Comment l’intégrer :
+@Component({
+  selector: 'app-chat-conversation-list',
+  templateUrl: './chat-conversation-list.component.html',
+  styleUrls: ['./chat-conversation-list.component.scss']
+})
+export class ChatConversationListComponent implements OnInit {
+  activeDiscussions: Discussion[] = [];
 
-Dans loadAllDiscussions() ou fromQueryResultToDiscussionList(), ajoute ce calcul :
+  constructor(private discussionService: DiscussionService) {}
+
+  ngOnInit(): void {
+    // Initialisation
+    const stored = this.discussionService.getDiscussions();
+    this.activeDiscussions = stored;
+
+    // Abonnement pour les nouvelles discussions
+    this.discussionService.newDiscussion$.subscribe((newDisc: Discussion) => {
+      newDisc.isExpired = false; // fraîchement créée
+      this.activeDiscussions.unshift(newDisc);
+    });
+  }
+
+  changeDiscussion(id: number, index: number) {
+    const discussion = this.activeDiscussions[index];
+    if (discussion.isExpired) return; // protection en double
+
+    // Redirige ou change la vue ici
+    console.log('Switching to discussion:', id);
+  }
+}
 
 
-const now = Date.now();
-items.forEach(disc => {
-  const start = new Date(disc.startDate).getTime();
-  disc.isExpired = now - start > 3600000; // si > 1h
-});
+---
 
-Ensuite, dans ton template chat-conversation-list.component.html, applique une classe conditionnelle :
+✅ 3. chat-conversation-list.component.html
 
+Ton template Angular, avec la gestion des discussions expirées.
 
-<div
-  *ngFor="let discussion of activeDiscussions; let i = index"
-  [class.expired]="discussion.isExpired"
-  (click)="!discussion.isExpired && changeDiscussion(discussion.id, i)"
->
-  {{ discussion.name }}
+<div class="discussion-list">
+  <div
+    *ngFor="let discussion of activeDiscussions; let i = index"
+    class="discussion-item"
+    [class.expired]="discussion.isExpired"
+    (click)="changeDiscussion(discussion.id, i)"
+  >
+    {{ discussion.name }}
+    <span *ngIf="discussion.isExpired">(expirée)</span>
+  </div>
 </div>
 
-Et dans ton .scss :
 
+---
 
-.expired {
-  opacity: 0.5;
-  pointer-events: none;
-  // ou juste le style, et empêcher l’ouverture par la condition (clic désactivé)
+✅ 4. chat-conversation-list.component.scss
+
+Ajoute une classe pour styliser les discussions inactives.
+
+.discussion-list {
+  .discussion-item {
+    padding: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+
+    &.expired {
+      opacity: 0.5;
+      pointer-events: none; // Désactive le clic
+      font-style: italic;
+    }
+
+    &:hover {
+      background-color: #f2f2f2;
+    }
+  }
 }
 
-Tu peux aussi choisir de ne pas filtrer les expirées mais les rendre uniquement consultables (éviter l’ouverture en type lecture seule).
+
+---
+
+✅ 5. Exemple d'utilisation dans un autre composant (création discussion)
+
+createDiscussion() {
+  const newDiscussion = {
+    id: Date.now(),
+    name: 'Nouvelle discussion',
+    startDate: new Date().toISOString(),
+  };
+
+  // Envoie dans le service
+  this.discussionService.emitNewDiscussion(newDiscussion);
+}
 
 
 ---
 
-📁 Récapitulatif simplifié
+🧪 Résultat attendu
 
-Fonctionnalité	Composant / Service lié	Modification proposée
+✅ Une discussion nouvellement créée apparaît immédiatement en haut.
 
-Nouvelle discussion auto	DiscussionService + ChatConversationListComponent	Ajouter Subject + abonnement pour push en temps réel
-Griser les anciennes	loadAllDiscussions() / template / SCSS	Ajouter flag isExpired + style conditionnel + désactivation du clic
+❌ Si la discussion a plus d’1h, elle est grisée et impossible à ouvrir.
+
+⚙️ Plus besoin de window.location.reload().
 
 
 
 ---
 
-✍️ Veux-tu un exemple de code complet pour ton composant (TS + HTML + SCSS) ou pour ton service ? Je peux te fournir un petit snippet prêt à copier/coller.
+Souhaitez-tu que je regroupe tout ça dans un .zip ou projet Angular de démo que tu peux tester localement ?
 
