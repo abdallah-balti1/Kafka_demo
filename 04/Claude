@@ -1,0 +1,320 @@
+// Dans votre service SignalR ou dans ChatConversationListComponent
+
+// Ajoutez cette méthode dans ngOnInit pour écouter les nouvelles discussions
+ngOnInit(): void {
+  // ... votre code existant ...
+  
+  // Écouter les nouvelles discussions créées par d'autres utilisateurs
+  this.signalRService.hubConnection.on('NewDiscussionCreated', (newDiscussion: Discussion) => {
+    // Ajouter la nouvelle discussion à la liste
+    this.activeDiscussions.unshift(newDiscussion);
+    this.allDiscussions.unshift(newDiscussion);
+    
+    // Optionnel: afficher une notification
+    console.log('Nouvelle discussion créée:', newDiscussion.name);
+  });
+  
+  // Nettoyer les listeners
+  this.subscription.add(
+    this.signalRService.hubConnection.onclose(() => {
+      console.log('Connexion SignalR fermée');
+    })
+  );
+}
+
+// Modifiez la méthode createDiscussion pour broadcaster
+createDiscussion() {
+  this.signalRService.createDiscussion("new discussion").then(discussionId => {
+    if (discussionId !== -1) {
+      const newDiscussion = new Discussion(
+        discussionId, 
+        "new discussion", 
+        '', 
+        new Date(), 
+        new Date(), 
+        true, 
+        '', 
+        0, 
+        0, 
+        0, 
+        0, 
+        null, 
+        false, 
+        0
+      );
+      
+      // Ajouter localement
+
+
+
+
+
+/* Dans chat-conversation-list.component.scss */
+
+.discussion-item {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.discussion-item:hover {
+  background-color: #f5f5f5;
+}
+
+.discussion-item.selected {
+  background-color: #007bff;
+  color: white;
+}
+
+/* Styles pour les discussions expirées */
+.discussion-item.expired-discussion {
+  opacity: 0.6;
+  color: #888;
+  background-color: #f9f9f9;
+  border-left: 3px solid #ffc107;
+}
+
+.discussion-item.expired-discussion:hover {
+  background-color: #f0f0f0;
+}
+
+.discussion-item.expired-discussion.selected {
+  background-color: #6c757d !important;
+  color: white;
+}
+
+.discussion-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.discussion-name {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+.expired-badge {
+  font-size: 12px;
+  margin-left: 5px;
+}
+
+.discussion-date {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-left: 10px;
+}
+
+/* Animation pour les nouvelles discussions */
+.discussion-item.new-discussion {
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+      this.activeDiscussions.unshift(newDiscussion);
+      this.allDiscussions.unshift(newDiscussion);
+      
+      // Broadcaster aux autres clients (côté serveur)
+      this.signalRService.broadcastNewDiscussion(newDiscussion);
+      
+      this.changeDiscussion(discussionId, 0);
+    }
+  });
+}
+
+
+
+
+
+<!-- Dans le template chat-conversation-list.component.html -->
+
+<!-- Modifiez la section de la liste des discussions -->
+<div *ngFor="let discussion of activeDiscussions; let i = index" 
+     class="discussion-item"
+     [ngClass]="getDiscussionClass(discussion)"
+     [class.selected]="discussion.selected"
+     (click)="changeDiscussion(discussion.id, i)">
+     
+  <!-- Ajoutez un indicateur pour les discussions expirées -->
+  <div class="discussion-content">
+    <span class="discussion-name">{{ discussion.name }}</span>
+    
+    <!-- Indicateur de discussion expirée -->
+    <span *ngIf="isDiscussionExpired(discussion)" 
+          class="expired-badge"
+          title="Cette discussion a plus d'une heure">
+      🕒
+    </span>
+    
+    <!-- Affichage de la date de fin si disponible -->
+    <small class="discussion-date" *ngIf="discussion.endDate">
+      {{ discussion.endDate | date:'dd/MM HH:mm' }}
+    </small>
+  </div>
+</div>
+
+// Dans ChatConversationListComponent, ajoutez ces méthodes:
+
+/**
+ * Vérifie si une discussion a plus d'une heure
+ */
+isDiscussionExpired(discussion: Discussion): boolean {
+  if (!discussion.endDate) return false;
+  
+  const now = new Date();
+  const endTime = new Date(discussion.endDate);
+  const diffInMilliseconds = now.getTime() - endTime.getTime();
+  const diffInHours = diffInMilliseconds / (1000 * 60 * 60);
+  
+  return diffInHours > 1;
+}
+
+/**
+ * Retourne la classe CSS pour une discussion
+ */
+getDiscussionClass(discussion: Discussion): string {
+  let classes = '';
+  
+  if (this.isDiscussionExpired(discussion)) {
+    classes += 'expired-discussion ';
+  }
+  
+  if (discussion.isActive) {
+    classes += 'active-discussion ';
+  }
+  
+  return classes.trim();
+}
+
+/**
+ * Vérifie si une discussion peut être sélectionnée
+ */
+canSelectDiscussion(discussion: Discussion): boolean {
+  // Les discussions expirées restent consultables mais on peut ajouter une logique ici
+  return true;
+}
+
+/**
+ * Modifiez la méthode changeDiscussion pour gérer les discussions expirées
+ */
+changeDiscussion(discussionId: number, index: number) {
+  this.loadingSpinnerService.setLoading(true);
+  
+  const selectedDiscussion = this.activeDiscussions[index];
+  
+  // Vérifier si la discussion est expirée et afficher un avertissement
+  if (this.isDiscussionExpired(selectedDiscussion)) {
+    console.warn('Cette discussion a plus d\'une heure et pourrait être archivée');
+    // Optionnel: afficher une notification à l'utilisateur
+  }
+
+  this.signalRService.sendDiscussionIdEvent(discussionId);
+  this.activeDiscussions.forEach((item, i) => {
+    console.log(item.selected = (i === index));
+    item.selected = (i === index);
+  });
+  
+  this.selectedItemIndex = index;
+  this.activeDiscussionId = discussionId;
+  
+  this.router.navigate(['/pages/chat/discussion/', discussionId]).then(success => {
+    if (!success) {
+      this.signalRService.disconnectFromDiscussion(discussionId.toString());
+    }
+  });
+}
+
+/**
+ * Méthode pour mettre à jour périodiquement le statut des discussions
+ */
+ngOnInit(): void {
+  // ... votre code existant ...
+  
+  // Mettre à jour le statut des discussions toutes les minutes
+  setInterval(() => {
+    this.updateDiscussionStatuses();
+  }, 60000); // 60 secondes
+}
+
+/**
+ * Met à jour le statut de toutes les discussions
+ */
+private updateDiscussionStatuses(): void {
+  // Pas besoin de logique spéciale, le template se mettra à jour automatiquement
+  // grâce à la méthode isDiscussionExpired() qui recalcule à chaque appel
+}
+
+
+
+
+
+
+// Dans ChatConversationListComponent, modifiez la méthode createDiscussion:
+
+createDiscussion() {
+  this.signalRService.createDiscussion("new discussion").then(discussionId => {
+    if (discussionId !== -1) {
+      // Créer le nouvel objet Discussion
+      const newDiscussion = new Discussion(
+        discussionId, 
+        "new discussion", 
+        '', 
+        new Date(), 
+        new Date(), 
+        true, 
+        '', 
+        0, 
+        0, 
+        0, 
+        0, 
+        null, 
+        false, 
+        0
+      );
+      
+      // Mettre à jour les propriétés du composant
+      this.newDiscussion.id = discussionId;
+      this.newDiscussion.name = "new discussion";
+      
+      // Ajouter automatiquement à la liste des discussions actives
+      this.activeDiscussions.unshift(newDiscussion); // Ajouter au début de la liste
+      
+      // Mettre à jour allDiscussions aussi si nécessaire
+      this.allDiscussions.unshift(newDiscussion);
+      
+      // Optionnel: naviguer automatiquement vers la nouvelle discussion
+      this.changeDiscussion(discussionId, 0);
+    }
+  }).catch(error => {
+    console.error('Erreur lors de la création de la discussion:', error);
+  });
+}
+
+// Alternative: Si vous préférez recharger toute la liste
+createDiscussionWithReload() {
+  this.signalRService.createDiscussion("new discussion").then(discussionId => {
+    if (discussionId !== -1) {
+      // Recharger complètement la liste des discussions
+      this.loadAllDiscussions();
+      
+      // Optionnel: sélectionner automatiquement la nouvelle discussion
+      setTimeout(() => {
+        const newIndex = this.activeDiscussions.findIndex(d => d.id === discussionId);
+        if (newIndex !== -1) {
+          this.changeDiscussion(discussionId, newIndex);
+        }
+      }, 500);
+    }
+  });
+}
+
