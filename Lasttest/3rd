@@ -1,0 +1,313 @@
+import { Component, OnInit, OnDestroy, Optional, TemplateRef, EventEmitter } from '@angular/core';
+import { NbDialogRef, NbDialogService, NbSearchService } from '@nebular/theme';
+import { Discussion } from 'src/app/models/discussion';
+import { GlobalService } from 'src/app/services/global.service';
+import { DiscussionService } from 'src/app/services/chatWith/discussion.service';
+import { SignalRService } from 'src/app/services/chatWith/signalR.service';
+import { ApplicationSource } from 'src/app/models/applicationSource';
+import { ItemResponse, ListItemResponse } from 'src/app/models/ItemResponse'; // Assurez-vous que le chemin est correct
+import { ApplicationSourceService } from 'src/app/services/chatWith/applicationSource.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { RatingComponent } from '../rating/rating.component';
+import { HelperService } from 'src/app/services/helper.service';
+import { Subscription } from 'rxjs'; // NOUVEAU: Importation de Subscription
+import { AuthorizeService } from 'src/app/services/AdminAndConfig/authorize.service';
+
+
+@Component({
+  selector: 'app-chat-conversation-list',
+  templateUrl: './chat-conversation-list.component.html',
+  styleUrls: ['./chat-conversation-list.component.scss'],
+  standalone: false
+})
+// NOUVEAU: Implémentation de OnDestroy pour nettoyer les abonnements
+export class ChatConversationListComponent implements OnInit, OnDestroy {
+
+  //#region Add discussion
+  discussionName: string = '';
+  public applicationSources: Array<ApplicationSource> = [];
+  public newDiscussion: Discussion;
+  newDiscussionName: string = '';
+  //#endregion
+
+  //#region List discussion
+  selectedItemIndex: number | null = null;
+  //#endregion
+
+  public activeDiscussions: Array<Discussion> = [];
+  public archivedDiscussions: Array<Discussion> = [];
+  public allDiscussions: Array<Discussion> = [];
+  public activeDiscussionId: number;
+
+  public currentUser: string = 'User1'; // Assurez-vous que c'est bien initialisé
+  public selectedDiscussionID: string = '';
+  public messageContent: string = '';
+  public user: any; // Propriété 'user' qui est définie dans ngOnInit
+
+  // NOUVEAU: Un seul objet Subscription pour gérer tous les abonnements du composant
+  private componentSubscriptions = new Subscription();
+
+  constructor(
+    private dialogService: NbDialogService,
+    private discussionService: DiscussionService,
+    private applicationSourceService: ApplicationSourceService,
+    private globalService: GlobalService,
+    private searchService: NbSearchService,
+    private signalRService: SignalRService,
+    private loadingSpinnerService: HelperService, // Le service existe déjà
+    private router: Router,
+    private authorizeService: AuthorizeService,
+    @Optional() private dialogref: NbDialogRef<any>
+  ) { }
+
+  ngOnInit(): void {
+    const userSub = this.authorizeService.loadCurrentUser().subscribe(user => this.user = user);
+    this.componentSubscriptions.add(userSub);
+
+    const searchSub = this.searchService.onSearchSubmit().subscribe((data: any) => {
+      if (!data.term) return;
+      this.discussionService.search(data).subscribe(x => {
+        console.log("searchService", x);
+      });
+    });
+    this.componentSubscriptions.add(searchSub);
+
+    const appSourceSub = this.applicationSourceService.getApplications().subscribe((result: ListItemResponse<ApplicationSource>) => this.parseApplicationSourceDate(result));
+    this.componentSubscriptions.add(appSourceSub);
+
+    // MODIFIÉ: L'abonnement est maintenant ajouté au gestionnaire global
+    const ratingSub = this.discussionService.ratingUpdated$.subscribe(data => {
+      let discussion = this.activeDiscussions.find(x => x.id === data.id);
+      if (discussion) {
+        discussion.rate = data.rating;
+      }
+    });
+    this.componentSubscriptions.add(ratingSub);
+
+    // NOUVEAU: Abonnement à la création de discussions via le service
+    const creationSub = this.discussionService.discussionCreated$.subscribe(newDiscussion => {
+      console.log('Nouvelle discussion reçue via le service:', newDiscussion);
+      // Ajoute la nouvelle discussion en haut des listes
+      // Recréer les tableaux garantit la détection de changements par Angular
+      this.allDiscussions = [newDiscussion, ...this.allDiscussions];
+      if (newDiscussion.isActive) {
+        this.activeDiscussions = [newDiscussion, ...this.activeDiscussions];
+      }
+      // Optionnel: sélectionner automatiquement la nouvelle discussion
+      this.changeDiscussion(newDiscussion.id, 0);
+    });
+    this.componentSubscriptions.add(creationSub);
+
+
+    // load discussions
+    this.loadAllDiscussions();
+  }
+
+  // NOUVEAU: Méthode de cycle de vie pour se désabonner proprement
+  ngOnDestroy(): void {
+    this.componentSubscriptions.unsubscribe();
+  }
+
+  //#region List discussion
+  loadAllDiscussions(): void {
+    this.loadingSpinnerService.setLoading(true);
+    // MODIFIÉ: L'abonnement est maintenant ajouté au gestionnaire global
+    const loadSub = this.discussionService.getDiscussions(this.user.profile.code).subscribe(result => {
+      this.allDiscussions = this.fromQueryResultToDiscussionList(result);
+      this.activeDiscussions = this.allDiscussions.filter(x => x.isActive);
+      this.archivedDiscussions = this.allDiscussions.filter(x => !x.isActive);
+
+      // Logique pour resélectionner une discussion si nécessaire (depuis sessionStorage)
+      let discussionId = Number(sessionStorage.getItem('discussionId'));
+      if (discussionId) {
+        let discussion = this.activeDiscussions.find(x => x.id === discussionId);
+        if (discussion) {
+          let index = this.activeDiscussions.indexOf(discussion);
+          this.selectedItemIndex = index;
+        }
+      }
+      this.loadingSpinnerService.setLoading(false);
+    });
+    this.componentSubscriptions.add(loadSub);
+  }
+
+  fromQueryResultToDiscussionList(result: any): Array<Discussion> {
+    let items: Array<Discussion> = [];
+    if (result && result.items) {
+      result.items.map((item: any) => {
+        let disc = new Discussion();
+        disc.id = item.id;
+        disc.name = item.name;
+        disc.userUId = item.userUId;
+        disc.startDate = item.startDate;
+        disc.endDate = item.endDate;
+        disc.isActive = item.isActive;
+        disc.formattedEndDate = item.formattedEndDate;
+        disc.totalTokens = item.totalTokens;
+        disc.promptTokens = item.promptTokens;
+        disc.completionTokens = item.completionTokens;
+        disc.totalCost = item.totalCost;
+        disc.message = item.message;
+        disc.totalMessages = item.totalMessages;
+        disc.rate = item.rate;
+        items.push(disc);
+      });
+    }
+    return items;
+  }
+
+  submit(ref) {
+    ref.close();
+    console.log(this.newDiscussionName);
+    var discussion = this.activeDiscussions.find(x => x.id.toString() == this.selectedDiscussionID);
+    discussion.name = this.newDiscussionName;
+    var data = {
+      discussionId: discussion.id,
+      name: discussion.name,
+      userId: discussion.userUId,
+      startDate: discussion.startDate,
+      endDate: discussion.endDate,
+      isActive: discussion.isActive,
+      currentUserUId: discussion.userUId
+    };
+    this.discussionService.updateDiscussion(data).subscribe(x => console.log(x));
+    console.log(discussion);
+  }
+
+  openEditDiscussionDialog(chatdialog: TemplateRef<any>, discussionId) {
+    this.newDiscussionName = "";
+    this.selectedDiscussionID = discussionId;
+    this.dialogService.open(chatdialog, {
+      context: 'this is some additional data passed to dialog',
+      closeOnBackdropClick: false,
+    });
+  }
+
+  openNewRateDialog() {
+    this.dialogService.open(RatingComponent)
+      .onClose.subscribe(x => {
+        if (x) {
+          console.log("rating :", x);
+        }
+      });
+  }
+
+  enableDiscussion(discussionId: number) {
+    let command = {
+      discussionId: discussionId,
+      active: true
+    };
+    this.discussionService.disableDiscussion(command)
+      .subscribe(x => {
+        this.allDiscussions.forEach(element => {
+          if (element.id == discussionId) {
+            console.log("element enabled");
+            element.isActive = true;
+          }
+        });
+        this.archivedDiscussions = this.allDiscussions.filter(x => !x.isActive);
+        console.log("all discussion", this.archivedDiscussions);
+        this.activeDiscussions = this.allDiscussions.filter(x => x.isActive);
+        this.signalRService.sendDiscussionIDEvent(0);
+      });
+  }
+
+  disableDiscussion(discussionId: number) {
+    this.loadingSpinnerService.setLoading(true);
+    let command = {
+      discussionId: discussionId,
+      active: false
+    };
+    this.discussionService.disableDiscussion(command)
+      .subscribe(x => {
+        this.allDiscussions.forEach(element => {
+          if (element.id == discussionId) {
+            element.isActive = false;
+          }
+        });
+        this.archivedDiscussions = this.allDiscussions.filter(x => !x.isActive);
+        this.activeDiscussions = this.allDiscussions.filter(x => x.isActive);
+      });
+  }
+
+  changeDiscussion(discussionId: number, index: number) {
+    this.loadingSpinnerService.setLoading(true);
+    this.signalRService.sendDiscussionIDEvent(discussionId);
+    
+    // Simplification de la logique de sélection
+    this.activeDiscussions.forEach(item => item.selected = (item.id === discussionId));
+    
+    this.selectedItemIndex = index;
+    this.activeDiscussionId = discussionId; // Maintenir l'ID actif
+    this.router.navigate(['/pages/chat/discussion/', discussionId]).then(success => {
+      if (success) {
+        this.signalRService.disconnectFromDiscussion(discussionId.toString());
+      }
+      this.loadingSpinnerService.setLoading(false);
+    });
+  }
+
+  getApplicationPicture(code) {
+    switch (code) {
+      case "Valkyrie": return "./assets/images/valkyrie-logo.png";
+      case "COSMOS": return "./assets/images/cosmos-logo.png";
+      case "a93130": return "./assets/images/a93130.png";
+      default: return "";
+    }
+  }
+  //#endregion
+
+  //#region Add new discussion
+  changeApplication(appId: number): void {
+    this.applicationSource = this.applicationSources.find(x => x.id == appId);
+  }
+
+  // MODIFIÉ: La méthode est grandement simplifiée.
+  // Elle ne fait plus de `push` manuel dans le tableau.
+  // La mise à jour de la liste est maintenant gérée par l'abonnement dans ngOnInit.
+  createDiscussion() {
+    this.loadingSpinnerService.setLoading(true);
+    this.signalRService.createDiscussion("new discussion").then(discussionId => {
+      if (discussionId === -1) {
+        console.error("La création de la discussion a échoué côté serveur.");
+        this.loadingSpinnerService.setLoading(false);
+      }
+      // Le reste de la logique est maintenant dans l'abonnement à `discussionService.discussionCreated$`.
+      // Le service (ou le backend via SignalR) est responsable d'appeler `notifyDiscussionCreated`.
+      console.log(`Discussion créée avec l'ID ${discussionId}. En attente de la notification pour rafraîchir la liste.`);
+    });
+  }
+
+  parseApplicationSourceDate(result: ListItemResponse<ApplicationSource>): void {
+    let items = new Array<ApplicationSource>();
+    result.items.map((item: any) => {
+      items.push(new ApplicationSource(item.id, item.code, item.name, item.environnement, item.item, item.imagePath));
+    });
+    this.applicationSources = [...items];
+  }
+
+  parseValidationErrors(errors: any): void {
+    let parsedErrors = JSON.parse(errors);
+    this.applicationSource = parsedErrors.appName;
+  }
+  //#endregion
+
+  /**
+   * NOUVEAU: Vérifie si une discussion a été créée il y a plus d'une heure.
+   * Cette méthode sera utilisée dans le template HTML.
+   * @param discussion La discussion à vérifier
+   * @returns boolean
+   */
+  public isDiscussionOutdated(discussion: Discussion): boolean {
+    if (!discussion || !discussion.startDate) {
+      return false;
+    }
+
+    const oneHourInMs = 60 * 60 * 1000;
+    const discussionDate = new Date(discussion.startDate).getTime();
+    const now = new Date().getTime();
+    
+    // Retourne true si la différence est supérieure à une heure
+    return (now - discussionDate) > oneHourInMs;
+  }
+}
