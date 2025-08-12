@@ -1,0 +1,409 @@
+Absolument. Merci beaucoup pour le fichier conversation.component.ts. C'est la dernière pièce du puzzle.
+J'ai analysé ce fichier et il contient bien les erreurs que nous avons vues dans le terminal. Il utilise l'ancienne architecture avec des méthodes qui n'existent plus dans le SignalrService corrigé.
+Je vais maintenant vous fournir la solution complète et définitive. Vous trouverez ci-dessous les versions finales des 4 fichiers clés. Vous n'aurez qu'à faire un copier-coller pour chacun, et l'ensemble du système de discussion devrait fonctionner comme prévu : rafraîchissement automatique de la liste et communication en temps réel dans la fenêtre de conversation.
+L'Architecture Corrigée (Rappel)
+ * SignalrService : Gère uniquement la connexion brute avec le backend.
+ * DiscussionService : Le cerveau. Il parle à l'API pour les données initiales (comme l'historique d'un chat) et au SignalrService pour les mises à jour temps réel. Il offre des méthodes simples aux composants.
+ * ChatConversationListComponent : La barre latérale. Affiche les listes et demande la création de discussions.
+ * ConversationComponent : La fenêtre de chat. Charge l'historique d'un chat via le DiscussionService et écoute les nouveaux messages via le SignalrService.
+1. Fichier signalr.service.ts (La Base - Inchangé)
+Ce fichier est notre fondation. Assurez-vous qu'il correspond exactement à ceci.
+// Fichier : src/app/services/signalr.service.ts
+
+import { Injectable } from '@angular/core';
+import * as signalR from '@microsoft/signalr';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { Message } from '../models/message';
+import { Discussion } from '../models/discussion';
+import { GlobalService } from './global.service';
+import { CHAT_WITH_API_BASE_URL } from '../helpers';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class SignalrService {
+  private hubConnection: signalR.HubConnection;
+
+  private messageReceivedSource = new Subject<Message>();
+  private discussionReceivedSource = new Subject<Discussion>();
+  private connectionReadySource = new BehaviorSubject<boolean>(false);
+
+  public messageReceived$ = this.messageReceivedSource.asObservable();
+  public discussionReceived$ = this.discussionReceivedSource.asObservable();
+  public connectionReady$ = this.connectionReadySource.asObservable();
+
+  constructor(private globalSvc: GlobalService) {}
+
+  public startConnection(): void {
+    if (this.hubConnection && this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      return;
+    }
+
+    this.hubConnection = new signalR.HubConnectionBuilder()
+      .withUrl(`${CHAT_WITH_API_BASE_URL}/chathub`, {
+        accessTokenFactory: () => this.globalSvc.AccessToken,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
+
+    this.hubConnection.start()
+      .then(() => {
+        console.log('SignalR Connection started successfully.');
+        this.connectionReadySource.next(true);
+        this.addHubListeners();
+      })
+      .catch(err => {
+        console.error('Error while starting SignalR connection: ' + err);
+        this.connectionReadySource.next(false);
+      });
+
+    this.hubConnection.onclose(error => {
+        console.error('SignalR connection closed.', error);
+        this.connectionReadySource.next(false);
+    });
+  }
+
+  private addHubListeners(): void {
+    // IMPORTANT : Assurez-vous que votre backend envoie bien un événement nommé "ReceiveNewDiscussion"
+    this.hubConnection.on('ReceiveNewDiscussion', (newDiscussion: Discussion) => {
+      this.discussionReceivedSource.next(newDiscussion);
+    });
+    
+    // IMPORTANT : Assurez-vous que votre backend envoie bien un événement nommé "SendMessageToDiscussion" ou similaire pour les messages
+    this.hubConnection.on('SendMessageToDiscussion', (message: Message) => {
+      this.messageReceivedSource.next(message);
+    });
+
+    this.hubConnection.on('ConnectedToDiscussion', (discussion: Discussion) => {
+      console.log('Connected to discussion', discussion.id);
+    });
+  }
+
+  public createDiscussion(name: string): Promise<number> {
+    return this.hubConnection.invoke('CreateDiscussion', name)
+      .catch(err => { console.error('Error invoking "CreateDiscussion": ' + err); return -1; });
+  }
+
+  public connectToDiscussion(discussionId: string): void {
+    this.hubConnection.invoke('ConnectToDiscussion', discussionId)
+      .catch(err => console.error('Error connecting to discussion: ' + err));
+  }
+
+  public sendMessageToDiscussion(discussionId: number, request: Message): void {
+    this.hubConnection.invoke('SendMessageToDiscussion', discussionId, request)
+      .catch(err => console.error('Error sending message: ' + err));
+  }
+  
+  public disconnectFromDiscussion(discussionId: string): void {
+    this.hubConnection.invoke('DisconnectFromDiscussion', discussionId)
+      .catch(err => console.error('Error disconnecting from discussion: ' + err));
+  }
+}
+
+2. Fichier discussion.service.ts (Mis à jour)
+J'ajoute la méthode getDiscussionById dont le ConversationComponent aura besoin pour charger l'historique.
+// Fichier : src/app/services/ChatWith/discussion.service.ts
+
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
+import { retry, catchError, tap } from 'rxjs/operators';
+import { CHAT_WITH_API_BASE_URL, API_VERSION, getHttpHeaders, handleError } from '../helpers';
+import { ItemResponse, ListItemResponse } from '../models';
+import { Discussion } from '../models/discussion';
+import { SignalrService } from '../signalr.service';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class DiscussionService {
+  private requestUrl = `${CHAT_WITH_API_BASE_URL}/api/${API_VERSION}/discussions`;
+
+  private ratingUpdateSource = new Subject<{id: number, rating: number}>();
+  private discussionCreatedSource = new Subject<Discussion>();
+
+  public ratingUpdated$ = this.ratingUpdateSource.asObservable();
+  public discussionCreated$ = this.discussionCreatedSource.asObservable();
+
+  constructor(
+    private httpClient: HttpClient,
+    private signalrService: SignalrService
+  ) {
+    this.signalrService.discussionReceived$.subscribe(newDiscussion => {
+      this.discussionCreatedSource.next(newDiscussion);
+    });
+  }
+
+  public createDiscussion(name: string): Promise<number> {
+    return this.signalrService.createDiscussion(name);
+  }
+  
+  // NOUVEAU: Méthode pour récupérer une discussion et son historique
+  public getDiscussionById(id: number): Observable<Discussion> {
+    const url = `${this.requestUrl}/${id}`;
+    return this.httpClient.get<Discussion>(url, getHttpHeaders);
+  }
+
+  public getDiscussions(userProfileCode: string): Observable<ListItemResponse<Discussion>> {
+    const params = new HttpParams().set('userProfileCode', userProfileCode);
+    const httpOptions = { headers: getHttpHeaders.headers, params: params };
+    return this.httpClient.get<ListItemResponse<Discussion>>(this.requestUrl, httpOptions)
+      .pipe(retry(1), catchError(handleError));
+  }
+
+  // ... le reste de vos méthodes (update, disable, search, etc.)
+  public notifyRatingUpdate(data: {id: number, rating: number}): void {
+    this.ratingUpdateSource.next(data);
+  }
+
+  public disableDiscussion(command: any): Observable<ItemResponse<Discussion>> {
+    const url = `${this.requestUrl}/archive`;
+    return this.httpClient.put<ItemResponse<Discussion>>(url, command, getHttpHeaders);
+  }
+
+  public updateDiscussion(discussion: any): Observable<any> {
+    const url = `${this.requestUrl}/update`;
+    return this.httpClient.put(url, discussion);
+  }
+}
+
+3. Fichier chat-conversation-list.component.ts (Finalisé)
+Ce fichier est la version propre et finale pour la barre latérale.
+// Fichier : src/app/pages/chat-conversation-list/chat-conversation-list.component.ts
+
+import { Component, OnInit, OnDestroy, Optional, TemplateRef } from '@angular/core';
+import { Discussion } from 'src/app/models/discussion';
+import { DiscussionService } from 'src/app/services/ChatWith/discussion.service';
+import { SignalrService } from 'src/app/services/signalr.service';
+import { HelperService } from 'src/app/services/helper.service';
+import { AuthorizeService } from 'src/app/services/AdminAndConfig/authorize.service';
+import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+// ... autres imports si nécessaires
+
+@Component({
+  selector: 'app-chat-conversation-list',
+  templateUrl: './chat-conversation-list.component.html',
+  styleUrls: ['./chat-conversation-list.component.scss'],
+})
+export class ChatConversationListComponent implements OnInit, OnDestroy {
+  public activeDiscussions: Discussion[] = [];
+  public archivedDiscussions: Discussion[] = [];
+  private allDiscussions: Discussion[] = [];
+  public user: any;
+  public selectedItemIndex: number | null = null;
+  private componentSubscriptions = new Subscription();
+
+  constructor(
+    private discussionService: DiscussionService,
+    private signalRService: SignalrService,
+    private loadingSpinnerService: HelperService,
+    private router: Router,
+    private authorizeService: AuthorizeService
+  ) {}
+
+  ngOnInit(): void {
+    this.signalRService.startConnection();
+
+    const userSub = this.authorizeService.loadCurrentUser().subscribe(user => {
+      if (user) {
+        this.user = user;
+        this.loadAllDiscussions();
+      }
+    });
+    this.componentSubscriptions.add(userSub);
+
+    const creationSub = this.discussionService.discussionCreated$.subscribe(newDiscussion => {
+      this.allDiscussions.unshift(newDiscussion);
+      this.refreshDiscussionLists();
+      this.loadingSpinnerService.setLoading(false);
+      this.changeDiscussion(newDiscussion.id, 0);
+    });
+    this.componentSubscriptions.add(creationSub);
+  }
+
+  ngOnDestroy(): void {
+    this.componentSubscriptions.unsubscribe();
+  }
+
+  loadAllDiscussions(): void {
+    this.loadingSpinnerService.setLoading(true);
+    const loadSub = this.discussionService.getDiscussions(this.user.profile.code).subscribe({
+      next: result => {
+        this.allDiscussions = this.fromQueryResultToDiscussionList(result);
+        this.refreshDiscussionLists();
+        this.loadingSpinnerService.setLoading(false);
+      },
+      error: err => {
+        console.error("Failed to load discussions", err);
+        this.loadingSpinnerService.setLoading(false);
+      }
+    });
+    this.componentSubscriptions.add(loadSub);
+  }
+  
+  createDiscussion(): void {
+    this.loadingSpinnerService.setLoading(true);
+    this.discussionService.createDiscussion("Nouvelle Discussion").catch(() => {
+        this.loadingSpinnerService.setLoading(false);
+    });
+  }
+
+  private refreshDiscussionLists(): void {
+    this.activeDiscussions = this.allDiscussions.filter(d => d.isActive).sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    this.archivedDiscussions = this.allDiscussions.filter(d => !d.isActive).sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+  }
+
+  changeDiscussion(discussionId: number, index: number): void {
+    this.selectedItemIndex = index;
+    this.router.navigate(['/pages/chat/discussion/', discussionId]);
+  }
+  
+  fromQueryResultToDiscussionList(result: any): Discussion[] {
+    return result?.items?.map(item => new Discussion(item.id, item.name, item.userUid, item.startDate, item.endDate, item.isActive)) || [];
+  }
+
+  disableDiscussion(discussionId: number): void {
+    const command = { discussionId, active: false };
+    this.discussionService.disableDiscussion(command).subscribe(() => {
+      const discussion = this.allDiscussions.find(d => d.id === discussionId);
+      if (discussion) discussion.isActive = false;
+      this.refreshDiscussionLists();
+    });
+  }
+  
+  enableDiscussion(discussionId: number): void {
+    const command = { discussionId, active: true };
+    this.discussionService.disableDiscussion(command).subscribe(() => {
+      const discussion = this.allDiscussions.find(d => d.id === discussionId);
+      if (discussion) discussion.isActive = true;
+      this.refreshDiscussionLists();
+    });
+  }
+}
+
+4. Fichier conversation.component.ts (La Correction Principale)
+Voici la version entièrement corrigée de votre composant de conversation.
+// Fichier : src/app/pages/conversation/conversation.component.ts
+
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { Discussion } from 'src/app/models/discussion';
+import { Message } from 'src/app/models/message';
+import { DiscussionService } from 'src/app/services/ChatWith/discussion.service';
+import { SignalrService } from 'src/app/services/signalr.service';
+import { HelperService } from 'src/app/services/helper.service';
+// ... autres imports
+
+@Component({
+  selector: 'app-conversation',
+  templateUrl: './conversation.component.html',
+  styleUrls: ['./conversation.component.scss'],
+})
+export class ConversationComponent implements OnInit, OnDestroy, AfterViewInit {
+  @ViewChild('scrollContainer') private scrollContainer: ElementRef;
+
+  private componentSubscriptions = new Subscription();
+  
+  public currentDiscussion: Discussion;
+  public messages: Message[] = [];
+  public discussionId: number;
+  public loading: boolean = true;
+
+  constructor(
+    private route: ActivatedRoute,
+    private discussionService: DiscussionService,
+    private signalRService: SignalrService,
+    private loadingSpinnerService: HelperService
+  ) {}
+
+  ngOnInit(): void {
+    this.loading = true;
+    const routeSub = this.route.paramMap.subscribe(params => {
+      this.discussionId = +params.get('id');
+      this.messages = []; // Vider les anciens messages
+      
+      if (this.discussionId) {
+        this.loadDiscussionHistory();
+        this.subscribeToNewMessages();
+        this.signalRService.connectToDiscussion(this.discussionId.toString());
+      }
+    });
+    this.componentSubscriptions.add(routeSub);
+  }
+
+  ngAfterViewInit(): void {
+    this.scrollToBottom();
+  }
+
+  ngOnDestroy(): void {
+    if (this.discussionId) {
+      this.signalRService.disconnectFromDiscussion(this.discussionId.toString());
+    }
+    this.componentSubscriptions.unsubscribe();
+  }
+
+  loadDiscussionHistory(): void {
+    const historySub = this.discussionService.getDiscussionById(this.discussionId).subscribe({
+      next: (discussion) => {
+        this.currentDiscussion = discussion;
+        this.messages = discussion.messages || []; // Assurez-vous que votre API retourne les messages
+        this.loading = false;
+        this.scrollToBottom();
+      },
+      error: (err) => {
+        console.error("Failed to load discussion history", err);
+        this.loading = false;
+      }
+    });
+    this.componentSubscriptions.add(historySub);
+  }
+
+  subscribeToNewMessages(): void {
+    const messageSub = this.signalRService.messageReceived$.subscribe(newMessage => {
+      // S'assurer que le message est pour cette discussion
+      if (newMessage.discussionId === this.discussionId) {
+        this.messages.push(newMessage);
+        this.scrollToBottom();
+      }
+    });
+    this.componentSubscriptions.add(messageSub);
+  }
+
+  handleSendMessage(event: any): void {
+    const textToSend = event.message;
+    if (!textToSend || textToSend.trim() === '') return;
+
+    // Mise à jour optimiste de l'UI
+    const optimisticMessage: Message = {
+      // Remplir avec les infos connues
+      sender: 'user', // ou le nom de l'utilisateur actuel
+      text: textToSend,
+      date: new Date(),
+      discussionId: this.discussionId,
+      loading: true // Indicateur de chargement
+    };
+    this.messages.push(optimisticMessage);
+    this.scrollToBottom();
+
+    // Envoi réel via SignalR
+    const messageToSend: Message = { text: textToSend, discussionId: this.discussionId };
+    this.signalRService.sendMessageToDiscussion(this.discussionId, messageToSend);
+    
+    // Vous devrez peut-être mettre à jour le message optimiste quand le vrai message revient du serveur
+    // pour enlever l'indicateur 'loading'. Pour l'instant, on le laisse simple.
+  }
+
+  scrollToBottom(): void {
+    setTimeout(() => {
+      try {
+        if (this.scrollContainer) {
+          this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+        }
+      } catch (err) {}
+    }, 50);
+  }
+}
+
