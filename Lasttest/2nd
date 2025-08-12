@@ -1,0 +1,371 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
+import { tap, retry, catchError } from 'rxjs/operators';
+
+// Importez vos modèles et helpers
+import { Discussion } from 'src/app/models/discussion';
+import { ItemResponse, ListItemResponse } from './ItemResponse';
+import { getHttpHeaders, handleError, CHAT_WITH_API_BASE_URL, API_VERSION } from "../helpers";
+
+@Injectable({
+  providedIn: 'root'
+})
+export class DiscussionService {
+
+  private requestUrl = `${CHAT_WITH_API_BASE_URL}/api/${API_VERSION}/discussions`;
+
+  // Subject pour la mise à jour des notations (existant)
+  private ratingUpdateSource = new Subject<{id: number, rating: number}>();
+  ratingUpdated$ = this.ratingUpdateSource.asObservable();
+
+  // NOUVEAU: Subject pour notifier la création de discussions
+  private discussionCreatedSource = new Subject<Discussion>();
+  discussionCreated$ = this.discussionCreatedSource.asObservable();
+
+  constructor(private httpClient: HttpClient) { }
+
+  /**
+   * Notifie les composants abonnés qu'une mise à jour de notation a eu lieu.
+   */
+  notifyRatingUpdate(data: {id: number, rating: number}): void {
+    this.ratingUpdateSource.next(data);
+  }
+  
+  /**
+   * NOUVEAU: Notifie les composants qu'une nouvelle discussion a été créée.
+   * Cette méthode peut être appelée après un appel API réussi ou un message SignalR.
+   */
+  public notifyDiscussionCreated(newDiscussion: Discussion): void {
+    this.discussionCreatedSource.next(newDiscussion);
+  }
+
+  /**
+   * Recherche des discussions.
+   */
+  search(query: any): Observable<any> {
+    let data = { searchedText: query.term };
+    const const url = `${this.requestUrl}/search`;
+    const result = this.httpClient.post<any>(url, data, getHttpHeaders);
+    return result;
+  }
+
+  /**
+   * Récupère la liste des discussions pour un utilisateur.
+   */
+  getDiscussions(userProfileCode: string): Observable<ListItemResponse<Discussion>> {
+    let params = new HttpParams().set('userProfileCode', userProfileCode);
+    const httpOptions = {
+      headers: getHttpHeaders.headers, // Correction ici si getHttpHeaders est une fonction
+      params: params
+    };
+    const result = this.httpClient.get<ListItemResponse<Discussion>>(this.requestUrl, httpOptions)
+      .pipe(
+        retry(1),
+        catchError(handleError)
+      );
+    return result;
+  }
+
+  /**
+   * Archive ou réactive une discussion.
+   */
+  disableDiscussion(command: any): Observable<ItemResponse<Discussion>> {
+    const url = `${this.requestUrl}/archive`;
+    const result = this.httpClient.put<ItemResponse<Discussion>>(url, command, getHttpHeaders);
+    return result;
+  }
+  
+  /**
+   * Met à jour une discussion.
+   */
+  updateDiscussion(discussion: any): Observable<any> {
+    const url = `${this.requestUrl}/update`;
+    const result = this.httpClient.put(url, discussion);
+    return result;
+  }
+}
+
+
+
+
+
+import { Component, OnInit, OnDestroy, Optional } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+
+// Importez vos services et modèles
+import { DiscussionService } from '../services/chatWith/discussion.service';
+import { SignalRService } from '../services/chatWith/signalR.service';
+import { HelperService } from '../services/helper.service';
+import { AuthorizeService } from '../AdminAndConfig/authorize.service';
+import { ApplicationSourceService } from '../services/chatWith/applicationSource.service';
+import { GlobalService } from '../services/global.service';
+import { NbDialogService, NbDialogRef } from '@nebular/theme';
+
+import { Discussion } from '../models/discussion';
+import { ApplicationSource } from '../models/applicationSource';
+import { ListItemResponse } from '../ItemResponse';
+
+
+@Component({
+  selector: 'app-chat-conversation-list',
+  templateUrl: './chat-conversation-list.component.html',
+  styleUrls: ['./chat-conversation-list.component.scss'],
+  standalone: false,
+})
+export class ChatConversationListComponent implements OnInit, OnDestroy {
+
+  // Propriétés de discussion
+  discussionName: string = '';
+  public applicationSources: Array<ApplicationSource> = [];
+  public newDiscussion: Discussion;
+  newDiscussionName: string = '';
+  
+  // Listes de discussions
+  public activeDiscussions: Array<Discussion> = [];
+  public archivedDiscussions: Array<Discussion> = [];
+  public allDiscussions: Array<Discussion> = [];
+  
+  // État de la sélection
+  selectedItemIndex: number | null = null;
+  selectedDiscussionId: string = '';
+  
+  // Abonnements
+  private subscriptions: Subscription = new Subscription();
+
+  // Utilisateur
+  public user: any;
+
+  constructor(
+    private dialogService: NbDialogService,
+    private discussionService: DiscussionService,
+    private applicationSourceService: ApplicationSourceService,
+    private globalService: GlobalService,
+    private searchService: NbSearchService,
+    private signalRService: SignalRService,
+    public loadingSpinnerService: HelperService, // Renommé pour la clarté
+    private router: Router,
+    private route: ActivatedRoute,
+    private authorizeService: AuthorizeService,
+    @Optional() private dialogRef: NbDialogRef<any>
+  ) {}
+
+  ngOnInit(): void {
+    this.loadingSpinnerService.setLoading(true);
+    this.authorizeService.loadCurrentUser().subscribe(user => this.user = user);
+
+    this.loadAllDiscussions();
+    
+    const discussionCreationSub = this.discussionService.discussionCreated$.subscribe(newDiscussion => {
+      console.log('Nouvelle discussion reçue du service:', newDiscussion);
+      // Ajoute la nouvelle discussion en haut de la liste pour une meilleure UX
+      // On recrée le tableau pour garantir la détection de changement par Angular
+      this.allDiscussions = [newDiscussion, ...this.allDiscussions];
+      if (newDiscussion.isActive) {
+        this.activeDiscussions = [newDiscussion, ...this.activeDiscussions];
+      }
+      this.loadingSpinnerService.setLoading(false);
+    });
+
+    this.subscriptions.add(discussionCreationSub);
+    // ... Autres abonnements à ajouter à this.subscriptions
+  }
+
+  ngOnDestroy(): void {
+    // Se désabonne de tous les abonnements en une seule fois
+    this.subscriptions.unsubscribe();
+  }
+
+  loadAllDiscussions(): void {
+    this.loadingSpinnerService.setLoading(true);
+    const discussionListSub = this.discussionService.getDiscussions(this.user.profile.code).subscribe(result => {
+        const discussions = this.fromQueryResultToDiscussionList(result);
+        this.allDiscussions = discussions;
+        this.activeDiscussions = discussions.filter(d => d.isActive);
+        this.archivedDiscussions = discussions.filter(d => !d.isActive);
+        this.loadingSpinnerService.setLoading(false);
+    });
+    this.subscriptions.add(discussionListSub);
+  }
+
+  // NOTE: Cette méthode est maintenant simplifiée. La logique d'ajout à la liste
+  // est gérée par l'abonnement dans ngOnInit.
+  createDiscussion(): void {
+    this.loadingSpinnerService.setLoading(true);
+    this.signalRService.createDiscussion("Nouvelle Discussion").then(discussionId => {
+      if (discussionId !== -1) {
+        // Idéalement, le backend ou le service SignalR devrait appeler `notifyDiscussionCreated`
+        // après la création complète de l'objet Discussion.
+        // En fallback, si vous n'obtenez que l'ID, vous devez re-fetch la discussion.
+        console.log(`Discussion créée avec l'ID: ${discussionId}. En attente de la notification...`);
+      } else {
+        this.loadingSpinnerService.setLoading(false);
+        console.error("La création de la discussion a échoué.");
+      }
+    });
+  }
+
+  changeDiscussion(discussionId: number, index: number): void {
+    this.loadingSpinnerService.setLoading(true);
+    this.selectedItemIndex = index;
+    this.router.navigate(['/pages/chat/discussion/', discussionId]);
+    this.loadingSpinnerService.setLoading(false);
+  }
+  
+  /**
+   * NOUVEAU: Vérifie si une discussion a été créée il y a plus d'une heure.
+   * @param discussion La discussion à vérifier
+   * @returns boolean
+   */
+  public isDiscussionOutdated(discussion: Discussion): boolean {
+    if (!discussion || !discussion.startDate) {
+      return false;
+    }
+    
+    const oneHourInMs = 60 * 60 * 1000;
+    const discussionDate = new Date(discussion.startDate).getTime();
+    const now = new Date().getTime();
+    
+    return (now - discussionDate) > oneHourInMs;
+  }
+  
+  fromQueryResultToDiscussionList(result: any): Array<Discussion> {
+    // Votre logique de mapping existante...
+    let items = new Array<Discussion>();
+    result.items.map((item: any) => {
+        let disc = new Discussion();
+        // ... mapping des propriétés
+        disc.id = item.id;
+        disc.name = item.name;
+        disc.userUId = item.userUId;
+        disc.startDate = item.startDate;
+        disc.endDate = item.endDate;
+        disc.isActive = item.isActive;
+        // ... etc.
+        items.push(disc);
+    });
+    return items;
+  }
+  
+  // ... autres méthodes (disableDiscussion, enableDiscussion, etc.)
+}
+
+
+
+
+
+
+<div class="conversation-list-container">
+  
+  <div class="list-header">
+    <h3>Discussions</h3>
+    <button class="new-chat-button" (click)="createDiscussion()">+ Nouveau Chat</button>
+  </div>
+
+  <div class="discussions-scroll-area">
+    <div *ngFor="let discussion of activeDiscussions; let i = index"
+         class="discussion-item"
+         (click)="changeDiscussion(discussion.id, i)"
+         [class.selected]="i === selectedItemIndex"
+         [ngClass]="{'outdated-discussion': isDiscussionOutdated(discussion)}">
+      
+      <div class="discussion-icon">
+        <i class="fas fa-comment"></i>
+      </div>
+
+      <div class="discussion-details">
+        <span class="discussion-name">{{ discussion.name }}</span>
+        <span class="discussion-date">{{ discussion.startDate | date:'short' }}</span>
+      </div>
+      
+      <div class="discussion-actions">
+        <button class="action-button" 
+                title="Archiver la discussion"
+                (click)="disableDiscussion(discussion.id); $event.stopPropagation();"
+                [disabled]="isDiscussionOutdated(discussion)">
+          <i class="fas fa-archive"></i>
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="activeDiscussions.length === 0" class="empty-list-message">
+      Aucune discussion active.
+    </div>
+  </div>
+</div>
+
+
+
+
+
+// Styles existants pour votre composant...
+
+.discussion-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, opacity 0.3s ease-in-out, filter 0.3s ease-in-out;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  &.selected {
+    background-color: #e0e7ff; // Couleur pour l'élément sélectionné
+  }
+
+  .discussion-details {
+    flex-grow: 1;
+    margin-left: 10px;
+  }
+  
+  .discussion-name {
+    font-weight: bold;
+  }
+  
+  .discussion-date {
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  .discussion-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    
+    &:hover {
+      color: #000;
+    }
+    
+    &:disabled {
+      color: #bbb;
+      cursor: not-allowed;
+    }
+  }
+}
+
+/**
+ * NOUVEAU: Style pour les discussions de plus d'une heure
+ */
+.outdated-discussion {
+  // Grise l'élément
+  filter: grayscale(90%);
+  opacity: 0.65;
+  
+  // Indique que l'élément n'est pas pleinement interactif
+  cursor: default; 
+
+  &:hover {
+    // On annule l'effet de survol pour montrer que c'est "figé"
+    background-color: transparent;
+  }
+
+  &.selected {
+    // On peut vouloir un style de sélection différent pour les anciens items
+    background-color: #e8e8e8;
+  }
+}
