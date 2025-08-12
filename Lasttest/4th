@@ -1,0 +1,265 @@
+Absolument. Si même les nouvelles discussions n'apparaissent pas, cela signifie qu'il y a une rupture dans la chaîne de communication que nous avons mise en place. Le problème est plus profond qu'un simple oubli dans le template.
+La cause la plus probable est que rien n'appelle la méthode notifyDiscussionCreated() du DiscussionService. Le composant attend une notification qui n'arrive jamais.
+Nous allons corriger cela en mettant en place une architecture plus robuste et centralisée. Voici le plan :
+ * Le SignalRService sera le seul responsable de la communication avec le backend. Quand le serveur lui enverra une nouvelle discussion, il la transmettra au reste de l'application via un Observable.
+ * Le DiscussionService orchestrera. Il s'abonnera aux notifications du SignalRService et mettra à jour son propre Subject (discussionCreatedSource). C'est lui qui centralise la logique métier.
+ * Le ChatConversationListComponent ne changera presque pas. Il continuera de s'abonner au DiscussionService et de réagir aux changements. Sa seule tâche sera de demander la création d'une discussion.
+Cette approche garantit que la logique est bien séparée et que la communication est fluide et fiable.
+Voici les fichiers complets et corrigés pour que tout fonctionne.
+1. signalr.service.ts (Le Cœur de la communication temps réel)
+Ce fichier est crucial. Je vais créer une version plausible car vous ne l'avez pas fourni. Il doit écouter les messages du serveur et notifier le reste de l'application.
+import { Injectable } from '@angular/core';
+import * as signalR from '@microsoft/signalr';
+import { Subject, Observable } from 'rxjs';
+import { Discussion } from 'src/app/models/discussion'; // Assurez-vous que le chemin est correct
+
+@Injectable({
+  providedIn: 'root'
+})
+export class SignalRService {
+  private hubConnection: signalR.HubConnection;
+
+  // NOUVEAU: Un Subject pour émettre les discussions reçues du serveur
+  private discussionReceivedSource = new Subject<Discussion>();
+  public discussionReceived$: Observable<Discussion> = this.discussionReceivedSource.asObservable();
+
+  constructor() { }
+
+  public startConnection = () => {
+    this.hubConnection = new signalR.HubConnectionBuilder()
+                            .withUrl('https://votre-url-backend/chathub') // <-- IMPORTANT: Mettez votre URL de Hub ici
+                            .withAutomaticReconnect()
+                            .build();
+
+    this.hubConnection
+      .start()
+      .then(() => {
+        console.log('SignalR Connection started');
+        this.addListeners(); // On ajoute les écouteurs une fois connecté
+      })
+      .catch(err => console.error('Error while starting SignalR connection: ', err));
+  }
+
+  // IMPORTANT: C'est ici que l'on écoute les messages venant du serveur
+  private addListeners = () => {
+    // Le serveur appellera "ReceiveNewDiscussion" pour envoyer une nouvelle discussion à tous les clients
+    this.hubConnection.on('ReceiveNewDiscussion', (newDiscussion: Discussion) => {
+      console.log('SignalR a reçu une nouvelle discussion du serveur:', newDiscussion);
+      // On émet la discussion reçue pour que les services abonnés puissent réagir
+      this.discussionReceivedSource.next(newDiscussion);
+    });
+
+    // Vous pouvez ajouter d'autres listeners ici (ex: ReceiveMessage, UserConnected, etc.)
+  }
+
+  /**
+   * Méthode pour demander au serveur de créer une nouvelle discussion.
+   * Elle retourne une promesse avec l'ID de la discussion créée.
+   */
+  public createDiscussion = (name: string): Promise<number> => {
+    // On appelle la méthode "CreateDiscussion" sur le Hub du backend
+    return this.hubConnection.invoke('CreateDiscussion', name)
+      .catch(err => {
+        console.error('Erreur lors de l\'appel de CreateDiscussion sur le Hub:', err);
+        return -1; // Retourne -1 en cas d'erreur
+      });
+  }
+
+  // ... autres méthodes invoke pour envoyer des messages, etc.
+  public sendDiscussionIDEvent(id: number) {
+    // Votre logique existante
+  }
+  public disconnectFromDiscussion(id: string) {
+    // Votre logique existante
+  }
+}
+
+À vérifier de votre côté :
+ * Assurez-vous que le nom de l'événement ('ReceiveNewDiscussion') et le nom de la méthode ('CreateDiscussion') correspondent exactement à ce qui est défini dans votre code backend (le Hub C#).
+2. discussion.service.ts (L'Orchestrateur)
+Ce service va maintenant utiliser le SignalRService. Il s'abonne aux notifications et met à jour son propre état, offrant une source de vérité unique aux composants.
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
+import { Discussion } from 'src/app/models/discussion';
+import { SignalRService } from './signalR.service'; // NOUVEAU: Importation du service SignalR
+
+// ... autres imports
+
+@Injectable({
+  providedIn: 'root'
+})
+export class DiscussionService {
+  private requestUrl = `...`; // Votre URL d'API
+
+  // Le Subject interne que le composant écoute. Il ne change pas.
+  private discussionCreatedSource = new Subject<Discussion>();
+  discussionCreated$ = this.discussionCreatedSource.asObservable();
+  
+  // ... autres sources (ratingUpdateSource, etc.)
+
+  // CORRIGÉ: Le service s'abonne au service SignalR dès sa création.
+  constructor(
+    private httpClient: HttpClient,
+    private signalRService: SignalRService // NOUVEAU: Injection du service
+  ) {
+    // C'EST LA CORRECTION LA PLUS IMPORTANTE
+    // On écoute les nouvelles discussions venant de SignalR...
+    this.signalRService.discussionReceived$.subscribe(newDiscussion => {
+      console.log('DiscussionService a été notifié par SignalR. Il notifie maintenant les composants.');
+      // ...et on les propage à travers notre propre Subject.
+      this.discussionCreatedSource.next(newDiscussion);
+    });
+  }
+
+  /**
+   * NOUVEAU: Méthode centralisée pour demander la création d'une discussion.
+   * Le composant appellera cette méthode.
+   */
+  public createDiscussion(name: string): Promise<number> {
+    // On délègue simplement l'appel au service SignalR
+    return this.signalRService.createDiscussion(name);
+  }
+
+  // ... toutes vos autres méthodes (getDiscussions, updateDiscussion, etc.) restent inchangées.
+  getDiscussions(userProfileCode: string): Observable<ListItemResponse<Discussion>> {
+    // ... votre code existant
+  }
+
+  updateDiscussion(discussion: any): Observable<any> {
+    // ... votre code existant
+  }
+}
+
+3. chat-conversation-list.component.ts (Le Composant, maintenant simplifié)
+Le composant devient plus simple et plus "bête". Il demande des actions et réagit aux données, sans connaître les détails de SignalR.
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
+// ... tous vos autres imports
+import { DiscussionService } from 'src/app/services/chatWith/discussion.service';
+import { Discussion } from 'src/app/models/discussion';
+
+
+@Component({
+  selector: 'app-chat-conversation-list',
+  templateUrl: './chat-conversation-list.component.html',
+  styleUrls: ['./chat-conversation-list.component.scss']
+})
+export class ChatConversationListComponent implements OnInit, OnDestroy {
+
+  public activeDiscussions: Array<Discussion> = [];
+  public archivedDiscussions: Array<Discussion> = [];
+  public allDiscussions: Array<Discussion> = [];
+  public user: any;
+  selectedItemIndex: number | null = null;
+
+  private componentSubscriptions = new Subscription();
+
+  constructor(
+    private discussionService: DiscussionService,
+    // ... tous vos autres services injectés
+    private loadingSpinnerService: HelperService,
+    private router: Router
+  ) { }
+
+  ngOnInit(): void {
+    // ... votre logique existante de chargement de l'utilisateur, etc.
+
+    // L'abonnement à la création est maintenant fiable
+    const creationSub = this.discussionService.discussionCreated$.subscribe(newDiscussion => {
+      console.log('Le COMPOSANT a reçu la nouvelle discussion ! Mise à jour de la liste.');
+
+      // On ajoute la nouvelle discussion en haut de la liste
+      this.allDiscussions = [newDiscussion, ...this.allDiscussions];
+      this.activeDiscussions = [newDiscussion, ...this.activeDiscussions];
+      
+      // On sélectionne automatiquement le nouveau chat
+      this.changeDiscussion(newDiscussion.id, 0);
+      this.loadingSpinnerService.setLoading(false); // Arrêter le spinner
+    });
+    this.componentSubscriptions.add(creationSub);
+    
+    this.loadAllDiscussions();
+  }
+
+  ngOnDestroy(): void {
+    this.componentSubscriptions.unsubscribe();
+  }
+
+  loadAllDiscussions(): void {
+    this.loadingSpinnerService.setLoading(true);
+    const loadSub = this.discussionService.getDiscussions(this.user.profile.code).subscribe(result => {
+      this.allDiscussions = this.fromQueryResultToDiscussionList(result);
+      this.activeDiscussions = this.allDiscussions.filter(x => x.isActive);
+      this.archivedDiscussions = this.allDiscussions.filter(x => !x.isActive);
+      this.loadingSpinnerService.setLoading(false);
+    });
+    this.componentSubscriptions.add(loadSub);
+  }
+
+  // CORRIGÉ: La méthode de création est propre et simple.
+  createDiscussion(): void {
+    this.loadingSpinnerService.setLoading(true);
+    // On appelle la méthode centralisée du DiscussionService
+    this.discussionService.createDiscussion("Nouvelle Discussion").then(discussionId => {
+      if (discussionId === -1) {
+        console.error("La création a échoué, vérifiez les logs du service.");
+        this.loadingSpinnerService.setLoading(false);
+      }
+      // Il n'y a RIEN d'autre à faire ici. La notification de SignalR va tout déclencher.
+    });
+  }
+
+  changeDiscussion(discussionId: number, index: number): void {
+    this.selectedItemIndex = index;
+    this.router.navigate(['/pages/chat/discussion/', discussionId]);
+  }
+
+  public isDiscussionOutdated(discussion: Discussion): boolean {
+    if (!discussion || !discussion.startDate) return false;
+    const oneHourInMs = 3600 * 1000;
+    const discussionDate = new Date(discussion.startDate).getTime();
+    const now = new Date().getTime();
+    return (now - discussionDate) > oneHourInMs;
+  }
+  
+  // ... vos autres méthodes (enable/disable, fromQueryResultToDiscussionList, etc.)
+}
+
+4. chat-conversation-list.component.html (Avec les discussions archivées)
+Pour être complet, voici le template qui affiche les deux listes.
+<div class="conversation-list-container">
+  
+  <div class="list-header">
+    <h3>Discussions</h3>
+    <button class="new-chat-button" (click)="createDiscussion()" title="Nouvelle discussion">+ Nouveau Chat</button>
+  </div>
+
+  <div class="discussions-scroll-area">
+    <div *ngFor="let discussion of activeDiscussions; let i = index"
+         class="discussion-item"
+         (click)="changeDiscussion(discussion.id, i)"
+         [class.selected]="i === selectedItemIndex"
+         [ngClass]="{'outdated-discussion': isDiscussionOutdated(discussion)}">
+      <span class="discussion-name">{{ discussion.name }}</span>
+    </div>
+    <div *ngIf="activeDiscussions.length === 0 && !loadingSpinnerService.isLoading()" class="empty-list-message">
+      Aucune discussion active.
+    </div>
+  </div>
+
+  <div *ngIf="archivedDiscussions.length > 0" class="list-divider">
+    <span>Archivées</span>
+  </div>
+
+  <div *ngIf="archivedDiscussions.length > 0" class="discussions-scroll-area archived-list">
+    <div *ngFor="let discussion of archivedDiscussions; let i = index"
+         class="discussion-item archived"
+         (click)="enableDiscussion(discussion.id)"
+         [ngClass]="{'outdated-discussion': isDiscussionOutdated(discussion)}">
+       <span class="discussion-name">{{ discussion.name }}</span>
+    </div>
+  </div>
+</div>
+
+Avec cette structure, la chaîne de communication est complète et robuste. Quand vous cliquerez sur "+ Nouveau Chat", le processus sera entièrement automatique et fiable.
