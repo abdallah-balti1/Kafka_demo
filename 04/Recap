@@ -1,0 +1,41 @@
+D’après ton screenshot et tes remarques, voici une version corrigée et améliorée de ton commentaire d’audit :
+
+
+---
+
+Audit initial – Application de chat IA
+
+Pour cette première analyse, voici les éléments à améliorer ou ajouter :
+
+1. Loader lors du chargement des messages
+
+Afficher un indicateur visuel (spinner ou animation) pendant que l’IA traite la requête, afin d’améliorer l’expérience utilisateur.
+
+
+
+2. Récupération dynamique des informations utilisateur
+
+Afficher automatiquement le nom complet et l’ID utilisateur récupérés depuis la session ou l’API, au lieu de les saisir manuellement ou de les coder en dur.
+
+
+
+3. Ajout d’une fonctionnalité de déconnexion
+
+Intégrer un bouton ou lien "Logout" permettant à l’utilisateur de se déconnecter proprement de l’application.
+
+
+
+4. Améliorations UX/UI possibles (optionnel mais recommandé)
+
+Clarifier les messages d’erreur pour être plus conviviaux.
+
+Gérer les salutations simples (“hello”, “hi”) avec une réponse personnalisée plutôt qu’un message d’erreur générique.
+
+
+
+
+
+---
+
+Si tu veux, je peux aussi te préparer une version plus technique de cette liste avec des recommandations précises pour l’équipe de développement.
+
