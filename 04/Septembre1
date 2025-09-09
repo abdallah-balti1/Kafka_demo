@@ -1,0 +1,165 @@
+import { AfterViewInit, Component, OnInit, signal, effect, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common'; // Ajout de CommonModule pour les directives Angular standard
+import { ChatService } from 'src/app/services/chat.service';
+import { GlobalService } from 'src/app/services/global.service';
+import { ChatModel } from 'src/app/models/chat.model';
+import { ModalModule } from 'ng-bootstrap/ng-bootstrap';
+import { SettingsModalComponent } from 'src/app/elements/settings-modal/settings-modal.component';
+import { ChatBotHistory } from 'src/app/models/chat-bot-history.model';
+import { modes } from 'src/app/data/global.data';
+import { Toast } from 'src/app/services/toast/toast';
+
+@Component({
+  selector: 'app-chat',
+  standalone: true,
+  imports: [
+    CommonModule, // Ajout de CommonModule ici
+    ModalModule,
+    SettingsModalComponent
+  ],
+  templateUrl: './chat.component.html',
+  styleUrls: ['./chat.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush // Utilisation de OnPush pour une meilleure performance
+})
+export class ChatComponent implements OnInit, AfterViewInit {
+  // Liste des conversations
+  chats = signal<{ id: number; title: string; messages: { text: string; isUser: boolean; }[] }[]>([]);
+  // ID de la conversation actuellement sélectionnée
+  selectedChatId = signal<number | null>(null);
+
+  // Messages de la conversation sélectionnée
+  messages = signal<{ text: string; isUser: boolean; }[]>([]);
+
+  public chattext: string = '';
+  public error: boolean = false;
+  public chats$: ChatBotHistory[] = [];
+  public currentUserId: string = '18564';
+  public applications = [{
+    endpoint: '',
+    name: 'Smart Allocation'
+  }];
+  public modes = modes;
+  public currentMode: string | null = null;
+  public currentApplication: string | null = null;
+
+  constructor(
+    private chatService: ChatService,
+    private modalService: ModalModule,
+    private globalService: GlobalService
+  ) {
+    // Effet pour mettre à jour les messages lorsque selectedChatId change
+    effect(() => {
+      const selectedId = this.selectedChatId();
+      if (selectedId !== null) {
+        const chat = this.chats().find(c => c.id === selectedId);
+        this.messages.set(chat ? chat.messages : []);
+      } else {
+        this.messages.set([]);
+      }
+    });
+
+    // Initialisation avec une discussion pour l'exemple
+    this.chats.set([
+      {
+        id: 1,
+        title: 'Discussion initiale',
+        messages: [
+          { text: "Bonjour, comment puis-je vous aider ?", isUser: false },
+          { text: "Je voudrais ajouter une fonctionnalité.", isUser: true },
+        ],
+      },
+    ]);
+    this.selectedChatId.set(1);
+  }
+
+  ngOnInit(): void {
+    this.globalService.currentMode.subscribe((mode: string | null) => {
+      this.currentMode = mode;
+      this.chats$.push(new ChatBotHistory('', this.currentMode));
+    });
+
+    if (this.currentApplication == null) {
+      // this.openSettingsModal(false);
+    }
+  }
+
+  ngAfterViewInit(): void { }
+
+  // Crée une nouvelle conversation
+  newChat(): void {
+    const newId = this.chats().length > 0 ? Math.max(...this.chats().map(c => c.id)) + 1 : 1;
+    this.chats.update(chats => [...chats, { id: newId, title: `Nouvelle discussion ${newId}`, messages: [] }]);
+    this.selectedChatId.set(newId);
+  }
+
+  // Supprime une conversation
+  deleteChat(id: number): void {
+    this.chats.update(chats => chats.filter(chat => chat.id !== id));
+    if (this.selectedChatId() === id) {
+      this.selectedChatId.set(this.chats().length > 0 ? this.chats()[0].id : null);
+    }
+  }
+
+  // Sélectionne une conversation existante
+  selectChat(id: number): void {
+    this.selectedChatId.set(id);
+  }
+
+  // Envoie un message
+  sendMessage(text: string): void {
+    if (!text.trim()) {
+      return;
+    }
+    const currentChatId = this.selectedChatId();
+    if (currentChatId !== null) {
+      this.chats.update(chats => {
+        return chats.map(chat => {
+          if (chat.id === currentChatId) {
+            return {
+              ...chat,
+              messages: [...chat.messages, { text, isUser: true }]
+            };
+          }
+          return chat;
+        });
+      });
+      // Simulation d'une réponse de l'assistant après un court délai
+      setTimeout(() => {
+        this.addAssistantMessage(currentChatId, "C'est une excellente question. L'IA est en train d'apprendre...");
+      }, 1000);
+    }
+  }
+
+  // Ajoute un message de l'assistant
+  addAssistantMessage(chatId: number, text: string): void {
+    this.chats.update(chats => {
+      return chats.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, { text, isUser: false }]
+          };
+        }
+        return chat;
+      });
+    });
+  }
+
+  // Méthodes originales de votre composant
+  openSettingsModal(state: boolean): void {
+    // ...
+  }
+
+  onClickCopy(message: string): void {
+    // ...
+  }
+
+  onClickSendToDynatrace(message: string): void {
+    // ...
+  }
+
+  onClickGenerateSyntheticScript(message: string): void {
+    // ...
+  }
+}
+
