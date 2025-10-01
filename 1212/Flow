@@ -1,0 +1,158 @@
+"""
+Define the command to export pivot projects or tasks
+"""
+
+import datetime
+import logging
+
+import click
+from enum import Enum
+
+from config import COS_CFT_BUCKET_NAME
+from generators.export_pivot_operational_items import export_pivot_operational_items
+from generators.export_pivot_projects import export_pivot_projects
+from generators.export_pivot_task_validations import export_pivot_task_validations
+from generators.export_pivot_tasks import export_pivot_tasks
+from models import ProjectModelTypeEnum
+from repositories import (
+    ProjectOperationalItemRepository,
+    ProjectRepository,
+    TaskRepository,
+    TaskValidationCheckRepository,
+)
+from util.email_helpers import send_email
+
+from .abstract_base_command import AbstractBaseCommand
+
+EMAIL_NOTIFICATION_PREFIX = "Product Project "
+
+
+class ExportName(Enum):
+    PROJECT = "project"
+    TASK = "task"
+    OPERATIONAL_ITEMS = "operational-items"
+    TASKS_VALIDATIONS = "task-validations"
+    IMPACT = "Impact"
+
+
+class ExportPivotCommand(AbstractBaseCommand):
+    """Command to export pivot projects or tasks."""
+    
+    name = "export_pivot"
+    
+    @click.option(
+        "--export-name",
+        "-n",
+        "export_name",
+        type=click.Choice([
+            ExportName.PROJECT.value,
+            ExportName.TASK.value,
+            ExportName.OPERATIONAL_ITEMS.value,
+            ExportName.TASKS_VALIDATIONS.value,
+        ]),
+        required=True,
+        help="Name of pivot export",
+    )
+    @click.option("--filename", "-fn", required=False, help="Name of generated file")
+    @click.option("--save-directory", "-d", required=False, help="Directory where file will be saved")
+    @click.option("--cos-cft", "-c", is_flag=True, default=False, help="Save to COS CFT and call CFT monitor")
+    def run_command(self, export_name, filename, save_directory, cos_cft):
+        """Export pivot projects or tasks"""
+        
+        bucket_name = COS_CFT_BUCKET_NAME if cos_cft else None
+        
+        if export_name == ExportName.PROJECT.value:
+            if not filename:
+                filename = (
+                    "PLMGT_Product_Project_CSV_1.1_" 
+                    + datetime.datetime.now().strftime("%Y%m%d%H%M%S") 
+                    + ".csv"
+                )
+            self.export_pivot_projects(filename=filename, save_directory=save_directory, bucket_name=bucket_name)
+
+        if export_name == ExportName.TASK.value:
+            if not filename:
+                filename = (
+                    "PLMGT_Product_Project_Task_CSV_1.0_" 
+                    + datetime.datetime.now().strftime("%Y%m%d%H%M%S") 
+                    + ".csv"
+                )
+            self.export_pivot_tasks(filename, save_directory=save_directory, bucket_name=bucket_name)
+
+        if export_name == ExportName.OPERATIONAL_ITEMS.value:
+            if not filename:
+                filename = (
+                    "PLMGT_Product_Project_Impact_CSV_1.0_" 
+                    + datetime.datetime.now().strftime("%Y%m%d%H%M%S") 
+                    + ".csv"
+                )
+            self.export_pivot_operational_items(filename, save_directory=save_directory, bucket_name=bucket_name)
+
+        if export_name == ExportName.TASKS_VALIDATIONS.value:
+            if not filename:
+                filename = (
+                    "PLMGT_Product_Project_Task_Validation_CSV_1.0_"
+                    + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                    + ".csv"
+                )
+            self.export_pivot_task_validations(filename, save_directory=save_directory, bucket_name=bucket_name)
+    
+    def export_pivot_projects(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot projects starting")
+        
+        projects = ProjectRepository.get_list_filtered()
+        *_, errors = export_pivot_projects(
+            projects=projects, 
+            filename=filename, 
+            save_directory=save_directory, 
+            bucket_name=bucket_name
+        )
+        
+        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.PROJECT.value.capitalize(), errors)
+        
+        logging.info("Export pivot projects finished")
+    
+    def export_pivot_tasks(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot tasks starting")
+        
+        tasks = TaskRepository.get_list_filtered()
+        *_, errors = export_pivot_tasks(
+            tasks=tasks, 
+            filename=filename, 
+            save_directory=save_directory, 
+            bucket_name=bucket_name
+        )
+        
+        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.TASK.value.capitalize(), errors)
+        
+        logging.info("Export pivot tasks finished")
+    
+    def export_pivot_operational_items(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot operational items starting")
+        
+        operational_items = ProjectOperationalItemRepository.get_all_project_operational_items()
+        *_, errors = export_pivot_operational_items(
+            operational_items=operational_items,
+            filename=filename,
+            save_directory=save_directory,
+            bucket_name=bucket_name,
+        )
+        
+        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.IMPACT.value, errors)
+        
+        logging.info("Export pivot operational items finished")
+    
+    def export_pivot_task_validations(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot validation tasks starting")
+        
+        task_validations = TaskValidationCheckRepository.get_project_task_validations_checks()
+        *_, errors = export_pivot_task_validations(
+            task_validations=task_validations,
+            filename=filename,
+            save_directory=save_directory,
+            bucket_name=bucket_name,
+        )
+        
+        send_email(EMAIL_NOTIFICATION_PREFIX + "Task Validation", errors)
+        
+        logging.info("Export pivot Validations Tasks finished")
