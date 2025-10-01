@@ -40,23 +40,7 @@ class ExportPivotCommand(AbstractBaseCommand):
     
     name = "export_pivot"
     
-    @click.option(
-        "--export-name",
-        "-n",
-        "export_name",
-        type=click.Choice([
-            ExportName.PROJECT.value,
-            ExportName.TASK.value,
-            ExportName.OPERATIONAL_ITEMS.value,
-            ExportName.TASKS_VALIDATIONS.value,
-        ]),
-        required=True,
-        help="Name of pivot export",
-    )
-    @click.option("--filename", "-fn", required=False, help="Name of generated file")
-    @click.option("--save-directory", "-d", required=False, help="Directory where file will be saved")
-    @click.option("--cos-cft", "-c", is_flag=True, default=False, help="Save to COS CFT and call CFT monitor")
-    def run_command(self, export_name, filename, save_directory, cos_cft):
+    def run_command(self, export_name, filename=None, save_directory=None, cos_cft=False):
         """Export pivot projects or tasks"""
         
         bucket_name = COS_CFT_BUCKET_NAME if cos_cft else None
@@ -97,21 +81,6 @@ class ExportPivotCommand(AbstractBaseCommand):
                 )
             self.export_pivot_task_validations(filename, save_directory=save_directory, bucket_name=bucket_name)
     
-    def export_pivot_projects(self, filename, save_directory, bucket_name):
-        logging.info("Export pivot projects starting")
-        
-        projects = ProjectRepository.get_list_filtered()
-        *_, errors = export_pivot_projects(
-            projects=projects, 
-            filename=filename, 
-            save_directory=save_directory, 
-            bucket_name=bucket_name
-        )
-        
-        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.PROJECT.value.capitalize(), errors)
-        
-        logging.info("Export pivot projects finished")
-    
     def export_pivot_tasks(self, filename, save_directory, bucket_name):
         logging.info("Export pivot tasks starting")
         
@@ -127,21 +96,6 @@ class ExportPivotCommand(AbstractBaseCommand):
         
         logging.info("Export pivot tasks finished")
     
-    def export_pivot_operational_items(self, filename, save_directory, bucket_name):
-        logging.info("Export pivot operational items starting")
-        
-        operational_items = ProjectOperationalItemRepository.get_all_project_operational_items()
-        *_, errors = export_pivot_operational_items(
-            operational_items=operational_items,
-            filename=filename,
-            save_directory=save_directory,
-            bucket_name=bucket_name,
-        )
-        
-        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.IMPACT.value, errors)
-        
-        logging.info("Export pivot operational items finished")
-    
     def export_pivot_task_validations(self, filename, save_directory, bucket_name):
         logging.info("Export pivot validation tasks starting")
         
@@ -156,3 +110,70 @@ class ExportPivotCommand(AbstractBaseCommand):
         send_email(EMAIL_NOTIFICATION_PREFIX + "Task Validation", errors)
         
         logging.info("Export pivot Validations Tasks finished")
+    
+    def export_pivot_projects(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot projects starting")
+        
+        projects = ProjectRepository.search(
+            project_model_types=[
+                ProjectModelTypeEnum.modification,
+                ProjectModelTypeEnum.liquidation,
+                ProjectModelTypeEnum.creation,
+                ProjectModelTypeEnum.merger,
+                ProjectModelTypeEnum.mass_update,
+                ProjectModelTypeEnum.standalone,
+            ]
+        )
+        
+        *_, errors = export_pivot_projects(
+            projects=projects, 
+            filename=filename, 
+            save_directory=save_directory, 
+            bucket_name=bucket_name
+        )
+        
+        send_email(ExportName.PROJECT.value, errors)
+        
+        logging.info("Export pivot projects finished")
+    
+    def export_pivot_operational_items(self, filename, save_directory, bucket_name):
+        logging.info("Export pivot operational items starting")
+        
+        operational_items = ProjectOperationalItemRepository.get_all_project_operational_items()
+        *_, errors = export_pivot_operational_items(
+            operational_items=operational_items,
+            filename=filename,
+            save_directory=save_directory,
+            bucket_name=bucket_name,
+        )
+        
+        send_email(EMAIL_NOTIFICATION_PREFIX + ExportName.IMPACT.value, errors)
+        
+        logging.info("Export pivot operational items finished")
+
+
+@click.command("export-pivot")
+@click.option(
+    "--export-name",
+    "-n",
+    "export_name",
+    type=click.Choice([
+        ExportName.PROJECT.value,
+        ExportName.TASK.value,
+        ExportName.OPERATIONAL_ITEMS.value,
+        ExportName.TASKS_VALIDATIONS.value,
+    ]),
+    required=True,
+    help="Name of pivot export",
+)
+@click.option("--filename", "-fn", required=False, help="Name of generated file")
+@click.option("--save-directory", "-d", required=False, help="Directory where file will be saved")
+@click.option("--cos-cft", "-c", "cos_cft", is_flag=True, default=False, help="Save to COS CFT and call CFT monitor")
+def export_pivot_command(export_name, filename, save_directory, cos_cft):
+    """Export pivot projects or tasks."""
+    ExportPivotCommand().run(
+        export_name=export_name,
+        filename=filename,
+        save_directory=save_directory,
+        cos_cft=cos_cft,
+    )
