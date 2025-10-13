@@ -1,0 +1,101 @@
+import Checkbox from 'components/Form/Checkbox';
+import React, { useState } from 'react';
+import { useIntl } from 'react-intl';
+
+import FieldErrorMessage from 'components/Form/FieldErrorMessage';
+import Modal from 'components/Modal';
+import ModalLayout from 'components/ModalLayout';
+import { ErrorMessage, Field } from 'formik';
+import { FormattedMessage } from 'react-intl';
+import { Grid } from 'styles';
+import { hasError } from 'utils/formValidation';
+import Style from './AddDocumentType.style';
+
+export type OwnPropsType = {};
+
+export type WithPropsType = {
+  fieldValuesType: string,
+};
+
+export type MapDispatchToPropsType = {
+  fetchAllDocumentTypes: () => void,
+  addOtherDocumentType: (documentType: DocumentType) => void,
+};
+
+export type FormikPropsType = {
+  submitForm: () => void,
+  values: DocumentType,
+  errors: FormikErrorsType,
+  touched: FormikTouchedType,
+  setFieldValue: (field: string, value: string) => void,
+  resetForm: () => void,
+};
+
+type PropsType = OwnPropsType & MapDispatchToPropsType & FormikPropsType & WithPropsType;
+
+const AddDocumentType = (props: PropsType) => {
+  const intl = useIntl();
+  const { values, fetchAllDocumentTypes, errors, touched, submitForm, setFieldValue } = props;
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const submit = () => {
+    submitForm();
+    setIsModalOpen(false);
+    setTimeout(() => {
+      fetchAllDocumentTypes();
+    }, 800);
+  };
+
+  return (
+    <React.Fragment>
+      <Style.AddButton
+        onClick={() => {
+          setIsModalOpen(true);
+        }}
+        label={intl.formatMessage({ id: 'DOCUMENT_TYPE.ADD_NEW_TYPE' })}
+      />
+      <Modal 
+        width={Grid(120)} 
+        height={Grid(110)} 
+        isOpen={isModalOpen} 
+        onCloseClick={closeModal}
+      >
+        <ModalLayout
+          title="Add a document type"
+          description="Add a document type"
+          onCancel={closeModal}
+          onConfirm={submit}
+        >
+          <Style.LeftColumn>
+            <Field
+              name="name"
+              label="DOCUMENT_TYPE.LABEL"
+              component={Style.Input}
+              hasError={hasError(errors, touched, 'documentType')}
+            />
+            <ErrorMessage name="documentType" component={FieldErrorMessage} />
+          </Style.LeftColumn>
+          <Style.RightColumn>
+            <Field
+              type="checkbox"
+              name="status"
+              id="status"
+              label="is Active"
+              component={Checkbox}
+              checked={values.status === 'active'}
+              onChange={() => {
+                setFieldValue('status', values.status === 'active' ? 'inactive' : 'active');
+              }}
+            />
+          </Style.RightColumn>
+        </ModalLayout>
+      </Modal>
+    </React.Fragment>
+  );
+};
+
+export default AddDocumentType;
