@@ -1,12 +1,10 @@
 import Checkbox from 'components/Form/Checkbox';
 import React, { useState } from 'react';
-import { intlShape, injectIntl } from 'react-intl';
-
 import FieldErrorMessage from 'components/Form/FieldErrorMessage';
 import Modal from 'components/Modal';
 import ModalLayout from 'components/ModalLayout';
 import { ErrorMessage, Field } from 'formik';
-import { FormattedMessage } from 'react-intl';
+import { useIntl } from 'react-intl';
 import { Grid } from 'styles';
 import { hasError } from 'utils/formValidation';
 import Style from './AddDocumentType.style';
@@ -14,7 +12,7 @@ import Style from './AddDocumentType.style';
 export type OwnPropsType = {};
 
 export type WithPropsType = {
-  fieldValuesType: string,
+  fieldValues: string,
 };
 
 export type MapDispatchToPropsType = {
@@ -31,14 +29,14 @@ export type FormikPropsType = {
   resetForm: () => void,
 };
 
-type PropsType = OwnPropsType & MapDispatchToPropsType & FormikPropsType & WithPropsType & {
-  intl: typeof intlShape,
-};
+type PropsType = OwnPropsType & MapDispatchToPropsType & FormikPropsType & WithPropsType;
 
 const AddDocumentType = (props: PropsType) => {
-  const { values, fetchAllDocumentTypes, errors, touched, submitForm, setFieldValue, intl } = props;
+  const { values, fetchAllDocumentTypes, errors, touched, submitForm, setFieldValue } = props;
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
+  const intl = useIntl(); // ✅ pour accéder à intl.formatMessage
+
   const closeModal = () => {
     setIsModalOpen(false);
   };
@@ -57,14 +55,12 @@ const AddDocumentType = (props: PropsType) => {
         onClick={() => {
           setIsModalOpen(true);
         }}
-        label={intl.formatMessage({ id: 'DOCUMENT_TYPE.ADD_NEW_TYPE' })}
+        label={intl.formatMessage({ id: 'DOCUMENT_TYPE.ADD_NEW_TYPE' })} // ✅ Correct
       />
-      <Modal 
-        width={Grid(120)} 
-        height={Grid(110)} 
-        isOpen={isModalOpen} 
-        onCloseClick={closeModal}
-      >
+      {/* Ancienne ligne commentée : */}
+      {/* <FormattedMessage id="DOCUMENT_TYPE.ADD_NEW_TYPE" /> */}
+
+      <Modal width={Grid(120)} height={Grid(110)} isOpen={isModalOpen} onCloseClick={closeModal}>
         <ModalLayout
           title="Add a document type"
           description="Add a document type"
@@ -74,18 +70,19 @@ const AddDocumentType = (props: PropsType) => {
           <Style.LeftColumn>
             <Field
               name="name"
-              label="DOCUMENT_TYPE.LABEL"
+              label={intl.formatMessage({ id: 'DOCUMENT_TYPE.LABEL' })} // ✅ traduction cohérente
               component={Style.Input}
               hasError={hasError(errors, touched, 'documentType')}
             />
             <ErrorMessage name="documentType" component={FieldErrorMessage} />
           </Style.LeftColumn>
+
           <Style.RightColumn>
             <Field
               type="checkbox"
               name="status"
               id="status"
-              label="is Active"
+              label={intl.formatMessage({ id: 'DOCUMENT_TYPE.IS_ACTIVE' })} // optionnel si tu veux traduire aussi
               component={Checkbox}
               checked={values.status === 'active'}
               onChange={() => {
@@ -99,4 +96,4 @@ const AddDocumentType = (props: PropsType) => {
   );
 };
 
-export default injectIntl(AddDocumentType);
+export default AddDocumentType;
