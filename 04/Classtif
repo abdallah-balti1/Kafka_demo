@@ -1,0 +1,150 @@
+Je vais t'expliquer comment convertir des composants classe en composants fonction en React.
+Différences principales
+Composant Classe (ancien style):
+class MonComposant extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { count: 0 };
+  }
+  
+  componentDidMount() {
+    // logique au montage
+  }
+  
+  handleClick = () => {
+    this.setState({ count: this.state.count + 1 });
+  }
+  
+  render() {
+    return <button onClick={this.handleClick}>{this.state.count}</button>;
+  }
+}
+Composant Fonction (moderne):
+function MonComposant(props) {
+  const [count, setCount] = useState(0);
+  
+  useEffect(() => {
+    // logique au montage
+  }, []);
+  
+  const handleClick = () => {
+    setCount(count + 1);
+  };
+  
+  return <button onClick={handleClick}>{count}</button>;
+}
+Conversions courantes
+1. State → useState
+// Classe
+this.state = { name: 'John', age: 25 };
+this.setState({ name: 'Jane' });
+
+// Fonction
+const [name, setName] = useState('John');
+const [age, setAge] = useState(25);
+setName('Jane');
+2. Lifecycle methods → useEffect
+// componentDidMount
+useEffect(() => {
+  // s'exécute une fois au montage
+}, []);
+
+// componentDidUpdate
+useEffect(() => {
+  // s'exécute quand 'data' change
+}, [data]);
+
+// componentWillUnmount
+useEffect(() => {
+  return () => {
+    // nettoyage
+  };
+}, []);
+3. Props
+// Classe
+this.props.title
+
+// Fonction
+props.title
+// ou avec destructuration
+const { title } = props;
+4. Refs → useRef
+// Classe
+this.myRef = React.createRef();
+this.myRef.current
+
+// Fonction
+const myRef = useRef(null);
+myRef.current
+5. Context → useContext
+// Classe
+static contextType = MyContext;
+this.context
+
+// Fonction
+const value = useContext(MyContext);
+Exemple complet de conversion
+AVANT (Classe):
+class UserProfile extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      user: null,
+      loading: true
+    };
+  }
+  
+  componentDidMount() {
+    this.fetchUser();
+  }
+  
+  componentDidUpdate(prevProps) {
+    if (prevProps.userId !== this.props.userId) {
+      this.fetchUser();
+    }
+  }
+  
+  fetchUser = async () => {
+    this.setState({ loading: true });
+    const user = await api.getUser(this.props.userId);
+    this.setState({ user, loading: false });
+  }
+  
+  render() {
+    const { user, loading } = this.state;
+    
+    if (loading) return <Loading />;
+    return <div>{user.name}</div>;
+  }
+}
+APRÈS (Fonction):
+function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchUser = async () => {
+      setLoading(true);
+      const user = await api.getUser(userId);
+      setUser(user);
+      setLoading(false);
+    };
+    
+    fetchUser();
+  }, [userId]); // se réexécute quand userId change
+  
+  if (loading) return <Loading />;
+  return <div>{user.name}</div>;
+}
+Avantages des composants fonction
+Plus concis - moins de code boilerplate
+Hooks - réutilisation de logique avec des hooks personnalisés
+Pas de this - évite les confusions
+Meilleure performance - optimisation plus facile
+Standard moderne - c'est la direction de React
+Pièges à éviter
+Ne pas oublier les dépendances dans useEffect
+Utiliser useCallback pour les fonctions passées en props
+Utiliser useMemo pour les calculs coûteux
+Attention aux closures - les valeurs dans useEffect peuvent être "stale"
+Tu as des composants classe spécifiques que tu veux convertir? Je peux t'aider avec des exemples plus ciblés!
