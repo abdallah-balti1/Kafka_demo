@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flask Debug",
+            "type": "python",
+            "request": "launch",
+            "module": "flask",
+            "env": {
+                "FLASK_APP": "src/server.py",
+                "FLASK_ENV": "development",
+                "FLASK_DEBUG": "1"
+            },
+            "args": [
+                "run",
+                "--no-debugger",    // disable Flask’s built-in debugger (VS Code handles this)
+                "--no-reload"       // disable auto-reload (VS Code handles this too)
+            ],
+            "jinja": true,
+            "justMyCode": false
+        }
+    ]
+}
