@@ -1,0 +1,37 @@
+import pytest
+from datetime import datetime
+from app import db
+from app.models import TaskStatusChange  # adjust the import if needed
+
+@pytest.mark.usefixtures("app")  # if you have an app fixture that provides context
+def test_add_task_status_change_to_db(app):
+    """Test adding and retrieving a TaskStatusChange record from the database."""
+
+    with app.app_context():
+        # 1️⃣ Create a new TaskStatusChange record
+        change = TaskStatusChange(
+            user_id=1,
+            task_id=100,
+            project_id=200,
+            old_status="Todo",
+            new_status="In Progress"
+        )
+
+        # 2️⃣ Add it to the session and commit
+        db.session.add(change)
+        db.session.commit()
+
+        # 3️⃣ Query it back
+        result = TaskStatusChange.query.filter_by(user_id=1).first()
+
+        # 4️⃣ Verify fields
+        assert result is not None
+        assert result.user_id == 1
+        assert result.task_id == 100
+        assert result.project_id == 200
+        assert result.old_status == "Todo"
+        assert result.new_status == "In Progress"
+        assert isinstance(result.change_date, datetime)
+
+        # 5️⃣ Verify __repr__
+        assert f"<TaskStatusChange {result.id}>" in repr(result)
