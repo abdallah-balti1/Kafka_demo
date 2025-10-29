@@ -1,0 +1,7 @@
+from datetime import datetime, timezone
+
+change_date = db.Column(
+    db.DateTime(timezone=True),  # enables timezone support
+    default=lambda: datetime.now(timezone.utc),
+    nullable=False
+)
