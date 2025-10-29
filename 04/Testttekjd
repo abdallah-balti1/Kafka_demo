@@ -1,37 +1,84 @@
-import pytest
-from datetime import datetime
-from app import db
-from app.models import TaskStatusChange  # adjust the import if needed
+import unittest
+from datetime import datetime, timezone
 
-@pytest.mark.usefixtures("app")  # if you have an app fixture that provides context
-def test_add_task_status_change_to_db(app):
-    """Test adding and retrieving a TaskStatusChange record from the database."""
+# Assuming your imports are similar to your existing test files:
+from helpers import init_database, insert_user
+from db import db
+from models import Project, Task, TaskStatusChange # Import your new model
+from constants import TaskStatus # Assuming you have this constant for statuses
 
-    with app.app_context():
-        # 1️⃣ Create a new TaskStatusChange record
+# --- Test Case Class ---
+class TestTaskStatusChangeModel(unittest.TestCase):
+    """Unit tests for the TaskStatusChange model."""
+
+    @classmethod
+    def setUpClass(cls):
+        # Setup class-level resources if needed, similar to your existing tests
+        # For simplicity, we'll keep the client setup out since this is a model test
+        pass
+
+    def setUp(self):
+        """Setup for each test method."""
+        # Initialize the database and create a test user
+        init_database()
+        self.user = insert_user(user_id=101)
+
+        # Create a simple Project and Task to link the status change to
+        self.project = Project(
+            name="Test Project for Status Change",
+            description="A project",
+            status="ONGOING" # Initial status
+        ).save()
+
+        self.task = Task(
+            project_id=self.project.id,
+            accountant_id=self.user.id,
+            name="Test Task",
+            status=TaskStatus.ONHOLD, # Initial task status
+            duration="5"
+        ).save()
+        db.session.commit()
+        
+    def tearDown(self):
+        """Clean up after each test method."""
+        # Use db.session.remove() or similar cleanup if your base class doesn't handle it
+        db.session.remove()
+
+    # --- Test Method ---
+    def test_create_task_status_change(self):
+        """It should successfully create and retrieve a TaskStatusChange record."""
+        
+        # Define the change details
+        old_status = self.task.status
+        new_status = TaskStatus.COMPLETED # Changing the status
+        
+        # 1. Create the new TaskStatusChange record
         change = TaskStatusChange(
-            user_id=1,
-            task_id=100,
-            project_id=200,
-            old_status="Todo",
-            new_status="In Progress"
+            user_id=self.user.id,
+            task_id=self.task.id,
+            project_id=self.project.id,
+            old_status=old_status,
+            new_status=new_status,
+            # The 'change_date' should be handled by the default lambda in the model
         )
-
-        # 2️⃣ Add it to the session and commit
         db.session.add(change)
         db.session.commit()
 
-        # 3️⃣ Query it back
-        result = TaskStatusChange.query.filter_by(user_id=1).first()
+        # 2. Retrieve the record from the database
+        retrieved_change = TaskStatusChange.query.filter_by(task_id=self.task.id).first()
 
-        # 4️⃣ Verify fields
-        assert result is not None
-        assert result.user_id == 1
-        assert result.task_id == 100
-        assert result.project_id == 200
-        assert result.old_status == "Todo"
-        assert result.new_status == "In Progress"
-        assert isinstance(result.change_date, datetime)
+        # 3. Assertions
+        self.assertIsNotNone(retrieved_change, "TaskStatusChange record was not created.")
+        self.assertEqual(retrieved_change.user_id, self.user.id, "User ID does not match.")
+        self.assertEqual(retrieved_change.task_id, self.task.id, "Task ID does not match.")
+        self.assertEqual(retrieved_change.project_id, self.project.id, "Project ID does not match.")
+        self.assertEqual(retrieved_change.old_status, old_status, "Old status does not match.")
+        self.assertEqual(retrieved_change.new_status, new_status, "New status does not match.")
+        self.assertIsInstance(retrieved_change.change_date, datetime, "Change date should be a datetime object.")
+        
+        # Check that the change_date has a timezone (utc is expected)
+        self.assertIsNotNone(retrieved_change.change_date.tzinfo, "Change date is not timezone aware.")
 
-        # 5️⃣ Verify __repr__
-        assert f"<TaskStatusChange {result.id}>" in repr(result)
+
+if __name__ == '__main__':
+    unittest.main()
