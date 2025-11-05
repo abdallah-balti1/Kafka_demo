@@ -1,0 +1,471 @@
+import { NewDropdown } from '@component-studio/ui';
+import AvailableItem from 'components/Form/AvailableItem';
+import IconButton from 'components/Form/IconButton';
+import Modal from 'components/Modal';
+import ModalLayout from 'components/ModalLayout';
+import { OBJECT_TYPE_ACTOR } from 'constants/objectTypes';
+import {
+  PRODUCT_TYPES,
+  PRODUCT_TYPE_MANDATE,
+  PRODUCT_TYPE_SINGLE,
+  PRODUCT_TYPE_SUBFUND,
+  PRODUCT_TYPE_UMBRELLA,
+} from 'constants/productObjects';
+import {
+  PROJECT_MODEL_TYPE_MASS_UPDATE,
+  PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR,
+} from 'constants/projectModel';
+import FormSubcategory from 'pages/Project/components/OperationalItems/components/FormSubcategory';
+import { lazy, useEffect, useMemo, useState, Suspense } from 'react';
+import { FormattedMessage } from 'react-intl';
+import { Grid, LoadingIndicatorWithPosition } from 'styles';
+// $FlowFixMe flow does not recognize default export from react-select
+import { useFetchMuActors } from 'redux/entities/massUpdateTemplates/hooks.js';
+
+import FormCategory from 'pages/Project/components/OperationalItems/components/FormCategory';
+import Style from './MassUpdateProductSelection.style';
+
+const ConfirmationDialog = lazy(() =>
+  import(/* webpackChunkName: "ConfirmationDialog" */ 'components/ConfirmationDialog'),
+);
+
+export type OwnPropsType = {
+  taskId: number,
+  onCloseClick: () => void,
+  downloadMassUpdateTemplate: (taskId: number, productIds: string[]) => void,
+  project: ProjectTypeForUi,
+  umbrellas: UmbrellasByIdStateType,
+};
+
+export type MapDispatchToPropsType = {
+  fetchProducts: () => void,
+  productType: ?string,
+  umbrellaId: ?string,
+  searchByUmbrella: boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+} => void,
+  fetchFilteredMuProducts: {
+    productType: ?string,
+    umbrellaId: ?string,
+    searchByUmbrella: boolean,
+    actorUid: ?string,
+    actorTeamCd: ?string,
+  } => void,
+  fetchUmbrellas: () => void,
+};
+
+export type MapStateToPropsType = {
+  products: ProductType[],
+  filteredMuProducts: ProductType[],
+  token: ?string,
+  isLoading: ?boolean,
+};
+
+type SelectedItemType = { id?: string };
+type VisibleProductType = { id: string, name: string };
+type VisibleProductsType = Array<VisibleProductType>;
+
+type FormikValuesType = {
+  selectedItems: SelectedItemType,
+};
+
+type FormikPropsType = {
+  setFieldValues: (name: string, value: string | string[] | SelectedItemType) => void,
+  values: FormikValuesType,
+};
+
+export type PropsType = OwnPropsType &
+  MapDispatchToPropsType &
+  MapStateToPropsType & { formik: FormikPropsType };
+
+const MassUpdateProductSelection = ({
+  taskId,
+  token,
+  onCloseClick,
+  downloadMassUpdateTemplate,
+  fetchProducts,
+  fetchFilteredMuProducts,
+  fetchUmbrellas,
+  products,
+  filteredMuProducts,
+  umbrellas,
+  formik,
+  project,
+  isLoading,
+}: PropsType) => {
+  const [filter, setFilter] = useState<string>('');
+  const [actorNames, setActorNames] = useState([]);
+  const [actorsTeams, setActorsTeams] = useState([]);
+  const [selectedActor, setSelectedActor] = useState({ value: '', label: '' });
+  const [selectedTeam, setSelectedTeam] = useState({ value: '', label: '' });
+  const [productsFiltered, setProductsFiltered] = useState<Array<ProductType>>([]);
+  const { value: actors } = useFetchMuActors(token, false, null) || {};
+
+  // New state for the three filters
+  const [managementCompany, setManagementCompany] = useState('');
+  const [domiciliationCountry, setDomiciliationCountry] = useState('');
+  const [umbrellaName, setUmbrellaName] = useState('');
+
+  const isActorProject = project.projectModel && project.projectModel.name.includes(OBJECT_TYPE_ACTOR);
+  const isMassUpdateGeneric = project.projectModel && project.projectModel.name.includes('Massupdate Generic');
+
+  useEffect(
+    () => {
+      if (filter) {
+        setProductsFiltered(
+          filteredMuProducts
+            .sort((a, b) =>
+              a.official_name.toLowerCase() > b.official_name.toLowerCase() ? 1 : -1,
+            )
+            .filter(product => product.official_name && product.official_name.includes(filter)),
+        );
+      } else {
+        setProductsFiltered(
+          filteredMuProducts.sort((a, b) =>
+            a.official_name.toLowerCase() > b.official_name.toLowerCase() ? 1 : -1,
+          ),
+        );
+      }
+    },
+    [filter, filteredMuProducts],
+  );
+
+  useEffect(
+    () => {
+      if (actors) {
+        setActorNames(
+          actors.map(actor => {
+            return { value: actor.id, label: `${actor.actor_name} ${actor.actor_first_name}` };
+          }),
+        );
+        const actorTeamsArr = actors.map(actor => {
+          return { value: actor.id, label: `${actor.team_chg_lbl}` };
+        });
+        const teamsLabels = actorTeamsArr.map(({ label }) => label);
+
+        setActorsTeams(
+          actorTeamsArr
+            .filter(({ label }, index) => !teamsLabels.includes(label, index + 1))
+            .sort((a, b) => (a.label.toLowerCase() > b.label.toLowerCase() ? 1 : -1)),
+        );
+      }
+    },
+    [actors],
+  );
+
+  useEffect(
+    () => {
+      const [selectedActorLastName, selectedActorFirstName] = selectedActor
+        ? selectedActor.label.split(' ')
+        : ['', ''];
+      const filteredActorsByName =
+        actors &&
+        actors.filter(
+          actor =>
+            actor.actor_first_name === selectedActorFirstName &&
+            actor.actor_name === selectedActorLastName,
+        );
+      const actorUid =
+        filteredActorsByName && filteredActorsByName.length > 0 ? filteredActorsByName[0].uid : '';
+      const filteredActorsByTeam =
+        actors && actors.filter(actor => selectedTeam && selectedTeam.label === actor.team_chg_lbl);
+      const teamCd =
+        filteredActorsByTeam && filteredActorsByTeam.length > 0
+          ? filteredActorsByTeam[0].team_chg_cd
+          : '';
+      const isActorUidOrTeamCdAvailable =
+        (actorUid && actorUid !== '') || (teamCd && teamCd !== '');
+      if (
+        project.projectModel &&
+        !project.productType &&
+        project.projectModel.name &&
+        project.projectModel.name === PROJECT_MODEL_TYPE_MASS_UPDATE &&
+        project.projectModel.type &&
+        project.projectModel.type === PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR
+      ) {
+        isActorUidOrTeamCdAvailable
+          ? fetchFilteredMuProducts(null, null, false, actorUid, teamCd)
+          : fetchProducts(null, null, false);
+      } else {
+        switch (project.productType) {
+          case PRODUCT_TYPE_SINGLE:
+            isActorUidOrTeamCdAvailable
+              ? fetchFilteredMuProducts(
+                  PRODUCT_TYPES[PRODUCT_TYPE_SINGLE].smartgpsValue,
+                  null,
+                  false,
+                  actorUid,
+                  teamCd,
+                )
+              : fetchProducts(PRODUCT_TYPES[PRODUCT_TYPE_SINGLE].smartgpsValue, null, false);
+            break;
+          case PRODUCT_TYPE_SUBFUND:
+            isActorUidOrTeamCdAvailable
+              ? fetchFilteredMuProducts(
+                  PRODUCT_TYPES[PRODUCT_TYPE_SUBFUND].smartgpsValue,
+                  null,
+                  false,
+                  actorUid,
+                  teamCd,
+                )
+              : fetchProducts(PRODUCT_TYPES[PRODUCT_TYPE_SUBFUND].smartgpsValue, null, false);
+            break;
+          case PRODUCT_TYPE_MANDATE:
+            isActorUidOrTeamCdAvailable
+              ? fetchFilteredMuProducts(
+                  PRODUCT_TYPES[PRODUCT_TYPE_MANDATE].smartgpsValue,
+                  null,
+                  false,
+                  actorUid,
+                  teamCd,
+                )
+              : fetchProducts(PRODUCT_TYPES[PRODUCT_TYPE_MANDATE].smartgpsValue, null, false);
+            break;
+          case PRODUCT_TYPE_UMBRELLA:
+            fetchUmbrellas();
+            break;
+          default:
+            break;
+        }
+      }
+    },
+    [
+      actors,
+      fetchFilteredMuProducts,
+      fetchProducts,
+      fetchUmbrellas,
+      project.productType,
+      project.projectModel,
+      selectedActor,
+      selectedTeam,
+    ],
+  );
+
+  const visibleProducts = useMemo(
+    () =>
+      project.productType === PRODUCT_TYPE_UMBRELLA
+        ? filterUmbrellas(umbrellas, filter)
+        : filterProducts(products, filter),
+    [project.productType, products, umbrellas, filter],
+  );
+
+  const selectedItems = formik.values.selectedItems;
+
+  const isChecked = (product: VisibleProductType) => {
+    return product.id in selectedItems;
+  };
+
+  const removeItem = (product: VisibleProductType) => {
+    delete selectedItems[product.id];
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const removeItemById = (id: string) => {
+    delete selectedItems[id];
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const addItem = (product: VisibleProductType) => {
+    selectedItems[product.id] = product.name;
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const onItemClick = (product: VisibleProductType) => {
+    if (isChecked(product)) {
+      removeItem(product);
+    } else {
+      addItem(product);
+    }
+  };
+
+  const removeAll = () => {
+    formik.setFieldValue('selectedItems', {});
+  };
+
+  const selectAll = () => {
+    if (filteredMuProducts.length > 0) {
+      filteredMuProducts.forEach(product => {
+        selectedItems[product.id] = product.name;
+      });
+    } else {
+      visibleProducts.forEach(product => {
+        selectedItems[product.id] = product.name;
+      });
+    }
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const isFilterSelected =
+    (selectedActor && selectedActor.label !== '') || (selectedTeam && selectedTeam.label !== '');
+  const massUpdateModalTitle =
+    project.projectModel &&
+    project.projectModel.type &&
+    project.projectModel.name &&
+    project.projectModel.type === PROJECT_MODEL_TYPE_MASS_UPDATE &&
+    project.projectModel.name === PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR
+      ? 'Mass Update Products Selection'
+      : `Mass Update Products Selection (${project.productType})`;
+
+  return (
+    <ModalLayout
+      title={massUpdateModalTitle}
+      description="Select the products to fill the Mass Update Template"
+      onCancel={onCloseClick}
+      onConfirm={() => {
+        downloadMassUpdateTemplate(taskId, Object.keys(selectedItems));
+        onCloseClick();
+      }}
+    >
+      <Modal
+        width={Grid(96)}
+        height={Grid(44)}
+        isOpen={isFilterSelected && !isLoading && filteredMuProducts.length <= 0}
+        onCloseClick={() => {
+          setSelectedActor({ value: '', label: '' });
+          setSelectedTeam({ value: '', label: '' });
+        }}
+      >
+        <Suspense fallback={<LoadingIndicatorWithPosition />}>
+          <ConfirmationDialog
+            title={<FormattedMessage id="MU_PRODUCTS_SELECTION.NO_PRODUCTS" />}
+            isConfirmButtonHidden
+            isCancelButtonHidden
+          />
+        </Suspense>
+      </Modal>
+      {project.projectModel && project.projectModel.name.includes(OBJECT_TYPE_ACTOR) && (
+        <FormCategory categoryLabel="MASSUPDATE_FILTERS">
+          <FormSubcategory subcategoryLabel={'Teams'}>
+            <NewDropdown
+              options={actorsTeams}
+              isClearable
+              value={selectedTeam}
+              onChange={selectedOption => {
+                setSelectedTeam(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Actor Names'}>
+            <NewDropdown
+              key="actor"
+              isClearable
+              value={selectedActor}
+              options={actorNames}
+              onChange={selectedOption => {
+                setSelectedActor(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+        </FormCategory>
+      )}
+      {isMassUpdateGeneric && (
+        <FormCategory categoryLabel="MASSUPDATE_FILTERS">
+          <FormSubcategory subcategoryLabel={'Management Company'}>
+            <Style.FilterInputWithPlaceholder
+              filter={{ id: 'managementCompany', value: managementCompany }}
+              onChange={(value: string) => {
+                setManagementCompany(value);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Domiciliation Country'}>
+            <Style.FilterInputWithPlaceholder
+              filter={{ id: 'domiciliationCountry', value: domiciliationCountry }}
+              onChange={(value: string) => {
+                setDomiciliationCountry(value);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Umbrella Name'}>
+            <Style.FilterInputWithPlaceholder
+              filter={{ id: 'umbrellaName', value: umbrellaName }}
+              onChange={(value: string) => {
+                setUmbrellaName(value);
+              }}
+            />
+          </FormSubcategory>
+        </FormCategory>
+      )}
+      <Style.Container>
+        <FormSubcategory subcategoryLabel={'Products'}>
+          <Style.FilterInputWithPlaceholder
+            filter={{ id: 'filter', value: filter }}
+            onChange={(value: string) => {
+              setFilter(value);
+            }}
+          />
+          <Style.AvailableList>
+            {isFilterSelected ? (
+              productsFiltered.length <= 0 ? (
+                <LoadingIndicatorWithPosition />
+              ) : (
+                productsFiltered.map(product => (
+                  <AvailableItem
+                    key={product.id}
+                    columnName={product.official_name}
+                    onClick={() => onItemClick(product)}
+                    isChecked={isChecked(product)}
+                  />
+                ))
+              )
+            ) : (
+              visibleProducts.length > 0 &&
+              visibleProducts.map(product => (
+                <AvailableItem
+                  key={product.id}
+                  columnName={product.name}
+                  onClick={() => onItemClick(product)}
+                  isChecked={isChecked(product)}
+                />
+              ))
+            )}
+          </Style.AvailableList>
+        </FormSubcategory>
+
+        <Style.ListSeparatorContainer className="listSeparator">
+          <IconButton onClick={() => selectAll()}>
+            <Style.SeparatorIcon slug="arrows-arrow-right" />
+          </IconButton>
+          <IconButton onClick={() => removeAll()}>
+            <Style.SeparatorIcon slug="arrows-arrow-left" />
+          </IconButton>
+        </Style.ListSeparatorContainer>
+
+        <FormSubcategory subcategoryLabel={`Selection ${Object.keys(selectedItems).length}`}>
+          <Style.SelectedItems>
+            {Object.keys(selectedItems).map(id => (
+              <Style.SelectedItem key={id}>
+                {selectedItems[id]}
+                <IconButton onClick={() => removeItemById(id)}>
+                  <Style.RemoveIndicatorIcon slug="close" size={10} />
+                </IconButton>
+              </Style.SelectedItem>
+            ))}
+          </Style.SelectedItems>
+        </FormSubcategory>
+      </Style.Container>
+    </ModalLayout>
+  );
+};
+
+export const filterProducts = (products: ProductType[], filter: string): VisibleProductsType => {
+  return products
+    .filter(
+      product =>
+        product.official_name && product.official_name.toLowerCase().includes(filter.toLowerCase()),
+    )
+    .map(product => ({ id: product.id, name: product.official_name }))
+    .sort((a, b) => (a.name && b.name && a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
+};
+
+export const filterUmbrellas = (
+  umbrellas: UmbrellasByIdStateType,
+  filter: string,
+): VisibleProductsType =>
+  Object.keys(umbrellas)
+    .filter(umbrellaId => umbrellas[umbrellaId].name.toLowerCase().includes(filter.toLowerCase()))
+    .map(umbrellaId => ({ id: umbrellaId, name: umbrellas[umbrellaId].name }))
+    .sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
+
+export default MassUpdateProductSelection;
