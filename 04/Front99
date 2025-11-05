@@ -60,6 +60,8 @@ type SelectedItemType = { id?: string };
 type VisibleProductType = { id: string, name: string };
 type VisibleProductsType = Array<VisibleProductType>;
 
+type FilterOptionType = { value: string, label: string };
+
 type FormikValuesType = {
   selectedItems: SelectedItemType,
 };
@@ -89,20 +91,20 @@ const MassUpdateProductSelection = ({
   isLoading,
 }: PropsType) => {
   const [filter, setFilter] = useState<string>('');
-  const [actorNames, setActorNames] = useState([]);
-  const [actorsTeams, setActorsTeams] = useState([]);
-  const [selectedActor, setselectedActor_team_cd] = useState({ value: '', label: '' });
-  const [selectedTeam, setSelectedTeam] = useState({ value: '', label: '' });
+  const [actorNames, setActorNames] = useState<Array<FilterOptionType>>([]);
+  const [actorsTeams, setActorsTeams] = useState<Array<FilterOptionType>>([]);
+  const [selectedActor, setselectedActor_team_cd] = useState<FilterOptionType>({ value: '', label: '' });
+  const [selectedTeam, setSelectedTeam] = useState<FilterOptionType>({ value: '', label: '' });
   const [productsFiltered, setProductsFiltered] = useState<Array<ProductType>>([]);
   const { value: actors } = useFetchMuActors(token, false, null) || {};
   
   // New state for generic filters
-  const [managementCompanies, setManagementCompanies] = useState([]);
-  const [domiciliationCountries, setDomiciliationCountries] = useState([]);
-  const [umbrellaNames, setUmbrellaNames] = useState([]);
-  const [selectedManagementCompany, setSelectedManagementCompany] = useState({ value: '', label: '' });
-  const [selectedDomiciliation, setSelectedDomiciliation] = useState({ value: '', label: '' });
-  const [selectedUmbrellaName, setSelectedUmbrellaName] = useState({ value: '', label: '' });
+  const [managementCompanies, setManagementCompanies] = useState<Array<FilterOptionType>>([]);
+  const [domiciliationCountries, setDomiciliationCountries] = useState<Array<FilterOptionType>>([]);
+  const [umbrellaNames, setUmbrellaNames] = useState<Array<FilterOptionType>>([]);
+  const [selectedManagementCompany, setSelectedManagementCompany] = useState<FilterOptionType>({ value: '', label: '' });
+  const [selectedDomiciliation, setSelectedDomiciliation] = useState<FilterOptionType>({ value: '', label: '' });
+  const [selectedUmbrellaName, setSelectedUmbrellaName] = useState<FilterOptionType>({ value: '', label: '' });
 
   useEffect(
     () => {
