@@ -1,0 +1,565 @@
+import { NewDropdown } from '@component-studio/ui/';
+import AvailableItem from 'components/form/AvailableItem';
+import IconButton from 'components/form/IconButton';
+import Modal from 'components/Modal/Modal';
+import ModalLayout from 'components/ModalLayout/ModalLayout';
+import { OBJECT_TYPE_ACTOR } from 'constants/objectTypes';
+import {
+  PRODUCT_TYPES,
+  PRODUCT_TYPE_MANDATE,
+  PRODUCT_TYPE_SINGLE,
+  PRODUCT_TYPE_SUBFUND,
+  PRODUCT_TYPE_UMBRELLA,
+} from 'constants/productObjects';
+import {
+  PROJECT_MODEL_TYPE_MASS_UPDATE,
+  PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR,
+} from 'constants/projectModel';
+import FormSubcategory from 'pages/Project/components/OperationalItems/components/FormSubcategory';
+import { Lazy, useEffect, useMemo, useState, Suspense } from 'react';
+import { FormattedMessage } from 'react-intl';
+import { Grid, LoadingIndicatorWithPosition } from 'styles';
+// $FlowFixMe flow does not recognize default export from react-select
+import { useFetchMuActors } from 'redux/entities/massUpdateTemplates/hooks.js';
+
+import FormCategory from 'pages/Project/components/OperationalItems/components/FormCategory';
+import Style from './MassUpdateProductSelection.style';
+
+const ConfirmationDialog = Lazy(
+  () =>
+    import(
+      /* webpackChunkName: "ConfirmationDialog" */ 'components/ConfirmationDialog'
+    ),
+);
+
+export type OwnPropsType = {
+  taskId: number,
+  token: string,
+  onCloseClick: () => void,
+  downloadMassUpdateTemplate: (
+    taskId: number,
+    productIds: string[],
+  ) => void,
+  project: ProjectTypeForUI,
+  umbrellas: UmbrellasByIdStateType,
+};
+
+export type MapDispatchToPropsType = {
+  fetchProducts: () => void,
+  productType: ?string,
+  umbrellaId: ?string,
+  searchByUmbrella: boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  () => void,
+  fetchFilteredMuProducts: (
+    productType: ?string,
+    umbrellaId: ?string,
+    searchByUmbrella: boolean,
+    actorUid: ?string,
+    actorTeamCd: ?string,
+  ) => void,
+  fetchUmbrellas: () => void,
+};
+
+export type MapStateToPropsType = {
+  products: ProductType[],
+  filteredMuProducts: ProductType[],
+  token: ?string,
+  isLoading: ?boolean,
+};
+
+type SelectedItemType = { id: string };
+export type VisibleProductType = { id: string, name: string };
+type VisibleProductsType = Array<VisibleProductType>;
+
+type FormikValuesType = {
+  selectedItems: SelectedItemType,
+};
+
+type FormikPropsType = {
+  setFieldValue: (
+    name: string,
+    value: string | string[] | SelectedItemType,
+  ) => void,
+  values: FormikValuesType,
+};
+
+export type PropsType = OwnPropsType &
+  MapDispatchToPropsType &
+  MapStateToPropsType & { Formik: FormikPropsType };
+
+export const filterProducts = (
+  products: ProductType[],
+  filter: string,
+): VisibleProductsType =>
+  products
+    .filter(
+      (product) =>
+        product.official_name &&
+        product.official_name.toLowerCase().includes(filter.toLowerCase()),
+    )
+    .map((product) => ({ id: product.id, name: product.official_name }))
+    .sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
+
+export const filterUmbrellas = (
+  umbrellas: UmbrellasByIdStateType,
+  filter: string,
+): VisibleProductsType => {
+  const visibleProducts = [];
+  Object.keys(umbrellas)
+    .filter(
+      (umbrellaId) =>
+        umbrellas[umbrellaId].name
+          .toLowerCase()
+          .includes(filter.toLowerCase()),
+    )
+    .map((umbrellaId) =>
+      visibleProducts.push({
+        id: umbrellaId,
+        name: umbrellas[umbrellaId].name,
+      }),
+    )
+    .sort((a, b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
+  return visibleProducts;
+};
+
+const MassUpdateProductSelection = ({
+  taskId,
+  token,
+  onCloseClick,
+  downloadMassUpdateTemplate,
+  fetchProducts,
+  fetchFilteredMuProducts,
+  fetchUmbrellas,
+  products,
+  filteredMuProducts,
+  umbrellas,
+  formik,
+  project,
+  isLoading,
+}: PropsType) => {
+  const [filter, setFilter] = useState<string>('');
+  const [actorNames, setActorNames] = useState([]);
+  const [actorsTeams, setActorsTeams] = useState([]);
+  const [selectedActor, setSelectedActor] = useState({ value: '', label: '' });
+  const [selectedTeam, setSelectedTeam] = useState({ value: '', label: '' });
+  const [productsFiltered, setProductsFiltered] = useState<Array<ProductType>>([]);
+  
+  // New state for "Massupdate Generic" filters
+  const [selectedManCo, setSelectedManCo] = useState({ value: '', label: '' });
+  const [selectedDomCo, setSelectedDomCo] = useState({ value: '', label: '' });
+  const [selectedUmbrella, setSelectedUmbrella] = useState({ value: '', label: '' });
+  const [manCoOptions, setManCoOptions] = useState([]);
+  const [domCoOptions, setDomCoOptions] = useState([]);
+  const [umbrellaOptions, setUmbrellaOptions] = useState([]);
+
+  // Determine if we should skip fetching actors
+  const skipFetchingActors = !project.projectModel.name.includes(OBJECT_TYPE_ACTOR);
+  
+  // Pass the skip variable as the second argument
+  const { value: actors } = useFetchMuActors(token, skipFetchingActors, null) || [];
+
+  useEffect(() => {
+    if (filter) {
+      setProductsFiltered(
+        filteredMuProducts
+          .sort((a, b) =>
+            a.official_name.toLowerCase() > b.official_name.toLowerCase()
+              ? 1
+              : -1,
+          )
+          .filter(
+            (product) =>
+              product.official_name &&
+              product.official_name.includes(filter),
+          ),
+      );
+    } else {
+      setProductsFiltered(
+        filteredMuProducts.sort((a, b) =>
+          a.official_name.toLowerCase() > b.official_name.toLowerCase()
+            ? 1
+            : -1,
+        ),
+      );
+    }
+  }, [filter, filteredMuProducts]);
+
+  useEffect(() => {
+    if (actors) {
+      setActorNames(
+        actors.map((actor) => ({
+          value: actor.id,
+          label: `${actor.actor_name} ${actor.actor_first_name}`,
+        })),
+      );
+      const actorTeamsArr = actors.map((actor) => ({
+        value: actor.id,
+        label: `${actor.actor_team_chg_lbl}`,
+      }));
+      setActorsTeams(
+        actorTeamsArr
+          .filter(
+            ({ label }, index) => !lteamsLabels.includes(label, index + 1),
+          )
+          .sort((a, b) => (a.label.toLowerCase() > b.label.toLowerCase() ? 1 : -1)),
+      );
+    }
+  }, [actors]);
+
+  // New useEffect to fetch data for "Massupdate Generic" filters
+  useEffect(() => {
+    // Only run this logic if the new filters are supposed to be visible
+    if (project.projectModel.name.includes('Massupdate Generic')) {
+      //
+      // TODO: Replace this with your actual data fetching logic
+      //
+      // const { data: managementCompanies } = useFetchManagementCompanies();
+      // const { data: countries } = useFetchDomCountries();
+      // const { data: umbrellas } = useFetchUmbrellas();
+
+      // setManCoOptions(managementCompanies.map(mc => ({ value: mc.id, label: mc.name })));
+      // setDomCoOptions(countries.map(c => ({ value: c.id, label: c.name })));
+      // setUmbrellaOptions(umbrellas.map(u => ({ value: u.id, label: u.name })));
+
+      // --- Using Dummy Data for Now ---
+      setManCoOptions([
+        { value: 'manco1', label: 'Management Co 1' },
+        { value: 'manco2', label: 'Management Co 2' },
+      ]);
+      setDomCoOptions([
+        { value: 'FR', label: 'France' },
+        { value: 'LU', label: 'Luxembourg' },
+      ]);
+      setUmbrellaOptions([
+        { value: 'umb1', label: 'Umbrella 1' },
+        { value: 'umb2', label: 'Umbrella 2' },
+      ]);
+    }
+    // Make sure to add any dependencies your real fetching logic needs
+  }, [project.projectModel.name]);
+
+
+  useEffect(() => {
+    const [selectedActorLastName, selectedActorFirstName] =
+      selectedActor.label.split(' ');
+    const filteredActorsByName =
+      actors &&
+      actors.filter(
+        (actor) =>
+          actor.actor_first_name === selectedActorFirstName &&
+          actor.actor_name === selectedActorLastName,
+      );
+    const actorUid =
+      filteredActorsByName && filteredActorsByName.length > 0
+        ? filteredActorsByName[0].uid
+        : '';
+    const filteredActorsByTeam =
+      actors &&
+      actors.filter((actor) => selectedTeam.label === actor.team_chg_lbl);
+    const teamCd =
+      filteredActorsByTeam && filteredActorsByTeam.length > 0
+        ? filteredActorsByTeam[0].team_chg_cd
+        : '';
+    const isActorUidOrTeamCdAvailable =
+      (actorUid && actorUid !== '') || (teamCd && teamCd !== '');
+
+    if (
+      project.projectModel &&
+      !project.productType &&
+      project.projectModel.name &&
+      project.projectModel.name === PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR
+    ) {
+      isActorUidOrTeamCdAvailable
+        ? fetchFilteredMuProducts(null, null, false, actorUid, teamCd)
+        : fetchProducts(null, null, false, actorUid, teamCd);
+    } else {
+      switch (project.productType) {
+        case PRODUCT_TYPE_SINGLE:
+          isActorUidOrTeamCdAvailable
+            ? fetchFilteredMuProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_SINGLE].smartgpsValue,
+                null,
+                false,
+                actorUid,
+                teamCd,
+              )
+            : fetchProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_SINGLE].smartgpsValue,
+                null,
+                false,
+              );
+          break;
+        case PRODUCT_TYPE_SUBFUND:
+          isActorUidOrTeamCdAvailable
+            ? fetchFilteredMuProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_SUBFUND].smartgpsValue,
+                null,
+                false,
+                actorUid,
+                teamCd,
+              )
+            : fetchProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_SUBFUND].smartgpsValue,
+                null,
+                false,
+              );
+          break;
+        case PRODUCT_TYPE_MANDATE:
+          isActorUidOrTeamCdAvailable
+            ? fetchFilteredMuProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_MANDATE].smartgpsValue,
+                null,
+                false,
+                actorUid,
+                teamCd,
+              )
+            : fetchProducts(
+                PRODUCT_TYPES[PRODUCT_TYPE_MANDATE].smartgpsValue,
+                null,
+                false,
+              );
+          break;
+        case PRODUCT_TYPE_UMBRELLA:
+          fetchUmbrellas();
+          break;
+        default:
+          break;
+      }
+    }
+  }, [
+    actors,
+    fetchFilteredMuProducts,
+    fetchProducts,
+    fetchUmbrellas,
+    project.productType,
+    project.projectModel,
+    selectedActor,
+    selectedTeam,
+  ]);
+
+  const visibleProducts = useMemo(
+    () =>
+      project.productType === PRODUCT_TYPE_UMBRELLA
+        ? filterUmbrellas(umbrellas, filter)
+        : filterProducts(products, filter),
+    [project.productType, products, umbrellas, filter],
+  );
+
+  const selectedItems = formik.values.selectedItems;
+
+  const isChecked = (product: VisibleProductType) => {
+    return product.id in selectedItems;
+  };
+
+  const removeItem = (product: VisibleProductType) => {
+    delete selectedItems[product.id];
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const removeItemById = (id: string) => {
+    delete selectedItems[id];
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const addItem = (product: VisibleProductType) => {
+    selectedItems[product.id] = product.name;
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const onItemClick = (product: VisibleProductType) => {
+    if (isChecked(product)) {
+      removeItem(product);
+    } else {
+      addItem(product);
+    }
+  };
+
+  const removeAll = () => {
+    formik.setFieldValue('selectedItems', {});
+  };
+
+  const selectAll = () => {
+    if (filteredMuProducts.length > 0) {
+      filteredMuProducts.forEach((product) => {
+        selectedItems[product.id] = product.name;
+      });
+    } else {
+      visibleProducts.forEach((product) => {
+        selectedItems[product.id] = product.name;
+      });
+    }
+    formik.setFieldValue('selectedItems', selectedItems);
+  };
+
+  const isFilterSelected =
+    (selectedActor && selectedActor.label !== '') ||
+    (selectedTeam && selectedTeam.label !== '');
+
+  const massUpdateModalTitle =
+    project.projectModel &&
+    project.projectModel.type === PROJECT_MODEL_TYPE_MASS_UPDATE &&
+    project.projectModel.name === PROJECT_MODEL_TYPE_MASS_UPDATE_ACTOR
+      ? 'Mass Update Products Selection'
+      : 'Mass Update Products Selection' +
+        ' (' +
+        project.productType +
+        ')';
+
+  return (
+    <ModalLayout
+      title={massUpdateModalTitle}
+      description={'Select the products to fill the Mass Update Template'}
+      onCancel={onCloseClick}
+      onConfirm={() =>
+        downloadMassUpdateTemplate(taskId, Object.keys(selectedItems))
+      }
+      onCloseClick={onCloseClick}
+    >
+      <Modal
+        width={Grid(96)}
+        height={Grid(44)}
+        isDown={
+          !isFilterSelected && isLoading && filteredMuProducts.length <= 0
+        }
+        onCloseClick={() => {
+          setSelectedActor({ value: '', label: '' });
+          setSelectedTeam({ value: '', label: '' });
+        }}
+      >
+        <Suspense fallback={<LoadingIndicatorWithPosition />}>
+          <ConfirmationDialog
+            title={<FormattedMessage id="MU_PRODUCTS_SELECTION.NO_PRODUCTS" />}
+            isConfirmButtonHidden
+            isCancelButtonHidden
+          />
+        </Suspense>
+      </Modal>
+      {project.projectModel.name.includes(OBJECT_TYPE_ACTOR) && (
+        <FormCategory categoryLabel="MASSUPDATE_FILTERS">
+          <FormSubcategory subcategoryLabel={'Teams'}>
+            <NewDropdown
+              isClearable
+              options={actorsTeams}
+              value={selectedTeam}
+              onChange={(selectedOption) => {
+                setSelectedTeam(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Actor Names'}>
+            <NewDropdown
+              isClearable
+              key="actor"
+              options={actorNames}
+              value={selectedActor}
+              onChange={(selectedOption) => {
+                setSelectedActor(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+        </FormCategory>
+      )}
+
+      {/* === NEWLY ADDED BLOCK === */}
+      {project.projectModel.name.includes('Massupdate Generic') && (
+        <FormCategory categoryLabel="MASSUPDATE_FILTERS">
+          <FormSubcategory subcategoryLabel={'Management Company'}>
+            <NewDropdown
+              isClearable
+              options={manCoOptions}
+              value={selectedManCo}
+              onChange={(selectedOption) => {
+                setSelectedManCo(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Domiciliation Country'}>
+            <NewDropdown
+              isClearable
+              options={domCoOptions}
+              value={selectedDomCo}
+              onChange={(selectedOption) => {
+                setSelectedDomCo(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+          <FormSubcategory subcategoryLabel={'Umbrella Name'}>
+            <NewDropdown
+              isClearable
+              options={umbrellaOptions}
+              value={selectedUmbrella}
+              onChange={(selectedOption) => {
+                setSelectedUmbrella(selectedOption);
+              }}
+            />
+          </FormSubcategory>
+        </FormCategory>
+      )}
+
+      <Style.Container>
+        <FormSubcategory subcategoryLabel={'Products'}>
+          <Style.FilterInputWithPlaceholder
+            filter={filter}
+            onChange={(value: string) => {
+              setFilter(value);
+            }}
+          />
+          <Style.AvailableList>
+            {isFilterSelected ? (
+              productsFiltered.length <= 0 ? (
+                <LoadingIndicatorWithPosition />
+              ) : (
+                productsFiltered.map((product) => (
+                  <AvailableItem
+                    key={product.id}
+                    columnName={product.official_name}
+                    onClick={() => onItemClick(product)}
+                    isChecked={isChecked(product)}
+                  />
+                ))
+              )
+            ) : (
+              visibleProducts.length > 0 &&
+              visibleProducts.map((product) => (
+                <AvailableItem
+                  key={product.id}
+                  columnName={product.name}
+                  onClick={() => onItemClick(product)}
+                  isChecked={isChecked(product)}
+                />
+              ))
+            )}
+          </Style.AvailableList>
+        </FormSubcategory>
+
+        <Style.ListSeparatorContainer className="listSeparator">
+          <IconButton onClick={() => selectAll()}>
+            <Style.SeparatorIcon slug="arrows-right" />
+          </IconButton>
+          <IconButton onClick={() => removeAll()}>
+            <Style.SeparatorIcon slug="arrows-left" />
+          </IconButton>
+        </Style.ListSeparatorContainer>
+
+        <FormSubcategory
+          subcategoryLabel={`Selection ${Object.keys(selectedItems).length}`}
+        >
+          <Style.SelectedItems>
+            {Object.keys(selectedItems).map((id) => (
+              <Style.SelectedItem key={id}>
+                {selectedItems[id]}
+                <IconButton onClick={() => removeItemById(id)}>
+                  <Style.RemoveIndicator slug="close" size={10} />
+                </IconButton>
+              </Style.SelectedItem>
+            ))}
+          </Style.SelectedItems>
+        </FormSubcategory>
+      </Style.Container>
+    </ModalLayout>
+  );
+};
+
+export default MassUpdateProductSelection;
