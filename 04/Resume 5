@@ -1,0 +1,76 @@
+// @flow
+import { connect } from 'react-redux';
+import { withFormik } from 'formik';
+import { 
+  getProducts, 
+  getFilteredProducts 
+} from 'redux/entities/products/actions';
+import { getUmbrellas } from 'redux/entities/umbrellas/actions';
+import MassUpdateProductSelection from './MassUpdateProductSelection';
+
+const mapStateToProps = (state) => ({
+  products: state.entities.products.products || [],
+  filteredMuProducts: state.entities.products.filteredMuProducts || [],
+  token: state.entities.authUsers.token,
+  isLoading: state.entities.products.isLoading,
+});
+
+const mapDispatchToProps = (dispatch) => ({
+  fetchProducts: (
+    productType,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid = '',
+    actorTeamCd = '',
+    mgmtCompLbl = '',
+    domiciliationCtry = '',
+    umbNameLbl = '',
+  ) =>
+    dispatch(
+      getProducts(
+        productType,
+        umbrellaId,
+        searchByUmbrella,
+        actorUid,
+        actorTeamCd,
+        mgmtCompLbl,
+        domiciliationCtry,
+        umbNameLbl,
+      ),
+    ),
+  fetchFilteredMuProducts: (
+    productType,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid = '',
+    actorTeamCd = '',
+    mgmtCompLbl = '',
+    domiciliationCtry = '',
+    umbNameLbl = '',
+  ) =>
+    dispatch(
+      getFilteredProducts(
+        productType,
+        umbrellaId,
+        searchByUmbrella,
+        actorUid,
+        actorTeamCd,
+        mgmtCompLbl,
+        domiciliationCtry,
+        umbNameLbl,
+      ),
+    ),
+  fetchUmbrellas: () => dispatch(getUmbrellas()),
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps,
+)(
+  withFormik({
+    mapPropsToValues: () => ({
+      selectedItems: {},
+    }),
+    handleSubmit: () => {},
+  })(MassUpdateProductSelection),
+);
