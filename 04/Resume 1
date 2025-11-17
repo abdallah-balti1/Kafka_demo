@@ -1,0 +1,139 @@
+# Mass Update Product Selection - Filter Implementation Summary
+
+## Overview
+Added three new filters with AND logic to filter products based on:
+1. **Management Company** (`mgmt_comp_lbl`)
+2. **Domiciliation Country** (`domiciliation_ctry`)
+3. **Umbrella Name** (`umb_name_lbl`)
+
+## Files Updated
+
+### 1. `MassUpdateProductSelection.js`
+**Key Changes:**
+- Added state management for 3 new filters
+- Added dropdowns for Management Company, Domiciliation Country, and Umbrella Name
+- Implemented automatic extraction of unique values from products for dropdown options
+- Updated filter logic to use AND logic (all selected filters must match)
+- Fixed FlowFixMe types with proper TypeScript/Flow type annotations
+- Added proper null checks for dropdown onChange handlers
+
+**New State Variables:**
+```javascript
+const [selectedMgmtComp, setSelectedMgmtComp] = useState({ value: '', label: '' });
+const [selectedDomCountry, setSelectedDomCountry] = useState({ value: '', label: '' });
+const [selectedUmbName, setSelectedUmbName] = useState({ value: '', label: '' });
+const [mgmtCompanies, setMgmtCompanies] = useState([]);
+const [countries, setCountries] = useState([]);
+const [umbrellaNames, setUmbrellaNames] = useState([]);
+```
+
+### 2. `MassUpdateProductSelection.wrap.js`
+**Key Changes:**
+- Updated `mapDispatchToProps` to pass all 8 parameters to fetch functions
+- Added default empty string values for new filter parameters
+- Maintains backward compatibility with existing code
+
+### 3. `redux/entities/products/api.js`
+**Key Changes:**
+- Updated `getProducts` function to accept 3 new parameters
+- Updated `getFilteredProducts` function to accept 3 new parameters
+- Added proper null handling for all filter parameters
+- Backend API call now includes all filter values in POST body
+
+**API Request Body:**
+```javascript
+{
+  prod_origin: productType,
+  prod_cds: productIds,
+  umb_cd: umbrellaId,
+  search_by_umbrella: searchByUmbrella,
+  only_active_products: true,
+  actor_uid: actorUid || null,
+  actor_team_cd: actorTeamCd || null,
+  mgmt_comp_lbl: mgmtCompLbl || null,        // NEW
+  domiciliation_ctry: domiciliationCtry || null,  // NEW
+  umb_name_lbl: umbNameLbl || null,          // NEW
+}
+```
+
+### 4. `redux/entities/products/actions.js`
+**Key Changes:**
+- Updated action creators to handle 3 new filter parameters
+- Added proper default null values
+- Maintains existing Redux flow (REQUEST → SUCCESS/FAILURE)
+
+### 5. `redux/entities/products/reducer.js`
+**Key Changes:**
+- No structural changes needed (already handles the actions correctly)
+- Maintains separate state for `products` and `filteredMuProducts`
+
+## Filter Logic Implementation
+
+### AND Logic
+All selected filters are combined using AND logic:
+```javascript
+const isAnyFilterSelected =
+  (actorUid && actorUid !== '') || 
+  (teamCd && teamCd !== '') ||
+  (mgmtCompLbl && mgmtCompLbl !== '') ||
+  (domiciliationCtry && domiciliationCtry !== '') ||
+  (umbNameLbl && umbNameLbl !== '');
+```
+
+When any filter is selected, the component calls `fetchFilteredMuProducts` with all current filter values. The backend applies AND logic to return only products matching ALL selected criteria.
+
+### Dynamic Dropdown Options
+Dropdown options are automatically extracted from available products:
+
+```javascript
+// Extract unique management companies
+const uniqueMgmtComps = [...new Set(
+  allProducts
+    .map(product => product.mgmt_comp_lbl)
+    .filter(Boolean)
+)].sort();
+
+// Similar logic for countries and umbrella names
+```
+
+## User Experience Features
+
+1. **Clear All Filters**: When no products match, a dialog allows users to clear all filters
+2. **Auto-populated Dropdowns**: Dropdown values are extracted from existing products
+3. **Clearable Dropdowns**: All dropdowns have a clear button (isClearable prop)
+4. **Loading State**: Shows loading indicator while fetching filtered products
+5. **Real-time Filtering**: Products update immediately when any filter changes
+
+## Testing Checklist
+
+- [ ] Test each filter individually
+- [ ] Test multiple filters together (AND logic)
+- [ ] Test clearing individual filters
+- [ ] Test "Clear All" functionality
+- [ ] Verify dropdown options are populated correctly
+- [ ] Verify loading states display properly
+- [ ] Verify no products found dialog appears correctly
+- [ ] Test with different product types (SINGLE, SUBFUND, MANDATE, UMBRELLA)
+- [ ] Verify backward compatibility (no filters selected)
+
+## Backend Requirements
+
+The backend API endpoint `/products/search` must support these parameters:
+- `mgmt_comp_lbl`: string | null
+- `domiciliation_ctry`: string | null
+- `umb_name_lbl`: string | null
+
+All filters should be applied with AND logic on the backend.
+
+## Migration Notes
+
+**No Breaking Changes:**
+- All new parameters have default values
+- Existing functionality remains unchanged
+- Backward compatible with current code
+
+**Optional Improvements:**
+1. Cache filter options to reduce API calls
+2. Add filter preset saving/loading
+3. Add export filtered results feature
+4. Add filter count indicators
