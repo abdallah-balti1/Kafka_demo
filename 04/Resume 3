@@ -1,0 +1,75 @@
+// @flow
+import config from 'utils/config';
+import { request } from 'utils/request';
+
+export function getProducts(
+  productType: ?string,
+  productIds: ?(string[]),
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  mgmtCompLbl: ?string,
+  domiciliationCtry: ?string,
+  umbNameLbl: ?string,
+  token: string,
+) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid || null,
+      actor_team_cd: actorTeamCd || null,
+      mgmt_comp_lbl: mgmtCompLbl || null,
+      domiciliation_ctry: domiciliationCtry || null,
+      umb_name_lbl: umbNameLbl || null,
+    },
+  });
+}
+
+export function getFilteredProducts(
+  productType: ?string,
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  mgmtCompLbl: ?string,
+  domiciliationCtry: ?string,
+  umbNameLbl: ?string,
+  token: string,
+) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: null,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid || null,
+      actor_team_cd: actorTeamCd || null,
+      mgmt_comp_lbl: mgmtCompLbl || null,
+      domiciliation_ctry: domiciliationCtry || null,
+      umb_name_lbl: umbNameLbl || null,
+    },
+  });
+}
+
+export function getProduct(productId: string, token: string) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/${productId}`;
+
+  return request(requestURL, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
