@@ -1,0 +1,101 @@
+// @flow
+import * as api from './api';
+import { normalize } from './modelize';
+
+export const GET_PRODUCTS_REQUEST = 'GET_PRODUCTS_REQUEST';
+export const GET_PRODUCTS_SUCCESS = 'GET_PRODUCTS_SUCCESS';
+export const GET_PRODUCTS_FAILURE = 'GET_PRODUCTS_FAILURE';
+
+export const GET_FILTERED_PRODUCTS_REQUEST = 'GET_FILTERED_PRODUCTS_REQUEST';
+export const GET_FILTERED_PRODUCTS_SUCCESS = 'GET_FILTERED_PRODUCTS_SUCCESS';
+export const GET_FILTERED_PRODUCTS_FAILURE = 'GET_FILTERED_PRODUCTS_FAILURE';
+
+export const getProducts = (
+  productType: ?string,
+  productIds: ?(string[]),
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string = null,
+  actorTeamCd: ?string = null,
+  mgmtCompLbl: ?string = null,
+  domiciliationCtry: ?string = null,
+  umbNameLbl: ?string = null,
+) => async (dispatch: Function, getState: Function) => {
+  const { token } = getState().entities.authUsers;
+  
+  dispatch({ type: GET_PRODUCTS_REQUEST });
+  
+  try {
+    const response = await api.getProducts(
+      productType,
+      productIds,
+      umbrellaId,
+      searchByUmbrella,
+      actorUid,
+      actorTeamCd,
+      mgmtCompLbl,
+      domiciliationCtry,
+      umbNameLbl,
+      token,
+    );
+    
+    const normalizedData = normalize(response.data);
+    
+    dispatch({
+      type: GET_PRODUCTS_SUCCESS,
+      payload: normalizedData,
+    });
+    
+    return normalizedData;
+  } catch (error) {
+    dispatch({
+      type: GET_PRODUCTS_FAILURE,
+      payload: error,
+    });
+    throw error;
+  }
+};
+
+export const getFilteredProducts = (
+  productType: ?string,
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string = null,
+  actorTeamCd: ?string = null,
+  mgmtCompLbl: ?string = null,
+  domiciliationCtry: ?string = null,
+  umbNameLbl: ?string = null,
+) => async (dispatch: Function, getState: Function) => {
+  const { token } = getState().entities.authUsers;
+  
+  dispatch({ type: GET_FILTERED_PRODUCTS_REQUEST });
+  
+  try {
+    const response = await api.getFilteredProducts(
+      productType,
+      umbrellaId,
+      searchByUmbrella,
+      actorUid,
+      actorTeamCd,
+      mgmtCompLbl,
+      domiciliationCtry,
+      umbNameLbl,
+      token,
+    );
+    
+    const normalizedData = normalize(response.data);
+    
+    dispatch({
+      type: GET_FILTERED_PRODUCTS_SUCCESS,
+      payload: normalizedData,
+    });
+    
+    return normalizedData;
+  } catch (error) {
+    dispatch({
+      type: GET_FILTERED_PRODUCTS_FAILURE,
+      payload: error,
+    });
+    throw error;
+  }
+};
