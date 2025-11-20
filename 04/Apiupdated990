@@ -1,0 +1,95 @@
+// @flow
+import config from 'utils/config';
+import { request } from 'utils/request';
+
+// Define the shape of the params object for Flow
+type ProductParams = {
+  productType: ?string,
+  productIds: ?Array<string>,
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  mgmt_comp_lbl: ?string,
+  domiciliation_ctry: ?string,
+  umb_name_lbl: ?string,
+};
+
+/**
+ * Refactored to use a single object argument + token to avoid 'too many arguments' issues
+ */
+export function getProducts(params: ProductParams, token: string) {
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+  } = params;
+
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+export function getFilteredProducts(params: ProductParams, token: string) {
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+  } = params;
+
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+// This function is unchanged but ensure types are present
+export function getProduct(productId: string, token: string) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/${productId}`;
+
+  return request(requestURL, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
