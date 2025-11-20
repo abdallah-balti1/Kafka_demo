@@ -1,0 +1,150 @@
+// OLD WAY (Causes issues)
+// export function getFilteredProducts(productType, productIds, ... token) { ... }
+
+// NEW WAY (Clean & Scalable)
+export function getFilteredProducts({
+  productType,
+  productIds,
+  umbrellaId,
+  searchByUmbrella,
+  actorUid,
+  actorTeamCd,
+  mgmt_comp_lbl,
+  domiciliation_ctry,
+  umb_name_lbl,
+  token
+}) {
+  // The URL construction remains the same
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+// Do the same for getProducts if it also has many arguments
+
+
+
+// Inside your generator function
+// ... logic to get token and params ...
+
+// OLD WAY:
+// yield call(getFilteredProducts, productType, productIds, ... token);
+
+// NEW WAY:
+yield call(getFilteredProducts, {
+  productType: action.payload.productType, // or wherever these come from
+  productIds: action.payload.productIds,
+  umbrellaId: action.payload.umbrellaId,
+  searchByUmbrella: action.payload.searchByUmbrella,
+  actorUid: action.payload.actorUid,
+  actorTeamCd: action.payload.actorTeamCd,
+  mgmt_comp_lbl: action.payload.mgmt_comp_lbl,
+  domiciliation_ctry: action.payload.domiciliation_ctry,
+  umb_name_lbl: action.payload.umb_name_lbl,
+  token: token
+});
+
+
+
+
+
+
+import { expectSaga } from 'redux-saga-test-plan';
+import { throwError } from 'redux-saga-test-plan/providers';
+import { call, select } from 'redux-saga/effects';
+import { selectToken } from 'redux/user/selectors';
+import { handleAPIExceptions } from 'utils/api';
+import {
+  fetchFilteredMuProductsError,
+  fetchFilteredMuProductsSuccess,
+} from '../actions';
+import { getFilteredProducts } from '../api';
+import { PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS } from '../constants';
+import { modelizeProductsState } from '../modelize';
+import { fetchFilteredMuProductsSaga } from '../sagas';
+import { filteredMuproductStateFixture } from './fixtures';
+
+// ... (keep your jest mocks for modelize) ...
+
+describe('[Saga] Products redux', () => {
+  describe('describe filteredMuproducts', () => {
+    const token = 'fakeToken';
+    
+    // Define the expected payload object exactly as it will be passed to the API
+    const expectedApiPayload = {
+      productType: 'subfund',
+      productIds: ['PROD_01', 'PROD_02'],
+      umbrellaId: null,
+      searchByUmbrella: true,
+      actorUid: '',
+      actorTeamCd: '',
+      mgmt_comp_lbl: '',
+      domiciliation_ctry: '',
+      umb_name_lbl: '',
+      token: token // Ensure token is included here
+    };
+
+    // This 'params' object is what triggers the saga (via action)
+    const sagaParams = {
+      productType: 'subfund',
+      productIds: ['PROD_01', 'PROD_02'],
+      umbrellaId: null,
+      searchByUmbrella: true,
+      actorUid: '',
+      actorTeamCd: '',
+      mgmt_comp_lbl: '',
+      domiciliation_ctry: '',
+      umb_name_lbl: '',
+    };
+
+    beforeEach(() => {
+      modelizeProductsState.mockClear();
+    });
+
+    describe('when request is a success', () => {
+      it('should call the success action', async () => {
+        const outputMock = { data: filteredMuproductStateFixture };
+
+        return expectSaga(fetchFilteredMuProductsSaga, sagaParams)
+          .provide([
+            [select(selectToken), token],
+            // RECOMMENDATION: call() now only receives the function and ONE object
+            [call(getFilteredProducts, expectedApiPayload), outputMock] 
+          ])
+          .put(fetchFilteredMuProductsSuccess(filteredMuproductStateFixture))
+          .run();
+      });
+    });
+
+    describe('when request fails', () => {
+      it('should call the error action', async () => {
+        const error = new Error();
+        return expectSaga(fetchFilteredMuProductsSaga, sagaParams)
+          .provide([
+            [select(selectToken), token],
+            // RECOMMENDATION: Same here, cleaner call signature
+            [call(getFilteredProducts, expectedApiPayload), throwError(error)],
+            [call(handleAPIExceptions, error)],
+          ])
+          .put(fetchFilteredMuProductsError(error))
+          .not.put.actionType(PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS)
+          .run();
+      });
+    });
+  });
+});
