@@ -1,0 +1,102 @@
+// @flow
+import config from 'utils/config';
+import { request } from 'utils/request';
+
+/**
+ * Refactored to use a single object argument to avoid 'too many arguments' issues in Redux Saga
+ */
+export function getProducts({
+  productType,
+  productIds,
+  umbrellaId,
+  searchByUmbrella,
+  actorUid,
+  actorTeamCd,
+  mgmt_comp_lbl,
+  domiciliation_ctry,
+  umb_name_lbl,
+  token,
+}: {
+  productType: ?string,
+  productIds: ?(string[]),
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  mgmt_comp_lbl: ?string,
+  domiciliation_ctry: ?string,
+  umb_name_lbl: ?string,
+  token: string,
+}) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+export function getFilteredProducts({
+  productType,
+  productIds,
+  umbrellaId,
+  searchByUmbrella,
+  actorUid,
+  actorTeamCd,
+  mgmt_comp_lbl,
+  domiciliation_ctry,
+  umb_name_lbl,
+  token,
+}: {
+  productType: ?string,
+  productIds: ?(string[]),
+  umbrellaId: ?string,
+  searchByUmbrella: ?boolean,
+  actorUid: ?string,
+  actorTeamCd: ?string,
+  mgmt_comp_lbl: ?string,
+  domiciliation_ctry: ?string,
+  umb_name_lbl: ?string,
+  token: string,
+}) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+// This function is small enough (2 args), so it is safe to keep as is.
+export function getProduct(productId: string, token: string) {
+  const requestURL = `${config.SMARTGPS_API_URL}/products/${productId}`;
+
+  return request(requestURL, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
