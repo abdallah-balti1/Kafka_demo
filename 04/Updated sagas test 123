@@ -1,0 +1,121 @@
+import { expectSaga } from 'redux-saga-test-plan';
+import { throwError } from 'redux-saga-test-plan/providers';
+import { call, select } from 'redux-saga/effects';
+import { selectToken } from 'redux/user/selectors';
+
+import { handleAPIExceptions } from 'utils/api';
+
+import {
+  fetchFilteredMuProductsError,
+  fetchFilteredMuProductsSuccess,
+  fetchProductsError,
+  fetchProductsSuccess,
+} from '../actions';
+
+import { getFilteredProducts, getProducts } from '../api';
+import {
+  PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS,
+  PROJECT_FETCH_PRODUCTS_REQUEST_SUCCESS,
+} from '../constants';
+
+import { modelizeProductsState } from '../modelize';
+import { fetchFilteredMuProductsSaga, fetchProductsSaga } from '../sagas';
+import { filteredMuproductStateFixture, productStateFixture } from './fixtures';
+
+jest.mock('../modelize.js', () => ({
+  modelizeProductsState: jest.fn(apiProducts => apiProducts),
+  modelizeProductsById: jest.fn(apiProducts => apiProducts[0]),
+}));
+
+describe('[Saga] Products redux', () => {
+  
+  // --- Shared Test Data (The Object!) ---
+  const token = 'fakeToken';
+  
+  // We now define the params as an object, matching your new API structure
+  const paramsObject = {
+    productType: 'subfund',
+    productIds: ['PROD_01', 'PROD_02'],
+    umbrellaId: null,
+    searchByUmbrella: true,
+    actorUid: '',
+    actorTeamCd: '',
+    mgmt_comp_lbl: '',
+    domiciliation_ctry: '',
+    umb_name_lbl: '',
+  };
+
+  beforeEach(() => {
+    // $FlowFixMe : modelizeProductsState is a mock here
+    modelizeProductsState.mockClear();
+  });
+
+  // --- FETCH PRODUCTS TESTS ---
+  describe('fetchProducts', () => {
+    describe('when request is a success', () => {
+      it('should call the success action when request is a success', async () => {
+        const outputMock = { data: productStateFixture };
+
+        // We pass the object to the saga
+        return expectSaga(fetchProductsSaga, paramsObject)
+          .provide([
+            [select(selectToken), token],
+            // MATCH UPDATE: We expect 'call' to receive the Object and the Token
+            [call(getProducts, paramsObject, token), outputMock] 
+          ])
+          .put(fetchProductsSuccess(productStateFixture))
+          .run();
+      });
+    });
+
+    describe('when request fails', () => {
+      it('should call the error action', async () => {
+        const error = new Error();
+        return expectSaga(fetchProductsSaga, paramsObject)
+          .provide([
+            [select(selectToken), token],
+            // MATCH UPDATE
+            [call(getProducts, paramsObject, token), throwError(error)], 
+            [call(handleAPIExceptions, error)],
+          ])
+          .put(fetchProductsError(error))
+          .not.put.actionType(PROJECT_FETCH_PRODUCTS_REQUEST_SUCCESS)
+          .run();
+      });
+    });
+  });
+
+  // --- FETCH FILTERED PRODUCTS TESTS ---
+  describe('describe filteredMuproducts', () => {
+    describe('when request is a success', () => {
+      it('should call the success action when request is a success', async () => {
+        const outputMock = { data: filteredMuproductStateFixture };
+
+        return expectSaga(fetchFilteredMuProductsSaga, paramsObject)
+          .provide([
+            [select(selectToken), token],
+            // MATCH UPDATE: Matching the new signature (paramsObject, token)
+            [call(getFilteredProducts, paramsObject, token), outputMock] 
+          ])
+          .put(fetchFilteredMuProductsSuccess(filteredMuproductStateFixture))
+          .run();
+      });
+    });
+
+    describe('when request fails', () => {
+      it('should call the error action', async () => {
+        const error = new Error();
+        return expectSaga(fetchFilteredMuProductsSaga, paramsObject)
+          .provide([
+            [select(selectToken), token],
+            // MATCH UPDATE
+            [call(getFilteredProducts, paramsObject, token), throwError(error)],
+            [call(handleAPIExceptions, error)],
+          ])
+          .put(fetchFilteredMuProductsError(error))
+          .not.put.actionType(PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS)
+          .run();
+      });
+    });
+  });
+});
