@@ -5,7 +5,7 @@ import { OBJECT_TYPE_ACTOR } from 'constants/objectTypes';
 import { shallow } from 'enzyme';
 import FormSubcategory from 'pages/Project/components/OperationalItems/components/FormSubcategory';
 
-// 1. FIX: Import the new hooks here
+// Import the hooks
 import { 
   useFetchMuActors, 
   useFetchDomiciliationCountries, 
@@ -27,7 +27,7 @@ jest.mock('react-use', () => ({
   useAsync: jest.fn(),
 }));
 
-// 2. FIX: Update the mock to include the new functions
+// Mock the hooks file so all imports become jest.fn()
 jest.mock('redux/entities/massUpdateTemplates/hooks.js', () => ({
   useFetchMuActors: jest.fn(),
   useFetchDomiciliationCountries: jest.fn(),
@@ -90,7 +90,6 @@ describe('<MassUpdateProductSelection>', () => {
     },
   };
 
-  // --- PREVIOUS UNIT TESTS FOR FILTERS (Kept exactly as they were) ---
   describe('filterProducts', () => {
     it('should return products filtered list', () => {
       expect(filterProducts(productsSample, '')).toEqual([
@@ -122,7 +121,6 @@ describe('<MassUpdateProductSelection>', () => {
     });
   });
 
-  // --- COMPONENT TESTS ---
   describe('MassUpdateProductSelection', () => {
     const mockFetchProducts = jest.fn();
     const mockFetchFilteredMuProducts = jest.fn();
@@ -157,18 +155,16 @@ describe('<MassUpdateProductSelection>', () => {
       isLoading: false,
     };
 
-    // 3. FIX: Define default return values for new hooks to prevent crashes
     beforeEach(() => {
       jest.clearAllMocks();
       
-      // Default mock values so the component can render safely
-      useFetchMuActors.mockReturnValue({ value: [] });
-      useFetchDomiciliationCountries.mockReturnValue({ value: [] });
-      useFetchManagementCompanyLabels.mockReturnValue({ value: [] });
-      useFetchUmbrellaNameLabels.mockReturnValue({ value: [] });
+      // FIX: Cast to 'any' so Flow allows .mockReturnValue
+      (useFetchMuActors: any).mockReturnValue({ value: [] });
+      (useFetchDomiciliationCountries: any).mockReturnValue({ value: [] });
+      (useFetchManagementCompanyLabels: any).mockReturnValue({ value: [] });
+      (useFetchUmbrellaNameLabels: any).mockReturnValue({ value: [] });
     });
 
-    // --- Shallow Rendering Tests ---
     const wrapper = shallow(<MassUpdateProductSelection {...defaultProps} />);
 
     it('should render correctly', () => {
@@ -181,7 +177,6 @@ describe('<MassUpdateProductSelection>', () => {
       expect(wrapper.find(LoadingIndicatorWithPosition).length).toEqual(0);
     });
 
-    // --- Integration/Mount Tests ---
     it('should call fetchProducts when actors are loaded', async () => {
       const messages = {
         'MU_PRODUCTS_SELECTION.NO_PRODUCTS': 'MU_PRODUCTS_SELECTION.NO_PRODUCTS',
@@ -195,9 +190,8 @@ describe('<MassUpdateProductSelection>', () => {
         'Actor Names': 'Actor Names',
       };
 
-      // Mock specific return value for this test
-      // $FlowFixMe Flow complains about mockReturnValue
-      useFetchMuActors.mockReturnValue({
+      // FIX: Cast to 'any' here as well
+      (useFetchMuActors: any).mockReturnValue({
         value: [
           {
             id: '1',
@@ -216,18 +210,15 @@ describe('<MassUpdateProductSelection>', () => {
         </IntlProvider>,
       );
 
-      // Check if fetchProducts is called with the expected arguments
       await waitFor(() => {
         expect(mockFetchProducts).toHaveBeenCalledWith('SIN', null, false);
       });
     });
 
-    // Test specific filters in Shallow render
     it('Mass update filters should render correctly', () => {
-        // Re-shallow to ensure we have a fresh instance if needed
         const wrapperFilters = shallow(<MassUpdateProductSelection {...defaultProps} />);
         
-        expect(wrapperFilters.find('FormSubcategory').length).toEqual(4); // Assuming added filters increased this count
+        expect(wrapperFilters.find('FormSubcategory').length).toEqual(4); 
 
         const teamsSubcategory = wrapperFilters
           .find(FormSubcategory)
