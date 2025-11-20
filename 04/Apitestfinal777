@@ -1,0 +1,131 @@
+// @flow
+import { getFilteredProducts, getProduct, getProducts } from 'redux/entities/products/api';
+import config from 'utils/config';
+
+jest.mock('utils/request', () => ({
+  request: (requestURL, options) =>
+    Promise.resolve({
+      requestURL,
+      options,
+    }),
+}));
+
+describe('API call', () => {
+  const token = 'fakeToken';
+  const productType = 'single';
+  const productId = 'abcde';
+
+  describe('getProducts', () => {
+    it('should call the SmartGPS API on the correct URL', () => {
+      // FIX: Pass arguments as an object, then the token
+      const request = getProducts({
+        productType,
+        productIds: null,
+        umbrellaId: null,
+        searchByUmbrella: true,
+        actorUid: null,
+        actorTeamCd: null,
+        mgmt_comp_lbl: null,
+        domiciliation_ctry: null,
+        umb_name_lbl: null,
+      }, token);
+
+      return request.then(response => {
+        expect(response.requestURL).toEqual(`${config.SMARTGPS_API_URL}/products/search`);
+        expect(response.options.data).toEqual({
+          prod_origin: productType,
+          prod_cds: null,
+          umb_cd: null,
+          search_by_umbrella: true,
+          only_active_products: true,
+          actor_uid: null,
+          actor_team_cd: null,
+          mgmt_comp_lbl: null,
+          domiciliation_ctry: null,
+          umb_name_lbl: null,
+        });
+      });
+    });
+  });
+
+  describe('getFilteredProducts', () => {
+    it('should call the SmartGPS API on the correct URL', () => {
+      // FIX: Pass arguments as an object, then the token
+      const request = getFilteredProducts({
+        productType,
+        productIds: null,
+        umbrellaId: null,
+        searchByUmbrella: true,
+        actorUid: null,
+        actorTeamCd: null,
+        mgmt_comp_lbl: null,
+        domiciliation_ctry: null,
+        umb_name_lbl: null,
+      }, token);
+
+      return request.then(response => {
+        expect(response.requestURL).toEqual(`${config.SMARTGPS_API_URL}/products/search`);
+        expect(response.options.data).toEqual({
+          prod_origin: productType,
+          prod_cds: null,
+          umb_cd: null,
+          search_by_umbrella: true,
+          only_active_products: true,
+          actor_uid: null,
+          actor_team_cd: null,
+          mgmt_comp_lbl: null,
+          domiciliation_ctry: null,
+          umb_name_lbl: null,
+        });
+      });
+    });
+  });
+
+  describe('getProduct', () => {
+    it('should call the SmartGPS API on the correct URL', () => {
+      // This one didn't change (still 2 args), but keeping it for completeness
+      const request = getProduct(productId, token);
+      return request.then(response => {
+        expect(response.requestURL).toEqual(`${config.SMARTGPS_API_URL}/products/abcde`);
+      });
+    });
+  });
+
+  describe('API call with empty productType', () => {
+    const token = 'fakeToken';
+    const productType = null;
+
+    describe('getProducts', () => {
+      it('should call the SmartGPS API on the correct URL', () => {
+        // FIX: Pass arguments as an object, then the token
+        const request = getProducts({
+          productType: null,
+          productIds: null,
+          umbrellaId: null,
+          searchByUmbrella: true,
+          actorUid: null,
+          actorTeamCd: null,
+          mgmt_comp_lbl: null,
+          domiciliation_ctry: null,
+          umb_name_lbl: null,
+        }, token);
+
+        return request.then(response => {
+          expect(response.requestURL).toEqual(`${config.SMARTGPS_API_URL}/products/search`);
+          expect(response.options.data).toEqual({
+            prod_origin: null,
+            prod_cds: null,
+            umb_cd: null,
+            search_by_umbrella: true,
+            only_active_products: true,
+            actor_uid: null,
+            actor_team_cd: null,
+            mgmt_comp_lbl: null,
+            domiciliation_ctry: null,
+            umb_name_lbl: null,
+          });
+        });
+      });
+    });
+  });
+});
