@@ -5,7 +5,6 @@ import { render, waitFor } from '@testing-library/react';
 import { OBJECT_TYPE_ACTOR } from 'constants/objectTypes';
 import { shallow } from 'enzyme';
 import FormSubcategory from 'pages/Project/components/OperationalItems/components/FormSubcategory';
-import { useFetchMuActors } from 'redux/entities/massUpdateTemplates/hooks.js';
 import { projectForUiFixture1 } from 'redux/entities/projects/tests/fixtures';
 import { LoadingIndicatorWithPosition } from 'styles';
 
@@ -16,15 +15,22 @@ import MassUpdateProductSelection, {
 } from '../MassUpdateProductSelection';
 import Style from '../MassUpdateProductSelection.style';
 
+// Mock the hooks before they are imported
+jest.mock('redux/entities/massUpdateTemplates/hooks.js');
+
+const mockUseFetchMuActors = jest.fn();
+const mockUseFetchDomiciliationCountries = jest.fn();
+const mockUseFetchManagementCompanyLabels = jest.fn();
+const mockUseFetchUmbrellaNameLabels = jest.fn();
+
+// Set up the mocks
+require('redux/entities/massUpdateTemplates/hooks.js').useFetchMuActors = mockUseFetchMuActors;
+require('redux/entities/massUpdateTemplates/hooks.js').useFetchDomiciliationCountries = mockUseFetchDomiciliationCountries;
+require('redux/entities/massUpdateTemplates/hooks.js').useFetchManagementCompanyLabels = mockUseFetchManagementCompanyLabels;
+require('redux/entities/massUpdateTemplates/hooks.js').useFetchUmbrellaNameLabels = mockUseFetchUmbrellaNameLabels;
+
 jest.mock('react-use', () => ({
   useAsync: jest.fn(),
-}));
-
-jest.mock('redux/entities/massUpdateTemplates/hooks.js', () => ({
-  useFetchMuActors: jest.fn(),
-  useFetchDomiciliationCountries: jest.fn(),
-  useFetchManagementCompanyLabels: jest.fn(),
-  useFetchUmbrellaNameLabels: jest.fn(),
 }));
 
 describe('<MassUpdateProductSelection>', () => {
@@ -81,6 +87,16 @@ describe('<MassUpdateProductSelection>', () => {
       mgmt_comp_lbl: 'ubm1',
     },
   };
+
+  beforeEach(() => {
+    // Set default return values for all hooks
+    mockUseFetchMuActors.mockReturnValue({
+      value: [],
+    });
+    mockUseFetchDomiciliationCountries.mockReturnValue(['token', false, null]);
+    mockUseFetchManagementCompanyLabels.mockReturnValue(['token', false, null]);
+    mockUseFetchUmbrellaNameLabels.mockReturnValue(['token', false, null]);
+  });
 
   describe('filterProducts', () => {
     it('should return products filtered list', () => {
@@ -223,11 +239,8 @@ describe('MassUpdateProductSelection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Mock all the hooks with their return values
-    const hooks = require('redux/entities/massUpdateTemplates/hooks.js');
-    
     // Mock useFetchMuActors
-    hooks.useFetchMuActors.mockReturnValue({
+    mockUseFetchMuActors.mockReturnValue({
       value: [
         {
           id: '1',
@@ -241,9 +254,9 @@ describe('MassUpdateProductSelection', () => {
     });
     
     // Mock the three new hooks to return [token, loading, error]
-    hooks.useFetchDomiciliationCountries.mockReturnValue(['token', false, null]);
-    hooks.useFetchManagementCompanyLabels.mockReturnValue(['token', false, null]);
-    hooks.useFetchUmbrellaNameLabels.mockReturnValue(['token', false, null]);
+    mockUseFetchDomiciliationCountries.mockReturnValue(['token', false, null]);
+    mockUseFetchManagementCompanyLabels.mockReturnValue(['token', false, null]);
+    mockUseFetchUmbrellaNameLabels.mockReturnValue(['token', false, null]);
   });
 
   it('should call fetchProducts when actors are loaded', async () => {
