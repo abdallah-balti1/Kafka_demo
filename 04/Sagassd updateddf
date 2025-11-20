@@ -1,0 +1,170 @@
+// @flow
+import type { Saga } from 'redux-saga';
+import { call, put, takeEvery } from 'redux-saga/effects';
+import authenticatedCall from 'redux/utils/authenticatedCall';
+import { handleAPIExceptions } from 'utils/api';
+
+import {
+  fetchFilteredMuProductsError,
+  fetchFilteredMuProductsSuccess,
+  fetchProductsError,
+  fetchProductsSuccess,
+} from '../actions';
+
+import { getFilteredProducts, getProducts } from '../api';
+import {
+  PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST,
+  PROJECT_FETCH_PRODUCTS_REQUEST,
+} from '../constants';
+
+import { modelizeProductsState } from '../modelize';
+
+export function* fetchProductsSaga({
+  productType,
+  productIds,
+  umbrellaId,
+  searchByUmbrella,
+  actorUid,
+  actorTeamCd,
+  mgmt_comp_lbl,
+  domiciliation_ctry,
+  umb_name_lbl,
+}: FetchProductsActionType): Saga<*> {
+  try {
+    // Group params into a single object
+    const params = {
+      productType,
+      productIds,
+      umbrellaId,
+      searchByUmbrella,
+      actorUid,
+      actorTeamCd,
+      mgmt_comp_lbl,
+      domiciliation_ctry,
+      umb_name_lbl,
+    };
+
+    // Pass the object. authenticatedCall will append 'token' as the 2nd argument.
+    const response: ResponseType = yield authenticatedCall(getProducts, params);
+
+    yield put(fetchProductsSuccess(modelizeProductsState(response.data)));
+  } catch (error) {
+    yield put(fetchProductsError(error));
+    yield call(handleAPIExceptions, error);
+  }
+}
+
+export function* fetchFilteredMuProductsSaga({
+  productType,
+  productIds,
+  umbrellaId,
+  searchByUmbrella,
+  actorUid,
+  actorTeamCd,
+  mgmt_comp_lbl,
+  domiciliation_ctry,
+  umb_name_lbl,
+}: FetchFilteredMuProductsActionType): Saga<*> {
+  try {
+    // Group params into a single object
+    const params = {
+      productType,
+      productIds,
+      umbrellaId,
+      searchByUmbrella,
+      actorUid,
+      actorTeamCd,
+      mgmt_comp_lbl,
+      domiciliation_ctry,
+      umb_name_lbl,
+    };
+
+    // Pass the object. authenticatedCall will append 'token' as the 2nd argument.
+    const response: ResponseType = yield authenticatedCall(getFilteredProducts, params);
+
+    yield put(fetchFilteredMuProductsSuccess(modelizeProductsState(response.data)));
+  } catch (error) {
+    yield put(fetchFilteredMuProductsError(error));
+    yield call(handleAPIExceptions, error);
+  }
+}
+
+export default function* productsSaga(): Saga<*> {
+  yield takeEvery(PROJECT_FETCH_PRODUCTS_REQUEST, fetchProductsSaga);
+  yield takeEvery(PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST, fetchFilteredMuProductsSaga);
+}
+
+
+
+
+// src/api.js
+
+// ... imports
+
+export function getProducts(params, token) { // <--- Accepts token as 2nd arg
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+  } = params; // Destructure from the first argument
+
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+export function getFilteredProducts(params, token) { // <--- Accepts token as 2nd arg
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+  } = params;
+
+  const requestURL = `${config.SMARTGPS_API_URL}/products/search`;
+
+  return request(requestURL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    data: {
+      prod_origin: productType,
+      prod_cds: productIds,
+      umb_cd: umbrellaId,
+      search_by_umbrella: searchByUmbrella,
+      only_active_products: true,
+      actor_uid: actorUid,
+      actor_team_cd: actorTeamCd,
+      mgmt_comp_lbl: mgmt_comp_lbl,
+      domiciliation_ctry: domiciliation_ctry,
+      umb_name_lbl: umb_name_lbl,
+    },
+  });
+}
+
+// getProduct remains unchanged
