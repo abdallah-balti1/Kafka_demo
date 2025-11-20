@@ -1,0 +1,292 @@
+I'll provide you with the updated files. Based on your code, here are the corrected versions:
+sagas.test.js
+import { expectSaga } from 'redux-saga-test-plan';
+import { throwError } from 'redux-saga-test-plan/providers';
+import { call, select } from 'redux-saga/effects';
+import { selectToken } from 'redux/user/selectors';
+
+import { handleAPIExceptions } from 'utils/api';
+
+import {
+  fetchFilteredMuProductsError,
+  fetchFilteredMuProductsSuccess,
+  fetchProductsError,
+  fetchProductsSuccess,
+} from '../actions';
+import { getFilteredProducts, getProducts } from '../api';
+import {
+  PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS,
+  PROJECT_FETCH_PRODUCTS_REQUEST_SUCCESS,
+} from '../constants';
+import { modelizeProductsState } from '../modelize';
+import { fetchFilteredMuProductsSaga, fetchProductsSaga } from '../sagas';
+import { filteredMuProductStateFixture, productStateFixture } from '../fixtures';
+
+jest.mock('../modelize.js', () => ({
+  modelizeProductsState: jest.fn(apiProducts => apiProducts),
+  modelizeProductsById: jest.fn(apiProducts => apiProducts[0]),
+}));
+
+describe('[Saga] Products redux', () => {
+  describe('fetchProducts', () => {
+    const token = 'fakeToken';
+    const params = {
+      productType: 'subfund',
+      productIds: ['PROD_01', 'PROD_02'],
+      umbrellaId: null,
+      searchByUmbrella: true,
+      actorUid: '',
+      actorTeamCd: '',
+      mgmt_comp_lbl: '',
+      domiciliation_ctry: '',
+      umb_name_lbl: '',
+    };
+
+    beforeEach(() => {
+      //$FlowFixMe : modelizeProductsState is a mock here
+      modelizeProductsState.mockClear();
+    });
+
+    describe('when request is a success', () => {
+      it('should call the success action when request is a success', async () => {
+        const outputMock = { data: productStateFixture };
+
+        return expectSaga(fetchProductsSaga, params)
+          .provide([
+            [select(selectToken), token],
+            [
+              call(getProducts, {
+                productType: params.productType,
+                productIds: params.productIds,
+                umbrellaId: params.umbrellaId,
+                searchByUmbrella: params.searchByUmbrella,
+                actorUid: params.actorUid,
+                actorTeamCd: params.actorTeamCd,
+                mgmt_comp_lbl: params.mgmt_comp_lbl,
+                domiciliation_ctry: params.domiciliation_ctry,
+                umb_name_lbl: params.umb_name_lbl,
+                token,
+              }),
+              outputMock,
+            ],
+          ])
+          .put(fetchProductsSuccess(productStateFixture))
+          .run();
+      });
+    });
+
+    describe('when request fails', () => {
+      it('should call the error action', async () => {
+        const error = new Error();
+        return expectSaga(fetchProductsSaga, params)
+          .provide([
+            [select(selectToken), token],
+            [
+              call(getProducts, {
+                productType: params.productType,
+                productIds: params.productIds,
+                umbrellaId: params.umbrellaId,
+                searchByUmbrella: params.searchByUmbrella,
+                actorUid: params.actorUid,
+                actorTeamCd: params.actorTeamCd,
+                mgmt_comp_lbl: params.mgmt_comp_lbl,
+                domiciliation_ctry: params.domiciliation_ctry,
+                umb_name_lbl: params.umb_name_lbl,
+                token,
+              }),
+              throwError(error),
+            ],
+            [call(handleAPIExceptions, error)],
+          ])
+          .put(fetchProductsError(error))
+          .not.put.actionType(PROJECT_FETCH_PRODUCTS_REQUEST_SUCCESS)
+          .run();
+      });
+    });
+  });
+
+  describe('[Saga] fetch filtered Products redux', () => {
+    describe('filteredMuproducts', () => {
+      const token = 'fakeToken';
+      const params = {
+        productType: 'subfund',
+        productIds: ['PROD_01', 'PROD_02'],
+        umbrellaId: null,
+        searchByUmbrella: true,
+        actorUid: '',
+        actorTeamCd: '',
+        mgmt_comp_lbl: '',
+        domiciliation_ctry: '',
+        umb_name_lbl: '',
+      };
+
+      beforeEach(() => {
+        //$FlowFixMe : modelizeProductsState is a mock here
+        modelizeProductsState.mockClear();
+      });
+
+      describe('when request is a success', () => {
+        it('should call the success action when request is a success', async () => {
+          const outputMock = { data: filteredMuProductStateFixture };
+
+          return expectSaga(fetchFilteredMuProductsSaga, params)
+            .provide([
+              [select(selectToken), token],
+              [
+                call(getFilteredProducts, {
+                  productType: params.productType,
+                  productIds: params.productIds,
+                  umbrellaId: params.umbrellaId,
+                  searchByUmbrella: params.searchByUmbrella,
+                  actorUid: params.actorUid,
+                  actorTeamCd: params.actorTeamCd,
+                  mgmt_comp_lbl: params.mgmt_comp_lbl,
+                  domiciliation_ctry: params.domiciliation_ctry,
+                  umb_name_lbl: params.umb_name_lbl,
+                  token,
+                }),
+                outputMock,
+              ],
+            ])
+            .put(fetchFilteredMuProductsSuccess(filteredMuProductStateFixture))
+            .run();
+        });
+      });
+
+      describe('when request fails', () => {
+        it('should call the error action', async () => {
+          const error = new Error();
+          return expectSaga(fetchFilteredMuProductsSaga, params)
+            .provide([
+              [select(selectToken), token],
+              [
+                call(getFilteredProducts, {
+                  productType: params.productType,
+                  productIds: params.productIds,
+                  umbrellaId: params.umbrellaId,
+                  searchByUmbrella: params.searchByUmbrella,
+                  actorUid: params.actorUid,
+                  actorTeamCd: params.actorTeamCd,
+                  mgmt_comp_lbl: params.mgmt_comp_lbl,
+                  domiciliation_ctry: params.domiciliation_ctry,
+                  umb_name_lbl: params.umb_name_lbl,
+                  token,
+                }),
+                throwError(error),
+              ],
+              [call(handleAPIExceptions, error)],
+            ])
+            .put(fetchFilteredMuProductsError(error))
+            .not.put.actionType(PROJECT_FETCH_FILTERED_MU_PRODUCTS_REQUEST_SUCCESS)
+            .run();
+        });
+      });
+    });
+  });
+});
+sagas.js (the actual saga file)
+import { call, put, select } from 'redux-saga/effects';
+import { selectToken } from 'redux/user/selectors';
+import { handleAPIExceptions } from 'utils/api';
+
+import {
+  fetchFilteredMuProductsError,
+  fetchFilteredMuProductsSuccess,
+  fetchProductsError,
+  fetchProductsSuccess,
+} from './actions';
+import { getFilteredProducts, getProducts } from './api';
+import { modelizeProductsState } from './modelize';
+
+export function* fetchProductsSaga(params) {
+  try {
+    const token = yield select(selectToken);
+    
+    const response = yield call(getProducts, {
+      productType: params.productType,
+      productIds: params.productIds,
+      umbrellaId: params.umbrellaId,
+      searchByUmbrella: params.searchByUmbrella,
+      actorUid: params.actorUid,
+      actorTeamCd: params.actorTeamCd,
+      mgmt_comp_lbl: params.mgmt_comp_lbl,
+      domiciliation_ctry: params.domiciliation_ctry,
+      umb_name_lbl: params.umb_name_lbl,
+      token,
+    });
+
+    const modelizedProducts = modelizeProductsState(response.data);
+    yield put(fetchProductsSuccess(modelizedProducts));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(fetchProductsError(error));
+  }
+}
+
+export function* fetchFilteredMuProductsSaga(params) {
+  try {
+    const token = yield select(selectToken);
+    
+    const response = yield call(getFilteredProducts, {
+      productType: params.productType,
+      productIds: params.productIds,
+      umbrellaId: params.umbrellaId,
+      searchByUmbrella: params.searchByUmbrella,
+      actorUid: params.actorUid,
+      actorTeamCd: params.actorTeamCd,
+      mgmt_comp_lbl: params.mgmt_comp_lbl,
+      domiciliation_ctry: params.domiciliation_ctry,
+      umb_name_lbl: params.umb_name_lbl,
+      token,
+    });
+
+    const modelizedProducts = modelizeProductsState(response.data);
+    yield put(fetchFilteredMuProductsSuccess(modelizedProducts));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(fetchFilteredMuProductsError(error));
+  }
+}
+api.js (update your API functions)
+// Update your API functions to accept an object parameter
+
+export const getProducts = (config) => {
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+    token,
+  } = config;
+
+  // Your existing API implementation here
+  // Use the destructured variables as needed
+};
+
+export const getFilteredProducts = (config) => {
+  const {
+    productType,
+    productIds,
+    umbrellaId,
+    searchByUmbrella,
+    actorUid,
+    actorTeamCd,
+    mgmt_comp_lbl,
+    domiciliation_ctry,
+    umb_name_lbl,
+    token,
+  } = config;
+
+  // Your existing API implementation here
+  // Use the destructured variables as needed
+};
+The key changes:
+API functions now accept a single object parameter instead of multiple individual parameters
+Sagas now pass all parameters as a single object to the API functions
+Tests now provide the mocked call effect with the same object structure
+This resolves the "too many arguments" error since you're now passing just 1 argument (an object) instead of 10+ individual arguments.
