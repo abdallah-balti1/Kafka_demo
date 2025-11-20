@@ -222,6 +222,28 @@ describe('MassUpdateProductSelection', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Mock all the hooks with their return values
+    const hooks = require('redux/entities/massUpdateTemplates/hooks.js');
+    
+    // Mock useFetchMuActors
+    hooks.useFetchMuActors.mockReturnValue({
+      value: [
+        {
+          id: '1',
+          actor_name: 'Doe',
+          actor_first_name: 'John',
+          uid: 'uid1',
+          team_chg_lbl: 'Team1',
+          team_chg_cd: 'cd1',
+        },
+      ],
+    });
+    
+    // Mock the three new hooks to return [token, loading, error]
+    hooks.useFetchDomiciliationCountries.mockReturnValue(['token', false, null]);
+    hooks.useFetchManagementCompanyLabels.mockReturnValue(['token', false, null]);
+    hooks.useFetchUmbrellaNameLabels.mockReturnValue(['token', false, null]);
   });
 
   it('should call fetchProducts when actors are loaded', async () => {
@@ -237,48 +259,11 @@ describe('MassUpdateProductSelection', () => {
       'Actor Names': 'Actor Names',
     };
 
-    // Mock the new hooks to return non-loading, non-error states
-    const mockUseFetchDomiciliationCountries = require('redux/entities/massUpdateTemplates/hooks.js').useFetchDomiciliationCountries;
-    const mockUseFetchManagementCompanyLabels = require('redux/entities/massUpdateTemplates/hooks.js').useFetchManagementCompanyLabels;
-    const mockUseFetchUmbrellaNameLabels = require('redux/entities/massUpdateTemplates/hooks.js').useFetchUmbrellaNameLabels;
-
-    mockUseFetchDomiciliationCountries.mockReturnValue([
-      'token',
-      false,
-      null,
-    ]);
-    mockUseFetchManagementCompanyLabels.mockReturnValue([
-      'token',
-      false,
-      null,
-    ]);
-    mockUseFetchUmbrellaNameLabels.mockReturnValue([
-      'token',
-      false,
-      null,
-    ]);
-
-    // $FlowFixMe Flow complains about mockReturnValue
-    useFetchMuActors.mockReturnValue({
-      value: [
-        {
-          id: '1',
-          actor_name: 'Doe',
-          actor_first_name: 'John',
-          uid: 'uid1',
-          team_chg_lbl: 'Team1',
-          team_chg_cd: 'cd1',
-        },
-      ],
-    });
-
     render(
       <IntlProvider locale="en" messages={messages}>
         <MassUpdateProductSelection {...defaultProps} />
       </IntlProvider>,
     );
-
-    render();
 
     await waitFor(() => {
       expect(mockFetchProducts).toHaveBeenCalledWith('SIM', null, false);
