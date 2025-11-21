@@ -1,0 +1,78 @@
+import { render, waitFor } from '@testing-library/react';
+import { IntlProvider } from 'react-intl';
+import MassUpdateProductSelection from './MassUpdateProductSelection';
+import { useFetchDomiciliationCountries, useFetchManagementCompanyLabels, useFetchUmbrellaNameLabels } from 'hooks'; // Adjust import path as needed
+import { jest } from '@jest/globals';
+
+jest.mock('hooks', () => ({
+  useFetchDomiciliationCountries: jest.fn(),
+  useFetchManagementCompanyLabels: jest.fn(),
+  useFetchUmbrellaNameLabels: jest.fn(),
+}));
+
+describe('MassUpdateProductSelection', () => {
+  const productsSample = [
+    { id: '11', name: '11', official_name: 'officialname11', type: 'SIN', jurisdiction: 'FRA', umbrellaId: '1', statusCode: '1' },
+    { id: '13', name: '13', official_name: 'officialname13', type: 'SIN', jurisdiction: 'FRA', umbrellaId: '1', statusCode: '1' },
+    { id: '139', name: '139', official_name: 'officialname139', type: 'SIN', jurisdiction: 'FRA', umbrellaId: '1', statusCode: '1' },
+  ];
+
+  const umbrellasSample = [
+    { id: '11', name: '11' },
+    { id: '13', name: '13' },
+    { id: '139', name: '139' },
+  ];
+
+  const messages = {
+    'MU_PRODUCTS_SELECTION.NO_PRODUCTS': 'No products available',
+    'LISTS_FILTER_PLACEHOLDER': 'Filter products...',
+    'SELECTOR': 'Selector',
+    'PRODUCTS': 'Products',
+  };
+
+  beforeEach(() => {
+    useFetchDomiciliationCountries.mockReturnValue({ data: ['Country1', 'Country2'] });
+    useFetchManagementCompanyLabels.mockReturnValue({ data: ['Company1', 'Company2'] });
+    useFetchUmbrellaNameLabels.mockReturnValue({ data: ['Umbrella1', 'Umbrella2'] });
+  });
+
+  it('should render correctly', () => {
+    const { container } = render(
+      <IntlProvider locale="en" messages={messages}>
+        <MassUpdateProductSelection products={productsSample} umbrellas={umbrellasSample} />
+      </IntlProvider>
+    );
+
+    expect(container).toMatchSnapshot();
+  });
+
+  it('should fetch products when actors are loaded', async () => {
+    const { container } = render(
+      <IntlProvider locale="en" messages={messages}>
+        <MassUpdateProductSelection products={productsSample} umbrellas={umbrellasSample} />
+      </IntlProvider>
+    );
+
+    await waitFor(() => {
+      expect(useFetchDomiciliationCountries).toHaveBeenCalled();
+      expect(useFetchManagementCompanyLabels).toHaveBeenCalled();
+      expect(useFetchUmbrellaNameLabels).toHaveBeenCalled();
+    });
+
+    expect(container).toMatchSnapshot();
+  });
+
+  it('should filter products based on selected criteria', () => {
+    const filterProducts = (products, query) => products.filter(product => product.name.includes(query));
+    const filtered = filterProducts(productsSample, '11');
+    expect(filtered.length).toEqual(1);
+    expect(filtered[0].name).toEqual('11');
+  });
+
+  it('should filter umbrellas based on selected criteria', () => {
+    const filterUmbrellas = (umbrellas, query) => umbrellas.filter(umbrella => umbrella.name.includes(query));
+    const filtered = filterUmbrellas(umbrellasSample, '13');
+    expect(filtered.length).toEqual(1);
+    expect(filtered[0].name).toEqual('13');
+  });
+});
