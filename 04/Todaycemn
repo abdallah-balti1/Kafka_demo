@@ -1,0 +1,282 @@
+// @flow
+import React from 'react';
+import { IntlProvider } from 'react-intl';
+import { render, waitFor } from '@testing-library/react';
+import { OBJECT_TYPE_ACTOR } from 'constants/objectTypes';
+import { shallow } from 'enzyme';
+// Import the component and types
+import MassUpdateProductSelection, {
+  filterProducts,
+  filterUmbrellas,
+  type PropsType,
+} from '../MassUpdateProductSelection';
+import Style from '../MassUpdateProductSelection.style';
+import FormSubcategory from 'pages/Project/components/OperationalItems/components/FormSubcategory';
+
+// 1. Import the Hooks
+import {
+  useFetchMuActors,
+  useFetchDomiciliationCountries,
+  useFetchManagementCompanyLabels,
+  useFetchUmbrellaNameLabels,
+} from 'redux/entities/massUpdateTemplates/hooks.js';
+
+import { projectForUiFixture1 } from 'redux/entities/projects/tests/fixtures';
+import { LoadingIndicatorWithPosition } from 'styles';
+
+// 2. Mock the Hooks immediately
+// Ensure this string matches the import string EXACTLY
+jest.mock('redux/entities/massUpdateTemplates/hooks.js', () => ({
+  useFetchMuActors: jest.fn(),
+  useFetchDomiciliationCountries: jest.fn(),
+  useFetchManagementCompanyLabels: jest.fn(),
+  useFetchUmbrellaNameLabels: jest.fn(),
+}));
+
+jest.mock('react-use', () => ({
+  useAsync: jest.fn(),
+}));
+
+// --- TEST DATA SAMPLES ---
+const productsSample = [
+  {
+    id: '11',
+    name: '11',
+    official_name: 'officialname11',
+    type: 'SIN',
+    juridiction: 'FRA',
+    umbrellaId: '',
+    statusCode: '1',
+  },
+  {
+    id: '13',
+    name: '13',
+    official_name: 'officialname13',
+    type: 'SIN',
+    juridiction: 'FRA',
+    umbrellaId: '',
+    statusCode: '1',
+  },
+  {
+    id: '139',
+    name: '139',
+    official_name: 'officialname139',
+    type: 'SIN',
+    juridiction: 'FRA',
+    umbrellaId: '',
+    statusCode: '1',
+  },
+];
+
+const umbrellasSample = {
+  '11': {
+    id: '11',
+    name: '11',
+    official_name: '11',
+    domiciliationCountry: 'LUX',
+    mgmt_comp_lbl: 'ubm1',
+  },
+  '13': {
+    id: '13',
+    name: '13',
+    official_name: '13',
+    domiciliationCountry: 'LUX',
+    mgmt_comp_lbl: 'ubm1',
+  },
+  '139': {
+    id: '139',
+    name: '139',
+    official_name: '139',
+    domiciliationCountry: 'LUX',
+    mgmt_comp_lbl: 'ubm1',
+  },
+};
+
+// --- HELPER FUNCTION TESTS ---
+describe('filterProducts', () => {
+  it('should return products filtered list', () => {
+    expect(filterProducts(productsSample, '')).toEqual([
+      { id: '11', name: 'officialname11' },
+      { id: '13', name: 'officialname13' },
+      { id: '139', name: 'officialname139' },
+    ]);
+    expect(filterProducts(productsSample, 'officialname11')).toEqual([
+      {
+        id: '11',
+        name: 'officialname11',
+      },
+    ]);
+    expect(filterProducts(productsSample, 'x')).toEqual([]);
+  });
+});
+
+describe('filterUmbrellas', () => {
+  it('should return products filtered list', () => {
+    expect(filterUmbrellas(umbrellasSample, '')).toEqual([
+      { id: '11', name: '11' },
+      { id: '13', name: '13' },
+      { id: '139', name: '139' },
+    ]);
+    expect(filterUmbrellas(umbrellasSample, '13')).toEqual([
+      { id: '13', name: '13' },
+      { id: '139', name: '139' },
+    ]);
+    expect(filterUmbrellas(umbrellasSample, 'x')).toEqual([]);
+  });
+});
+
+// --- MAIN COMPONENT TESTS ---
+describe('MassUpdateProductSelection', () => {
+  const mockFetchProducts = jest.fn();
+  const mockFetchFilteredMuProducts = jest.fn();
+  const mockFetchUmbrellas = jest.fn();
+  const mockDownloadMassUpdateTemplate = jest.fn();
+  const mockOnCloseClick = jest.fn();
+
+  const defaultProps: PropsType = {
+    taskId: 1,
+    token: 'token',
+    onCloseClick: mockOnCloseClick,
+    downloadMassUpdateTemplate: mockDownloadMassUpdateTemplate,
+    fetchProducts: mockFetchProducts,
+    fetchFilteredMuProducts: mockFetchFilteredMuProducts,
+    fetchUmbrellas: mockFetchUmbrellas,
+    products: [],
+    filteredMuProducts: [],
+    umbrellas: {},
+    formik: {
+      values: { selectedItems: {} },
+      setFieldValue: jest.fn(),
+    },
+    project: {
+      productType: 'Single',
+      projectModel: { name: 'Massupdate Actor' },
+    },
+    isLoading: false,
+  };
+
+  const messages = {
+    'MU_PRODUCTS_SELECTION.NO_PRODUCTS': 'MU_PRODUCTS_SELECTION.NO_PRODUCTS',
+    LISTS_FILTER_PLACEHOLDER: 'LISTS_FILTER_PLACEHOLDER',
+    Selection: 'Selection',
+    'MODAL.ACTION.CONFIRM': 'MODAL.ACTION.CONFIRM',
+    Products: 'Products',
+    'MODAL.ACTION.CANCEL': 'MODAL.ACTION.CANCEL',
+    MASSUPDATE_FILTERS: 'MASSUPDATE_FILTERS',
+    Teams: 'Teams',
+    'Actor Names': 'Actor Names',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should call fetchProducts when actors are loaded', async () => {
+    // Mock the Hooks return values using explicit casting for Flow
+    (useFetchMuActors: any).mockReturnValue({
+      value: [
+        {
+          id: '1',
+          actor_name: 'Doe',
+          actor_first_name: 'John',
+          uid: 'uid1',
+          team_chg_lbl: 'Team1',
+          team_chg_cd: 'cd1',
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    (useFetchDomiciliationCountries: any).mockReturnValue({
+      value: ['token'],
+      loading: false,
+      error: null,
+    });
+
+    (useFetchManagementCompanyLabels: any).mockReturnValue({
+      value: ['token'],
+      loading: false,
+      error: null,
+    });
+
+    (useFetchUmbrellaNameLabels: any).mockReturnValue({
+      value: ['token'],
+      loading: false,
+      error: null,
+    });
+
+    render(
+      <IntlProvider locale="en" messages={messages}>
+        <MassUpdateProductSelection {...defaultProps} />
+      </IntlProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockFetchProducts).toHaveBeenCalledWith(
+        'SIN',
+        null,
+        false,
+        '',
+        '',
+        '',
+        '',
+        ''
+      );
+    });
+  });
+
+  // Unit test for subcomponents using Shallow/Enzyme
+  describe('MassUpdateProductSelection filters', () => {
+    // Props for the shallow render (using sample data)
+    const props: PropsType = {
+        ...defaultProps,
+        taskId: 123456,
+        products: productsSample,
+        filteredMuProducts: productsSample,
+        umbrellas: umbrellasSample,
+        formik: { values: { selectedItems: [] }, setFieldValue: jest.fn() },
+        project: {
+            ...projectForUiFixture1,
+            projectModel: {
+                name: OBJECT_TYPE_ACTOR,
+                id: 0,
+                type: 'mass update actor',
+                productTypes: null,
+                isDeprecated: false,
+                isTechnical: false
+            }
+        },
+        token: 'token',
+        isLoading: false
+    };
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        // FIX: Casting to 'any' to bypass Flow errors on mockReturnValue
+        (useFetchMuActors: any).mockReturnValue({ value: [] });
+        (useFetchDomiciliationCountries: any).mockReturnValue({ value: [] });
+        (useFetchManagementCompanyLabels: any).mockReturnValue({ value: [] });
+        (useFetchUmbrellaNameLabels: any).mockReturnValue({ value: [] });
+    });
+
+    it('Mass update filters should render correctly', () => {
+        const wrapper = shallow(<MassUpdateProductSelection {...props} />);
+        
+        // Check for 4 subcategories
+        expect(wrapper.find(FormSubcategory).length).toEqual(4);
+
+        // Check specifically for 'Teams'
+        const teamsSubcategory = wrapper
+            .find(FormSubcategory)
+            .filterWhere(node => node.prop('subcategoryLabel') === 'Teams');
+        expect(teamsSubcategory).toHaveLength(1);
+
+        // Check specifically for 'Actor Names'
+        const actorNamesSubcategory = wrapper
+            .find(FormSubcategory)
+            .filterWhere(node => node.prop('subcategoryLabel') === 'Actor Names');
+        expect(actorNamesSubcategory).toHaveLength(1);
+    });
+  });
+});
