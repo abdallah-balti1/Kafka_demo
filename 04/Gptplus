@@ -1,10 +1,10 @@
 import { render, waitFor } from '@testing-library/react';
 import { IntlProvider } from 'react-intl';
 import MassUpdateProductSelection from './MassUpdateProductSelection';
-import { useFetchDomiciliationCountries, useFetchManagementCompanyLabels, useFetchUmbrellaNameLabels } from 'hooks'; // Adjust import path as needed
-import { jest } from '@jest/globals';
+import { useFetchDomiciliationCountries, useFetchManagementCompanyLabels, useFetchUmbrellaNameLabels } from 'src/hooks'; // Adjust import path
 
-jest.mock('hooks', () => ({
+// Mock hooks before any tests
+jest.mock('src/hooks', () => ({
   useFetchDomiciliationCountries: jest.fn(),
   useFetchManagementCompanyLabels: jest.fn(),
   useFetchUmbrellaNameLabels: jest.fn(),
@@ -31,6 +31,7 @@ describe('MassUpdateProductSelection', () => {
   };
 
   beforeEach(() => {
+    // Mock return values for each hook
     useFetchDomiciliationCountries.mockReturnValue({ data: ['Country1', 'Country2'] });
     useFetchManagementCompanyLabels.mockReturnValue({ data: ['Company1', 'Company2'] });
     useFetchUmbrellaNameLabels.mockReturnValue({ data: ['Umbrella1', 'Umbrella2'] });
