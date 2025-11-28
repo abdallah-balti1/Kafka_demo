@@ -1,1 +1,39 @@
+# --- UMBRELLA FILTERS (robust: join only once) ------------------
 
+# Do we need to join Umbrella at all?
+needs_umbrella_join = (
+    mgmt_comp_lbl is not None
+    or umb_name_lbl is not None
+    or umb_cd is not None
+    or search_by_umbrella
+)
+
+# Join Umbrella only once no matter how many filters we apply
+if needs_umbrella_join:
+    subquery = subquery.join(
+        Umbrella,
+        Umbrella.umb_cd == Product.umb_cd
+    )
+
+# Apply filters (NO additional joins)
+
+if mgmt_comp_lbl is not None:
+    subquery = subquery.filter(
+        Umbrella.mgmt_comp_lbl == mgmt_comp_lbl
+    )
+
+if umb_name_lbl is not None:
+    subquery = subquery.filter(
+        Umbrella.umb_name_lbl == umb_name_lbl
+    )
+
+if umb_cd is not None:
+    subquery = subquery.filter(
+        Umbrella.umb_cd == umb_cd
+    )
+
+# domiciliation_ctry is on Product → stays outside the umbrella join
+if domiciliation_ctry is not None:
+    subquery = subquery.filter(
+        Product.domiciliation_ctry == domiciliation_ctry
+    )
