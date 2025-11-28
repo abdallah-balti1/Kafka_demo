@@ -1,0 +1,161 @@
+"""Defines the Product repository"""
+from errors import EntityNotFound
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.expression import and_, func, select
+
+from constants.cosmos import VERSION_STATUS_CANCELLED
+from constants.product import ABANDONED, CLOSED
+from db import db
+from models import ActorInCharge, Product, Umbrella, Versioning
+
+
+class ProductRepository:
+    """The repository for the Product model"""
+
+    @staticmethod
+    def search(
+        prod_origin=None,
+        prod_cds=None,
+        umb_cd=None,
+        search_by_umbrella=False,
+        only_active_products=True,
+        before_version_effective_date=None,
+        actor_uid=None,
+        actor_team_cd=None,
+        mgmt_comp_lbl=None,
+        domiciliation_ctry=None,
+        umb_name_lbl=None,
+        project_ids=None,
+    ):
+        """
+        Return the filtered list of products from the database
+        """
+
+        # base subquery: join Product with Versioning and filter out cancelled versions
+        subquery = Product.query.join(
+            Versioning,
+            and_(
+                Versioning.version_num == Product.version_num,
+                Versioning.version_stat_cd != VERSION_STATUS_CANCELLED,
+            ),
+        )
+
+        # --------- basic filters on Product / Versioning ----------
+        if prod_origin:
+            subquery = subquery.filter(Product.prod_origin == prod_origin)
+
+        if prod_cds:
+            subquery = subquery.filter(Product.prod_cd.in_(prod_cds))
+
+        if project_ids:
+            subquery = subquery.filter(Versioning.project_id.in_(project_ids))
+
+        if only_active_products:
+            subquery = subquery.filter(
+                Product.prod_stat_cd.notin_([ABANDONED, CLOSED])
+            )
+
+        if before_version_effective_date:
+            subquery = subquery.filter(
+                Versioning.version_efctv_dt <= before_version_effective_date
+            )
+
+        # --------- joins on ActorInCharge (kept as-is) ----------
+        if actor_team_cd:
+            subquery = subquery.join(
+                ActorInCharge,
+                ActorInCharge.sbf_sin_man_cd == Product.prod_cd,
+            ).filter(
+                and_(
+                    ActorInCharge.team_chg_cd == actor_team_cd,
+                    ActorInCharge.end_dt_actor_chg == "",
+                )
+            )
+
+        elif actor_uid:
+            subquery = subquery.join(
+                ActorInCharge,
+                ActorInCharge.sbf_sin_man_cd == Product.prod_cd,
+            ).filter(
+                and_(
+                    ActorInCharge.uid == actor_uid,
+                    ActorInCharge.end_dt_actor_chg == "",
+                )
+            )
+
+        # --------- NEW: robust single join on Umbrella ----------
+        # determine if we need Umbrella at all
+        needs_umbrella_join = any(
+            [
+                search_by_umbrella,
+                umb_cd is not None,
+                mgmt_comp_lbl is not None,
+                umb_name_lbl is not None,
+            ]
+        )
+
+        if needs_umbrella_join:
+            # Join Umbrella **once**
+            subquery = subquery.join(
+                Umbrella,
+                Umbrella.umb_cd == Product.umb_cd,
+            )
+
+        # now apply all Umbrella-related filters WITHOUT additional joins
+        if search_by_umbrella and umb_cd is not None:
+            # depending on your original logic, you might only need the join,
+            # but from the usual pattern it's common to also filter by umb_cd
+            subquery = subquery.filter(Product.umb_cd == umb_cd)
+
+        if umb_cd is not None and not search_by_umbrella:
+            # if you allow filtering by umb_cd even without search_by_umbrella
+            subquery = subquery.filter(Product.umb_cd == umb_cd)
+
+        if mgmt_comp_lbl is not None:
+            subquery = subquery.filter(
+                Umbrella.mgmt_comp_lbl == mgmt_comp_lbl
+            )
+
+        if umb_name_lbl is not None:
+            subquery = subquery.filter(
+                Umbrella.umb_name_lbl == umb_name_lbl
+            )
+
+        # --------- other non-Umbrella filters ----------
+        if domiciliation_ctry is not None:
+            subquery = subquery.filter(
+                Product.domiciliation_ctry == domiciliation_ctry
+            )
+
+        # --------- keep only the last version per product ----------
+        rank_last_column = (
+            func.row_number()
+            .over(
+                partition_by=[Product.prod_cd],
+                order_by=Versioning.version_efctv_dt.desc(),
+            )
+            .label("rank")
+        )
+
+        subquery = subquery.add_columns(rank_last_column).subquery()
+
+        product_alias = aliased(Product, subquery)
+
+        query = (
+            select(product_alias)
+            .where(subquery.c.rank == 1)
+            .order_by(product_alias.prod_name, product_alias.prod_cd)
+        )
+
+        return db.session.scalars(query).all()
+
+    @staticmethod
+    def get(prod_cd):
+        """Search for a product by its code, or raise if not found"""
+        products = ProductRepository.search(
+            prod_origin=None,
+            prod_cds=[prod_cd],
+        )
+        if not products:
+            raise EntityNotFound("product", prod_cd)
+        return products[0]
