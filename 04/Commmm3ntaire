@@ -1,0 +1,20 @@
+Here are two short, clear, professional answers in English:
+
+
+---
+
+Option 1 (concise & professional)
+
+I added *_ so the function remains compatible when get_product_shares() returns additional columns (like isin_cd). The dependency logic only uses the first four fields, so ignoring extra values prevents unpacking errors without changing the existing behavior.
+
+
+---
+
+Option 2 (even shorter)
+
+*_ safely ignores new columns (e.g., isin_cd) while keeping the dependency logic unchanged, and prevents tuple unpacking errors.
+
+
+---
+
+Choose the one you prefer!
