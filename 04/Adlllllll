@@ -1,0 +1,176 @@
+Très bonne question 👍 — c’est un cas réel en asset management :
+👉 le même prod_cd peut exister sur plusieurs dates de valeur (NAV) ou sur plusieurs contextes de frais (par ex. changement futur, scénario, historique).
+
+Voici un exemple clair et crédible avec le même product code.
+
+
+---
+
+✅ Exemple JSON – même prod_cd, plusieurs lignes
+
+Hypothèse métier
+
+Même share class (prod_cd = PROD_CD_001)
+
+Même umbrella & sub-fund
+
+Valeurs ADL différentes selon la date de NAV
+➡️ donc plusieurs lignes dans l’export
+
+
+
+---
+
+{
+  "meta": {
+    "report_name": "ADL Fees Export",
+    "generated_at": "2025-08-08T11:00:00Z",
+    "currency": "bps",
+    "filters": {
+      "prod_cd_list": ["PROD_CD_001"]
+    }
+  },
+  "data": [
+    {
+      "umbrella": {
+        "id": "UMB000123",
+        "name": "BNP PARIBAS EASY"
+      },
+      "sub_fund": {
+        "id": "SF000987",
+        "name": "JPM ESG EMBI GLOBAL DIVERSIFIED COMPOSITE",
+        "aladdin_code": "EJGBD",
+        "status": "Launched"
+      },
+      "share_class": {
+        "id": "SH000456",
+        "prod_cd": "PROD_CD_001",
+        "name": "Trac H",
+        "isin": "LU0987654321",
+        "currency": "EUR",
+        "status": "Launched"
+      },
+      "adl_fees": {
+        "context": "CURRENT",
+        "max_in_bps": 200,
+        "max_out_bps": 200,
+        "current_in_bps": 41,
+        "current_out_bps": 0,
+        "new_in_bps": 62,
+        "new_out_bps": 21,
+        "effective_nav_valuation_date": "2025-08-08"
+      }
+    },
+    {
+      "umbrella": {
+        "id": "UMB000123",
+        "name": "BNP PARIBAS EASY"
+      },
+      "sub_fund": {
+        "id": "SF000987",
+        "name": "JPM ESG EMBI GLOBAL DIVERSIFIED COMPOSITE",
+        "aladdin_code": "EJGBD",
+        "status": "Launched"
+      },
+      "share_class": {
+        "id": "SH000456",
+        "prod_cd": "PROD_CD_001",
+        "name": "Trac H",
+        "isin": "LU0987654321",
+        "currency": "EUR",
+        "status": "Launched"
+      },
+      "adl_fees": {
+        "context": "FUTURE",
+        "max_in_bps": 200,
+        "max_out_bps": 200,
+        "current_in_bps": 62,
+        "current_out_bps": 21,
+        "new_in_bps": 70,
+        "new_out_bps": 30,
+        "effective_nav_valuation_date": "2025-09-01"
+      }
+    }
+  ]
+}
+
+
+---
+
+🔍 Ce qui est important dans cet exemple
+
+✅ Même prod_cd
+
+"prod_cd": "PROD_CD_001"
+
+➡️ identifiant fonctionnel identique
+
+
+---
+
+✅ Différenciation par contexte métier
+
+"adl_fees": {
+  "context": "CURRENT" | "FUTURE",
+  "effective_nav_valuation_date": "YYYY-MM-DD"
+}
+
+➡️ C’est la vraie clé métier avec prod_cd
+(prod_cd + date + contexte = ligne unique)
+
+
+---
+
+📊 Résultat logique dans l’Excel
+
+Product code	Share name	Context	Current in	New in	NAV date
+
+PROD_CD_001	Trac H	CURRENT	41	62	08/08/2025
+PROD_CD_001	Trac H	FUTURE	62	70	01/09/2025
+
+
+
+---
+
+✅ Pourquoi ce design est bancairement solide
+
+Gestion :
+
+historique
+
+scénarios futurs
+
+validations multiples
+
+
+Compatible avec :
+
+audits
+
+contrôles réglementaires
+
+imports Excel ultérieurs
+
+
+Aucune ambiguïté métier
+
+
+
+---
+
+✅ Règle d’or à documenter
+
+> 🔐 Une ligne Excel = (prod_cd, effective_nav_valuation_date, context)
+
+
+
+Si tu veux, je peux aussi te proposer :
+
+la clé primaire DB idéale
+
+le mapping d’update Excel → DB
+
+un schéma OpenAPI/Swagger propre
+
+
+Tu es clairement sur une architecture AM robuste 💼💪
