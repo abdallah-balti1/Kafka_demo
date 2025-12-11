@@ -1,0 +1,59 @@
+SELECT DISTINCT
+       umb.umb_name_lbl,
+       sub.sbf_name,
+       pc.prod_cd_valu,
+       sub.sbf_stat_lbl,
+       sh.sha_name,
+       sh.sha_stat_lbl,
+       shl.nav_valuation_date,
+
+       -- ADL fees (from PRODUCT_FEE)
+       pf_max_in.fees_pctg  AS max_adl_in,
+       pf_in.fees_pctg      AS adl_in,
+       pf_max_out.fees_pctg AS max_adl_out,
+       pf_out.fees_pctg     AS adl_out
+
+FROM   own_26967_plmsmartgps.share                 sh
+JOIN   own_26967_plmsmartgps.product               p
+       ON p.prod_cd = sh.prod_cd
+JOIN   own_26967_plmsmartgps.umbrella              umb
+       ON umb.umb_cd = p.umb_cd
+JOIN   own_26967_plmsmartgps.subfund               sub
+       ON sub.umb_cd = umb.umb_cd
+JOIN   own_26967_plmsmartgps.product_codification  pc
+       ON pc.prod_cd = p.prod_cd
+JOIN   own_26967_plmsmartgps.share_launching_schedule shl
+       ON shl.sha_cd = sh.sha_cd
+
+-- MAX ADL IN (specific_fees_cgy_cd = '19', fees_lvl_cd = 'MAX')
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_in
+       ON pf_max_in.sha_cd              = sh.sha_cd
+      AND pf_max_in.specific_fees_cgy_cd = '19'
+      AND pf_max_in.fees_lvl_cd          = 'MAX'
+
+-- REAL ADL IN (specific_fees_cgy_cd = '19', fees_lvl_cd = 'REEL')
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_in
+       ON pf_in.sha_cd              = sh.sha_cd
+      AND pf_in.specific_fees_cgy_cd = '19'
+      AND pf_in.fees_lvl_cd          = 'REEL'
+
+-- MAX ADL OUT (specific_fees_cgy_cd = '27', fees_lvl_cd = 'MAX')
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_out
+       ON pf_max_out.sha_cd              = sh.sha_cd
+      AND pf_max_out.specific_fees_cgy_cd = '27'
+      AND pf_max_out.fees_lvl_cd          = 'MAX'
+
+-- REAL ADL OUT (specific_fees_cgy_cd = '27', fees_lvl_cd = 'REEL')
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_out
+       ON pf_out.sha_cd              = sh.sha_cd
+      AND pf_out.specific_fees_cgy_cd = '27'
+      AND pf_out.fees_lvl_cd          = 'REEL'
+
+WHERE  p.prod_cd = '42735'                      -- or IN (...)
+   AND pc.codification_typ_cd <> 'PTF_BNPPAM'  -- your existing filter
+
+ORDER BY
+       umb.umb_name_lbl,
+       sub.sbf_name,
+       pc.prod_cd_valu,
+       sub.sbf_stat_lbl;
