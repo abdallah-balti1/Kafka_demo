@@ -1,0 +1,326 @@
+Voici toute la solution complète, en gardant la “meilleure architecture” :
+✅ ProductRepository (repo table)
+✅ ExportQueryRepository (repo read-only dédié export)
+✅ ExportService (orchestration SIN/SUB)
+✅ ExportResource (endpoint Flask)
+✅ Entrée endpoint : uniquement prod_cds
+✅ Pas de SQL brut (tout en ORM SQLAlchemy)
+
+> Hypothèses (adaptables) :
+
+tes modèles existent dans src/models/
+
+tu as une session SQLAlchemy accessible via db.session (Flask-SQLAlchemy).
+Si chez toi c’est autre chose, remplace juste cette ligne.
+
+
+
+
+
+---
+
+1) src/repositories/product_repository.py
+
+from sqlalchemy.orm import Session
+from sqlalchemy import cast, BigInteger, func
+
+from src.models.product import Product
+
+
+class ProductRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_latest_origins(self, prod_cds: list[str]) -> dict[str, str]:
+        """
+        Retourne {prod_cd: prod_origin} en prenant la version max.
+        version_num est text => cast BigInteger pour trier correctement.
+        """
+        rn = func.row_number().over(
+            partition_by=Product.prod_cd,
+            order_by=cast(Product.version_num, BigInteger).desc()
+        ).label("rn")
+
+        subq = (
+            self.db.query(
+                Product.prod_cd.label("prod_cd"),
+                Product.prod_origin.label("prod_origin"),
+                rn,
+            )
+            .filter(Product.prod_cd.in_(prod_cds))
+            .subquery()
+        )
+
+        rows = (
+            self.db.query(subq.c.prod_cd, subq.c.prod_origin)
+            .filter(subq.c.rn == 1)
+            .all()
+        )
+
+        return {p: (o or "").strip().upper() for p, o in rows}
+
+
+---
+
+2) src/repositories/export_query_repository.py
+
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy import and_
+
+from src.models.single import Single
+from src.models.subfund import Subfund
+from src.models.umbrella import Umbrella
+from src.models.share import Share
+from src.models.product_codification import ProductCodification
+from src.models.share_launching_schedule import ShareLaunchingSchedule
+from src.models.product_fee import ProductFee
+
+
+class ExportQueryRepository:
+    """
+    Read-only repository dédié aux exports multi-tables (reporting).
+    """
+    CODIFICATION_TYP_CD = "PTF_BNPPAM"
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def single_export(self, prod_cds: list[str]) -> list[dict]:
+        pf_max_adl_in = aliased(ProductFee)
+        pf_adl_in = aliased(ProductFee)
+        pf_max_adl_out = aliased(ProductFee)
+        pf_adl_out = aliased(ProductFee)
+
+        q = (
+            self.db.query(
+                Single.sin_cd.label("prod_cd"),
+                Single.sin_name.label("sin_name"),
+                ProductCodification.prod_cd_valu.label("prod_cd_valu"),
+                Share.sha_cd.label("sha_cd"),
+                Share.sha_name.label("sha_name"),
+                Share.isin_cd.label("isin_cd"),
+                Share.sha_stat_lbl.label("sha_stat_lbl"),
+                ShareLaunchingSchedule.nav_valuation_date.label("nav_valuation_date"),
+                pf_max_adl_in.fees_pctg.label("max_adl_in_fee"),
+                pf_adl_in.fees_pctg.label("adl_in_fee"),
+                pf_max_adl_out.fees_pctg.label("max_adl_out_fee"),
+                pf_adl_out.fees_pctg.label("adl_out_fee"),
+            )
+            .join(Share, Share.prod_cd == Single.sin_cd)
+            .join(ProductCodification, ProductCodification.prod_cd == Single.sin_cd)
+            .outerjoin(ShareLaunchingSchedule, ShareLaunchingSchedule.sha_cd == Share.sha_cd)
+            .outerjoin(
+                pf_max_adl_in,
+                and_(
+                    pf_max_adl_in.sha_cd == Share.sha_cd,
+                    pf_max_adl_in.specific_fees_cgy_cd == "19",
+                    pf_max_adl_in.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_in,
+                and_(
+                    pf_adl_in.sha_cd == Share.sha_cd,
+                    pf_adl_in.specific_fees_cgy_cd == "19",
+                    pf_adl_in.fees_lvl_cd == "REEL",
+                ),
+            )
+            .outerjoin(
+                pf_max_adl_out,
+                and_(
+                    pf_max_adl_out.sha_cd == Share.sha_cd,
+                    pf_max_adl_out.specific_fees_cgy_cd == "27",
+                    pf_max_adl_out.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_out,
+                and_(
+                    pf_adl_out.sha_cd == Share.sha_cd,
+                    pf_adl_out.specific_fees_cgy_cd == "27",
+                    pf_adl_out.fees_lvl_cd == "REEL",
+                ),
+            )
+            .filter(
+                Single.sin_cd.in_(prod_cds),
+                ProductCodification.codification_typ_cd == self.CODIFICATION_TYP_CD,
+            )
+            .distinct()
+        )
+
+        return [dict(r._mapping) for r in q.all()]
+
+    def subfund_export(self, prod_cds: list[str]) -> list[dict]:
+        pf_max_adl_in = aliased(ProductFee)
+        pf_adl_in = aliased(ProductFee)
+        pf_max_adl_out = aliased(ProductFee)
+        pf_adl_out = aliased(ProductFee)
+
+        q = (
+            self.db.query(
+                Subfund.sbf_cd.label("prod_cd"),
+                Umbrella.umb_name_lbl.label("umb_name_lbl"),
+                Subfund.sbf_name.label("sbf_name"),
+                ProductCodification.prod_cd_valu.label("prod_cd_valu"),
+                Subfund.sbf_stat_lbl.label("sbf_stat_lbl"),
+                Share.sha_cd.label("sha_cd"),
+                Share.sha_name.label("sha_name"),
+                Share.isin_cd.label("isin_cd"),
+                Share.sha_stat_lbl.label("sha_stat_lbl"),
+                ShareLaunchingSchedule.nav_valuation_date.label("nav_valuation_date"),
+                pf_max_adl_in.fees_pctg.label("max_adl_in_fee"),
+                pf_adl_in.fees_pctg.label("adl_in_fee"),
+                pf_max_adl_out.fees_pctg.label("max_adl_out_fee"),
+                pf_adl_out.fees_pctg.label("adl_out_fee"),
+            )
+            .join(Umbrella, Umbrella.umb_cd == Subfund.umb_cd)
+            .join(Share, Share.prod_cd == Subfund.sbf_cd)
+            .join(ProductCodification, ProductCodification.prod_cd == Subfund.sbf_cd)
+            .outerjoin(ShareLaunchingSchedule, ShareLaunchingSchedule.sha_cd == Share.sha_cd)
+            .outerjoin(
+                pf_max_adl_in,
+                and_(
+                    pf_max_adl_in.sha_cd == Share.sha_cd,
+                    pf_max_adl_in.specific_fees_cgy_cd == "19",
+                    pf_max_adl_in.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_in,
+                and_(
+                    pf_adl_in.sha_cd == Share.sha_cd,
+                    pf_adl_in.specific_fees_cgy_cd == "19",
+                    pf_adl_in.fees_lvl_cd == "REEL",
+                ),
+            )
+            .outerjoin(
+                pf_max_adl_out,
+                and_(
+                    pf_max_adl_out.sha_cd == Share.sha_cd,
+                    pf_max_adl_out.specific_fees_cgy_cd == "27",
+                    pf_max_adl_out.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_out,
+                and_(
+                    pf_adl_out.sha_cd == Share.sha_cd,
+                    pf_adl_out.specific_fees_cgy_cd == "27",
+                    pf_adl_out.fees_lvl_cd == "REEL",
+                ),
+            )
+            .filter(
+                Subfund.sbf_cd.in_(prod_cds),
+                ProductCodification.codification_typ_cd == self.CODIFICATION_TYP_CD,
+            )
+            .order_by(
+                Umbrella.umb_name_lbl,
+                Subfund.sbf_name,
+                ProductCodification.prod_cd_valu,
+                Subfund.sbf_stat_lbl,
+            )
+            .distinct()
+        )
+
+        return [dict(r._mapping) for r in q.all()]
+
+
+---
+
+3) src/services/export_service.py
+
+from sqlalchemy.orm import Session
+
+from src.repositories.product_repository import ProductRepository
+from src.repositories.export_query_repository import ExportQueryRepository
+
+
+class ExportService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.product_repo = ProductRepository(db)
+        self.export_repo = ExportQueryRepository(db)
+
+    def export(self, prod_cds: list[str]) -> dict:
+        origins = self.product_repo.get_latest_origins(prod_cds)
+
+        sin_list = [p for p in prod_cds if origins.get(p) == "SIN"]
+        sub_list = [p for p in prod_cds if origins.get(p) == "SUB"]
+        unknown = [p for p in prod_cds if origins.get(p) not in ("SIN", "SUB")]
+
+        result = {"SIN": [], "SUB": [], "unknown": unknown}
+
+        if sin_list:
+            result["SIN"] = self.export_repo.single_export(sin_list)
+
+        if sub_list:
+            result["SUB"] = self.export_repo.subfund_export(sub_list)
+
+        return result
+
+
+---
+
+4) src/resources/export_resource.py (endpoint Flask)
+
+from flask import Blueprint, request, jsonify
+from src.services.export_service import ExportService
+
+export_bp = Blueprint("export", __name__, url_prefix="/export")
+
+
+@export_bp.post("")
+def export_products():
+    payload = request.get_json(silent=True) or {}
+    prod_cds = payload.get("prod_cds")
+
+    if not isinstance(prod_cds, list):
+        return jsonify({"error": "prod_cds doit être une liste"}), 400
+
+    prod_cds = [str(x).strip() for x in prod_cds if str(x).strip()]
+    if not prod_cds:
+        return jsonify({"error": "prod_cds est vide"}), 400
+
+    # ✅ Si tu utilises Flask-SQLAlchemy:
+    from src import db  # <-- adapte si ton instance s'appelle autrement (app.db, extensions.db, etc.)
+    service = ExportService(db.session)
+
+    return jsonify(service.export(prod_cds)), 200
+
+
+---
+
+5) Register Blueprint
+
+Dans ton create_app() (ou équivalent) :
+
+from src.resources.export_resource import export_bp
+app.register_blueprint(export_bp)
+
+
+---
+
+Résultat
+
+Tu envoies juste une liste prod_cds
+
+L’app choisit automatiquement SIN vs SUB
+
+Exécute 1 ou 2 grosses requêtes en IN (...)
+
+Renvoie un JSON avec les lignes
+
+
+
+---
+
+Dernier point à vérifier (important)
+
+Les noms de classes/colonnes doivent matcher exactement tes modèles :
+
+Product.version_num, Product.prod_origin, Product.prod_cd
+
+Single.sin_cd, Subfund.sbf_cd, etc.
+
+
+Si tu me confirmes les noms exacts des classes (ProductCodification s’appelle peut-être ProductCodificationModel, etc.), je te renvoie la version “zéro erreur d’import”.
