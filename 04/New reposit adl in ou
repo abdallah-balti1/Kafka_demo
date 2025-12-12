@@ -1,0 +1,384 @@
+Parfait — ton projet est clairement en mode Flask-RESTful Resource, avec :
+
+@staticmethod
+
+required_authentication()
+
+swag_from(...)
+
+SessionCriticalActionManager
+
+repos appelés en méthodes statiques
+
+from db import db
+
+
+Je t’adapte donc la fonctionnalité exactement dans ce style, sans dossier service, et en gardant la “meilleure architecture” :
+
+un repo table : ProductRepository
+
+un repo read-only export : ExportQueryRepository
+
+une resource : RetrieveExportDataResource (ou autre nom)
+
+
+
+---
+
+1) src/repositories/product_repository.py
+
+> Objectif : pour une liste prod_cd_list, récupérer prod_origin de la version max (version_num est text → cast BigInteger) via row_number().
+
+
+
+# src/repositories/product_repository.py
+from sqlalchemy import cast, BigInteger, func
+from db import db
+
+from models.product import Product
+
+
+class ProductRepository:
+
+    @staticmethod
+    def get_latest_origins(prod_cd_list: list[str]) -> dict[str, str]:
+        """
+        Retourne {prod_cd: prod_origin} en prenant la version max (version_num cast bigint).
+        """
+        if not prod_cd_list:
+            return {}
+
+        rn = func.row_number().over(
+            partition_by=Product.prod_cd,
+            order_by=cast(Product.version_num, BigInteger).desc()
+        ).label("rn")
+
+        subq = (
+            db.session.query(
+                Product.prod_cd.label("prod_cd"),
+                Product.prod_origin.label("prod_origin"),
+                rn
+            )
+            .filter(Product.prod_cd.in_(prod_cd_list))
+            .subquery()
+        )
+
+        rows = (
+            db.session.query(subq.c.prod_cd, subq.c.prod_origin)
+            .filter(subq.c.rn == 1)
+            .all()
+        )
+
+        return {p: (o or "").strip().upper() for p, o in rows}
+
+
+---
+
+2) src/repositories/export_query_repository.py
+
+> Ici tu mets les 2 grosses requêtes en ORM SQLAlchemy, avec IN (...) sur la liste.
+codification_typ_cd est en dur (PTF_BNPPAM) comme demandé.
+
+
+
+# src/repositories/export_query_repository.py
+from sqlalchemy.orm import aliased
+from sqlalchemy import and_
+from db import db
+
+from models.single import Single
+from models.subfund import Subfund
+from models.umbrella import Umbrella
+from models.share import Share
+from models.product_codification import ProductCodification
+from models.share_launching_schedule import ShareLaunchingSchedule
+from models.product_fee import ProductFee
+
+
+class ExportQueryRepository:
+    CODIFICATION_TYP_CD = "PTF_BNPPAM"
+
+    @staticmethod
+    def single_export(prod_cd_list: list[str]) -> list[dict]:
+        if not prod_cd_list:
+            return []
+
+        pf_max_adl_in = aliased(ProductFee)
+        pf_adl_in = aliased(ProductFee)
+        pf_max_adl_out = aliased(ProductFee)
+        pf_adl_out = aliased(ProductFee)
+
+        q = (
+            db.session.query(
+                Single.sin_cd.label("prod_cd"),
+                Single.sin_name.label("sin_name"),
+                ProductCodification.prod_cd_valu.label("prod_cd_valu"),
+                Share.sha_cd.label("sha_cd"),
+                Share.sha_name.label("sha_name"),
+                Share.isin_cd.label("isin_cd"),
+                Share.sha_stat_lbl.label("sha_stat_lbl"),
+                ShareLaunchingSchedule.nav_valuation_date.label("nav_valuation_date"),
+                pf_max_adl_in.fees_pctg.label("max_adl_in_fee"),
+                pf_adl_in.fees_pctg.label("adl_in_fee"),
+                pf_max_adl_out.fees_pctg.label("max_adl_out_fee"),
+                pf_adl_out.fees_pctg.label("adl_out_fee"),
+            )
+            .join(Share, Share.prod_cd == Single.sin_cd)
+            .join(ProductCodification, ProductCodification.prod_cd == Single.sin_cd)
+            .outerjoin(ShareLaunchingSchedule, ShareLaunchingSchedule.sha_cd == Share.sha_cd)
+            .outerjoin(
+                pf_max_adl_in,
+                and_(
+                    pf_max_adl_in.sha_cd == Share.sha_cd,
+                    pf_max_adl_in.specific_fees_cgy_cd == "19",
+                    pf_max_adl_in.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_in,
+                and_(
+                    pf_adl_in.sha_cd == Share.sha_cd,
+                    pf_adl_in.specific_fees_cgy_cd == "19",
+                    pf_adl_in.fees_lvl_cd == "REEL",
+                ),
+            )
+            .outerjoin(
+                pf_max_adl_out,
+                and_(
+                    pf_max_adl_out.sha_cd == Share.sha_cd,
+                    pf_max_adl_out.specific_fees_cgy_cd == "27",
+                    pf_max_adl_out.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_out,
+                and_(
+                    pf_adl_out.sha_cd == Share.sha_cd,
+                    pf_adl_out.specific_fees_cgy_cd == "27",
+                    pf_adl_out.fees_lvl_cd == "REEL",
+                ),
+            )
+            .filter(
+                Single.sin_cd.in_(prod_cd_list),
+                ProductCodification.codification_typ_cd == ExportQueryRepository.CODIFICATION_TYP_CD,
+            )
+            .distinct()
+        )
+
+        return [dict(r._mapping) for r in q.all()]
+
+    @staticmethod
+    def subfund_export(prod_cd_list: list[str]) -> list[dict]:
+        if not prod_cd_list:
+            return []
+
+        pf_max_adl_in = aliased(ProductFee)
+        pf_adl_in = aliased(ProductFee)
+        pf_max_adl_out = aliased(ProductFee)
+        pf_adl_out = aliased(ProductFee)
+
+        q = (
+            db.session.query(
+                Subfund.sbf_cd.label("prod_cd"),
+                Umbrella.umb_name_lbl.label("umb_name_lbl"),
+                Subfund.sbf_name.label("sbf_name"),
+                ProductCodification.prod_cd_valu.label("prod_cd_valu"),
+                Subfund.sbf_stat_lbl.label("sbf_stat_lbl"),
+                Share.sha_cd.label("sha_cd"),
+                Share.sha_name.label("sha_name"),
+                Share.isin_cd.label("isin_cd"),
+                Share.sha_stat_lbl.label("sha_stat_lbl"),
+                ShareLaunchingSchedule.nav_valuation_date.label("nav_valuation_date"),
+                pf_max_adl_in.fees_pctg.label("max_adl_in_fee"),
+                pf_adl_in.fees_pctg.label("adl_in_fee"),
+                pf_max_adl_out.fees_pctg.label("max_adl_out_fee"),
+                pf_adl_out.fees_pctg.label("adl_out_fee"),
+            )
+            .join(Umbrella, Umbrella.umb_cd == Subfund.umb_cd)
+            .join(Share, Share.prod_cd == Subfund.sbf_cd)
+            .join(ProductCodification, ProductCodification.prod_cd == Subfund.sbf_cd)
+            .outerjoin(ShareLaunchingSchedule, ShareLaunchingSchedule.sha_cd == Share.sha_cd)
+            .outerjoin(
+                pf_max_adl_in,
+                and_(
+                    pf_max_adl_in.sha_cd == Share.sha_cd,
+                    pf_max_adl_in.specific_fees_cgy_cd == "19",
+                    pf_max_adl_in.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_in,
+                and_(
+                    pf_adl_in.sha_cd == Share.sha_cd,
+                    pf_adl_in.specific_fees_cgy_cd == "19",
+                    pf_adl_in.fees_lvl_cd == "REEL",
+                ),
+            )
+            .outerjoin(
+                pf_max_adl_out,
+                and_(
+                    pf_max_adl_out.sha_cd == Share.sha_cd,
+                    pf_max_adl_out.specific_fees_cgy_cd == "27",
+                    pf_max_adl_out.fees_lvl_cd == "MAX",
+                ),
+            )
+            .outerjoin(
+                pf_adl_out,
+                and_(
+                    pf_adl_out.sha_cd == Share.sha_cd,
+                    pf_adl_out.specific_fees_cgy_cd == "27",
+                    pf_adl_out.fees_lvl_cd == "REEL",
+                ),
+            )
+            .filter(
+                Subfund.sbf_cd.in_(prod_cd_list),
+                ProductCodification.codification_typ_cd == ExportQueryRepository.CODIFICATION_TYP_CD,
+            )
+            .order_by(
+                Umbrella.umb_name_lbl,
+                Subfund.sbf_name,
+                ProductCodification.prod_cd_valu,
+                Subfund.sbf_stat_lbl,
+            )
+            .distinct()
+        )
+
+        return [dict(r._mapping) for r in q.all()]
+
+
+---
+
+3) Resource : src/resources/retrieve_export_data/retrieve_export_data.py
+
+Même style que ton exemple (static, auth, swag_from, SessionCriticalActionManager).
+
+# src/resources/retrieve_export_data/retrieve_export_data.py
+from flask_restful import Resource
+from flask import request, jsonify
+from flasgger.utils import swag_from
+
+from context_managers.session_critical_action_manager import SessionCriticalActionManager
+from db import db
+from utils.required_authentication import required_authentication
+
+from repositories.product_repository import ProductRepository
+from repositories.export_query_repository import ExportQueryRepository
+
+
+class RetrieveExportDataResource(Resource):
+    """Export data for a list of products"""
+
+    @staticmethod
+    @required_authentication()
+    @swag_from("../../swagger/retrieve_export_data/POST.yml")
+    def post(user):
+        data = request.get_json(silent=True) or {}
+
+        # On garde votre convention "prod_cd_list"
+        prod_cd_list = data.get("prod_cd_list", [])
+
+        if not isinstance(prod_cd_list, list) or not prod_cd_list:
+            return jsonify({"error": "prod_cd_list is required and must be a non-empty list"}), 400
+
+        prod_cd_list = [str(x).strip() for x in prod_cd_list if str(x).strip()]
+        if not prod_cd_list:
+            return jsonify({"error": "prod_cd_list is empty"}), 400
+
+        with SessionCriticalActionManager(db.session):
+            origins = ProductRepository.get_latest_origins(prod_cd_list)
+
+            sin_list = [p for p in prod_cd_list if origins.get(p) == "SIN"]
+            sub_list = [p for p in prod_cd_list if origins.get(p) == "SUB"]
+            unknown = [p for p in prod_cd_list if origins.get(p) not in ("SIN", "SUB")]
+
+            result = {
+                "SIN": ExportQueryRepository.single_export(sin_list) if sin_list else [],
+                "SUB": ExportQueryRepository.subfund_export(sub_list) if sub_list else [],
+                "unknown": unknown,
+            }
+
+            return jsonify(result), 200
+
+
+---
+
+4) Route (exemple) : src/routes/export_routes.py
+
+Je ne vois pas ton fichier de routes exact, donc je te donne le pattern Flask-RESTful standard :
+
+# src/routes/export_routes.py
+from resources.retrieve_export_data.retrieve_export_data import RetrieveExportDataResource
+
+def register_export_routes(api):
+    api.add_resource(RetrieveExportDataResource, "/export")
+
+Et dans ton registre global des routes (là où tu fais déjà api.add_resource(...)), tu appelles :
+
+register_export_routes(api)
+
+
+---
+
+5) Swagger (optionnel)
+
+Crée src/swagger/retrieve_export_data/POST.yml (si vous documentez toutes les routes). Exemple minimal :
+
+tags:
+  - Export
+parameters:
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      required:
+        - prod_cd_list
+      properties:
+        prod_cd_list:
+          type: array
+          items:
+            type: string
+responses:
+  200:
+    description: Export data
+
+
+---
+
+Ce que tu dois adapter (2 trucs max)
+
+1. Imports des modèles : assure-toi que tu as bien :
+
+models/single.py → classe Single
+
+models/subfund.py → classe Subfund
+
+models/umbrella.py → classe Umbrella
+
+models/share.py → classe Share
+
+models/share_launching_schedule.py → classe ShareLaunchingSchedule (si les noms diffèrent, je te les renomme en 30 secondes)
+
+
+
+2. Nom du champ nav date : j’ai mis nav_valuation_date comme dans ton SQL. Si dans le modèle c’est nav_valuatn_date ou autre, ajuste.
+
+
+
+
+---
+
+Si tu veux que je te rende ça “zéro retouche”, envoie juste une capture (ou copie) du haut de chacun de ces fichiers modèles (10 lignes) :
+
+models/single.py
+
+models/subfund.py
+
+models/umbrella.py
+
+models/share.py
+
+models/share_launching_schedule.py
+
+
+Je te renverrai les imports/attributs exactement bons pour ton codebase.
