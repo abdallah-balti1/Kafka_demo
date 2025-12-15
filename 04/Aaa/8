@@ -1,1 +1,241 @@
+Ok, donc tu dois absolument garder la protection, MAIS faire en sorte que seules “New ADL in/out” soient déverrouillées, et surtout éviter le piège classique openpyxl :
 
+✅ Si tu appliques un style (ou cell.style = ...) après avoir mis Protection(locked=False), Excel re-verrouille la cellule (parce que la protection est portée par le style).
+➡️ Règle d’or : appliquer le style d’abord, puis cell.protection en dernier.
+➡️ Et activer la protection (ws.protection...) tout à la fin.
+
+Ci-dessous une fonction complète “clean” (openpyxl 3.1.x) qui :
+
+garde ton layout,
+
+déverrouille uniquement les colonnes 12 et 13 (New ADL in / New ADL out),
+
+permet la sélection uniquement des cellules déverrouillées,
+
+et (optionnel) pré-remplit New ADL avec les anciennes valeurs ADL pour éviter les soucis côté user.
+
+
+
+---
+
+import openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment, Protection, Border, Side
+from openpyxl.utils import get_column_letter
+
+
+def create_specific_fees_template_workbook(adl_fees_data: list[dict]) -> openpyxl.Workbook:
+    """
+    Excel template:
+    - Feuille protégée
+    - Seules 2 colonnes éditables: New ADL in (col 12), New ADL out (col 13)
+    - Le reste en lecture seule
+    - Compatible Excel Mac: styles appliqués puis protection cellulaire en dernier
+    """
+
+    # ----------------------------
+    # Constantes / Styles
+    # ----------------------------
+    FONT_NAME = "Calibri"
+
+    black_fill = PatternFill(fill_type="solid", fgColor="000000")
+    dark_fill = PatternFill(fill_type="solid", fgColor="1F1F1F")
+    light_grey_fill = PatternFill(fill_type="solid", fgColor="E6E6E6")
+
+    font_white_bold = Font(name=FONT_NAME, size=11, bold=True, color="FFFFFF")
+    font_black = Font(name=FONT_NAME, size=11, color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    thin = Side(style="thin", color="BFBFBF")
+    default_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # Colonnes (1-indexed)
+    COL_NEW_ADL_IN = 12
+    COL_NEW_ADL_OUT = 13
+
+    # ----------------------------
+    # Workbook / Sheet
+    # ----------------------------
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # ----------------------------
+    # Row 1: Title
+    # ----------------------------
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
+    c = ws.cell(row=1, column=1, value="BNP PARIBAS EASY - Update of real ADL fees (in bps)")
+    c.fill = black_fill
+    c.font = font_white_bold
+    c.alignment = align_left
+    c.border = default_border
+    # IMPORTANT: lock after style
+    c.protection = Protection(locked=True)
+    ws.row_dimensions[1].height = 24
+
+    # ----------------------------
+    # Row 2: Group headers
+    # ----------------------------
+    groups = [
+        (1, 7, "Product / Share"),
+        (8, 9, "Current ADL fees"),
+        (10, 11, "Maximum ADL fees"),
+        (12, 13, "New ADL fees (editable)"),
+        (14, 14, "Effective NAV date"),
+    ]
+    for start_col, end_col, label in groups:
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+        cell = ws.cell(row=2, column=start_col, value=label)
+        cell.fill = black_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        for col in range(start_col, end_col + 1):
+            cc = ws.cell(row=2, column=col)
+            cc.border = default_border
+            # lock after style
+            cc.protection = Protection(locked=True)
+    ws.row_dimensions[2].height = 20
+
+    # ----------------------------
+    # Row 3: Column titles
+    # ----------------------------
+    headers = [
+        "Umbrella name",
+        "Sub-fund name",
+        "Sub-fund ALADDIN code",
+        "Sub-fund status",
+        "Share name",
+        "ISIN code",
+        "Share status",
+        "ADL in",
+        "ADL out",
+        "Max ADL in",
+        "Max ADL out",
+        "New ADL in",
+        "New ADL out",
+        "Effective NAV date",
+    ]
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = default_border
+        # lock after style
+        cell.protection = Protection(locked=True)
+    ws.row_dimensions[3].height = 34
+
+    ws.freeze_panes = "A4"
+
+    # ----------------------------
+    # Column widths
+    # ----------------------------
+    col_widths = {
+        1: 22, 2: 34, 3: 22, 4: 16,
+        5: 55, 6: 18, 7: 16,
+        8: 10, 9: 10, 10: 12, 11: 12,
+        12: 12, 13: 12, 14: 18
+    }
+    for col_idx, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = w
+
+    # ----------------------------
+    # Data rows
+    # ----------------------------
+    start_row = 4
+    for i, row in enumerate(adl_fees_data):
+        r = start_row + i
+
+        # OPTION: pré-remplir les nouvelles valeurs avec les anciennes (ça évite aussi les cellules vides)
+        new_adl_in_default = row.get("adl_in_fee")
+        new_adl_out_default = row.get("adl_out_fee")
+
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            row.get("adl_in_fee"),
+            row.get("adl_out_fee"),
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            new_adl_in_default,   # New ADL in (editable)
+            new_adl_out_default,  # New ADL out (editable)
+            row.get("nav_valuation_date"),
+        ]
+
+        for col_idx, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col_idx, value=v)
+
+            # 1) style d'abord
+            cell.font = font_black
+            cell.border = default_border
+            cell.alignment = align_left if col_idx <= 7 else align_center
+
+            # Gris sur colonnes éditables
+            if col_idx in (COL_NEW_ADL_IN, COL_NEW_ADL_OUT):
+                cell.fill = light_grey_fill
+                # (si tu veux forcer un format)
+                # cell.number_format = "0.00"
+            else:
+                # fond blanc par défaut
+                cell.fill = PatternFill(fill_type=None)
+
+            # 2) protection EN DERNIER (sinon le style peut la ré-écraser)
+            if col_idx in (COL_NEW_ADL_IN, COL_NEW_ADL_OUT):
+                cell.protection = Protection(locked=False)
+            else:
+                cell.protection = Protection(locked=True)
+
+    last_row = max(start_row, start_row + len(adl_fees_data) - 1)
+
+    # ----------------------------
+    # Sheet protection (TOUT À LA FIN)
+    # ----------------------------
+    ws.protection.sheet = True  # plus explicite que enable()
+    ws.protection.enable()
+
+    # Autoriser sélection uniquement cellules déverrouillées
+    ws.protection.selectLockedCells = False
+    ws.protection.selectUnlockedCells = True
+
+    # (optionnel) empêcher modifications de format/objets/etc.
+    ws.protection.formatCells = False
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
+    ws.protection.insertColumns = False
+    ws.protection.insertRows = False
+    ws.protection.deleteColumns = False
+    ws.protection.deleteRows = False
+    ws.protection.sort = False
+    ws.protection.autoFilter = False
+    ws.protection.pivotTables = False
+
+    return wb
+
+
+---
+
+Pourquoi ça va résoudre ton cas (Excel Mac)
+
+Les cellules “New ADL” sont vraiment locked=False (après style).
+
+La protection est activée après avoir écrit toutes les cellules.
+
+La sélection est limitée aux cellules déverrouillées.
+
+
+Si tu veux que l’utilisateur puisse aussi “cliquer partout” mais modifier seulement 2 colonnes
+
+Remplace juste :
+
+ws.protection.selectLockedCells = True
+ws.protection.selectUnlockedCells = True
+
+Comme ça il peut sélectionner partout, mais modifier uniquement les cellules unlocked.
+
+Si tu me dis si tu veux sélection partout ou seulement sur les 2 colonnes, je te donne la variante exacte.
