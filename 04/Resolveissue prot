@@ -1,0 +1,217 @@
+Oui. Voilà la fonction complète create_specific_fees_template_workbook() corrigée, avec :
+
+Header noir / texte blanc (ligne 1 + ligne 2 groupes + ligne 3 colonnes)
+
+Données à partir de la ligne 4
+
+Tout en read-only
+
+Seulement “New ADL in” (col 12) et “New ADL out” (col 13) éditables + fond gris
+
+Validation numérique décimal >= 0 sur ces 2 colonnes (errorStyle="stop")
+
+Protection feuille activée correctement (enable())
+
+
+> ⚠️ Tu dois avoir déjà dans ton fichier : FONT_NAME, DEFAULT_BORDER, get_column_letter, PatternFill, Font, Alignment, Protection, DataValidation, openpyxl.
+
+
+
+import openpyxl
+from openpyxl.styles import Alignment, Font, PatternFill, Protection
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.utils import get_column_letter
+
+
+def create_specific_fees_template_workbook(adl_fees_data: list[dict]) -> openpyxl.Workbook:
+    """
+    Template spécifique pour task.name == 'Upload Specific Fees template'
+
+    - Header noir + texte blanc
+    - Toutes les colonnes read-only
+    - Seulement 2 colonnes éditables : New ADL in / New ADL out
+    - Validation numérique (decimal >= 0) sur ces 2 colonnes (errorStyle=stop)
+    """
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # ----------------------------
+    # Styles
+    # ----------------------------
+    black_fill = PatternFill(fill_type="solid", fgColor="000000")
+    dark_fill = PatternFill(fill_type="solid", fgColor="1F1F1F")
+    light_edit_fill = PatternFill(fill_type="solid", fgColor="E6E6E6")
+
+    font_white_bold = Font(name=FONT_NAME, size=11, bold=True, color="FFFFFF")
+    font_black = Font(name=FONT_NAME, size=11, color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # ----------------------------
+    # Row 1 : Title (merged)
+    # ----------------------------
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
+    c = ws.cell(row=1, column=1, value="BNP PARIBAS EASY - Update of real ADL fees (in bps)")
+    c.fill = black_fill
+    c.font = font_white_bold
+    c.alignment = align_left
+    c.border = DEFAULT_BORDER
+    c.protection = Protection(locked=True)
+    ws.row_dimensions[1].height = 24
+
+    # ----------------------------
+    # Row 2 : Group headers (merged ranges)
+    # ----------------------------
+    groups = [
+        (1, 7, "Product / Share"),
+        (8, 9, "Current ADL fees"),
+        (10, 11, "Maximum ADL fees"),
+        (12, 13, "New ADL fees (editable)"),
+        (14, 14, "Effective NAV date"),
+    ]
+
+    for start_col, end_col, label in groups:
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+        cell = ws.cell(row=2, column=start_col, value=label)
+        cell.fill = black_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = DEFAULT_BORDER
+        cell.protection = Protection(locked=True)
+
+        # appliquer le style sur toutes les cellules du merge (bordures + lock)
+        for col in range(start_col, end_col + 1):
+            cc = ws.cell(row=2, column=col)
+            cc.border = DEFAULT_BORDER
+            cc.protection = Protection(locked=True)
+
+    ws.row_dimensions[2].height = 20
+
+    # ----------------------------
+    # Row 3 : Column headers
+    # ----------------------------
+    headers = [
+        "Umbrella name",           # 1
+        "Sub-fund name",           # 2
+        "Sub-fund ALADDIN code",   # 3
+        "Sub-fund status",         # 4
+        "Share name",              # 5
+        "ISIN code",               # 6
+        "Share status",            # 7
+        "ADL in",                  # 8
+        "ADL out",                 # 9
+        "Max ADL in",              # 10
+        "Max ADL out",             # 11
+        "New ADL in",              # 12 (editable)
+        "New ADL out",             # 13 (editable)
+        "Effective NAV date",      # 14
+    ]
+
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = DEFAULT_BORDER
+        cell.protection = Protection(locked=True)
+
+    ws.row_dimensions[3].height = 34
+
+    # Freeze panes under headers
+    ws.freeze_panes = "A4"
+
+    # ----------------------------
+    # Column widths (ajuste si besoin)
+    # ----------------------------
+    col_widths = {
+        1: 22, 2: 34, 3: 22, 4: 16,
+        5: 55, 6: 18, 7: 16,
+        8: 10, 9: 10,
+        10: 12, 11: 12,
+        12: 12, 13: 12,
+        14: 18
+    }
+    for col_idx, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = w
+
+    # ----------------------------
+    # Data validation (decimal >= 0) for columns 12 & 13
+    # ----------------------------
+    dv_num = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
+    dv_num.errorStyle = "stop"
+    dv_num.showErrorMessage = True
+    dv_num.errorTitle = "Invalid value"
+    dv_num.error = "Only numeric values are allowed (decimal >= 0)."
+    dv_num.promptTitle = "New ADL fees"
+    dv_num.prompt = "Enter a numeric value (decimal >= 0)."
+    ws.add_data_validation(dv_num)
+
+    # ----------------------------
+    # Write data rows (start row = 4)
+    # ----------------------------
+    start_row = 4
+
+    for i, row in enumerate(adl_fees_data or []):
+        r = start_row + i
+
+        # mapping depuis ton endpoint (Postman)
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            row.get("adl_in_fee"),
+            row.get("adl_out_fee"),
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            None,  # New ADL in (editable)
+            None,  # New ADL out (editable)
+            row.get("nav_valuation_date"),
+        ]
+
+        for col_idx, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col_idx, value=v)
+            cell.font = font_black
+            cell.border = DEFAULT_BORDER
+            cell.alignment = align_left if col_idx <= 7 else align_center
+
+            # Default: locked everywhere
+            cell.protection = Protection(locked=True)
+
+            # Editable columns (12,13) -> unlocked + grey fill + numeric format
+            if col_idx in (12, 13):
+                cell.fill = light_edit_fill
+                cell.protection = Protection(locked=False)  # ✅ IMPORTANT
+                cell.number_format = "0.00"
+
+            # Date format (if value is a date/datetime excel will render; else ok)
+            if col_idx == 14:
+                cell.number_format = "yyyy-mm-dd"
+
+    # last_row for validation ranges (even if list empty -> apply to at least one row)
+    last_row = max(start_row, start_row + len(adl_fees_data or []) - 1)
+
+    # Apply validation to ranges (12 & 13)
+    dv_num.add(f"{get_column_letter(12)}{start_row}:{get_column_letter(12)}{last_row}")
+    dv_num.add(f"{get_column_letter(13)}{start_row}:{get_column_letter(13)}{last_row}")
+
+    # ----------------------------
+    # Protect sheet (must be AFTER setting cell protections)
+    # ----------------------------
+    ws.protection.enable()
+    ws.protection.selectLockedCells = False
+    ws.protection.selectUnlockedCells = True
+
+    return wb
+
+Où tu la mets ?
+
+Dans ton projet, vu tes captures, tu peux la mettre dans le même fichier src/util/mass_update/get_mass_update_template.py (ou ton get_mass_update_template copy.py) et l’appeler dans ton if task.name == 'Upload Specific Fees template'.
+
+Si tu veux, envoie-moi l’endroit exact où tu construis le wb (la fonction actuelle qui retourne le workbook) et je te donne le diff exact : import + appel + comment remplacer le template générique par celui-ci.
