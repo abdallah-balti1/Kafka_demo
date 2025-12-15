@@ -1,0 +1,207 @@
+OK — si avec ce code le problème persiste, alors ça veut dire une seule chose : tes cellules “New ADL in/out” sont bien écrites, mais leur locked=False est ensuite écrasé (ou la protection n’est pas activée de la façon attendue par Excel Mac).
+
+Je te donne donc une version encore plus “bulletproof” (OpenPyXL 3.1.2 + Excel Mac) + un mini test pour prouver en Python que L4/M4 sont bien déverrouillées (sinon on saura que ton pipeline écrase après).
+
+
+---
+
+✅ Fonction complète “clean” (Excel Mac OK)
+
+> Points importants :
+
+
+
+ws.protection.sheet = True (Excel Mac est parfois chiant si on ne le met pas explicitement)
+
+Protection activée tout à la fin
+
+AUCUN style global / NamedStyle appliqué après le unlock
+
+locked=False posé après tous les autres attributs (fill/format/etc.)
+
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Protection
+from openpyxl.worksheet.datavalidation import DataValidation
+
+
+def create_specific_fees_template_workbook(adl_fees_data: list[dict]) -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # ----------------------
+    # Styles
+    # ----------------------
+    header_fill = PatternFill("solid", fgColor="1F1F1F")
+    edit_fill = PatternFill("solid", fgColor="E6E6E6")
+
+    header_font = Font(bold=True, color="FFFFFF")
+    normal_font = Font(color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+
+    # ----------------------
+    # Header row (row 3)
+    # ----------------------
+    headers = [
+        "Umbrella name",
+        "Sub-fund name",
+        "Sub-fund ALADDIN code",
+        "Sub-fund status",
+        "Share name",
+        "ISIN code",
+        "Share status",
+        "ADL in",
+        "ADL out",
+        "Max ADL in",
+        "Max ADL out",
+        "New ADL in",
+        "New ADL out",
+        "Effective NAV date",
+    ]
+
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=3, column=col, value=h)
+        c.fill = header_fill
+        c.font = header_font
+        c.alignment = align_center
+        c.protection = Protection(locked=True)
+
+    ws.freeze_panes = "A4"
+
+    # ----------------------
+    # Data rows
+    # ----------------------
+    start_row = 4
+    for i, row in enumerate(adl_fees_data or []):
+        r = start_row + i
+
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            row.get("adl_in_fee"),
+            row.get("adl_out_fee"),
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            row.get("adl_in_fee"),   # ✅ prefill with old value (optional)
+            row.get("adl_out_fee"),  # ✅ prefill with old value (optional)
+            row.get("nav_valuation_date"),
+        ]
+
+        for col, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col, value=v)
+            cell.font = normal_font
+            cell.alignment = align_left if col <= 7 else align_center
+            cell.protection = Protection(locked=True)
+
+    last_row = start_row + max(len(adl_fees_data or []), 1) - 1
+
+    # ----------------------
+    # Unlock editable columns ONLY (L=12, M=13)
+    # IMPORTANT: do it AFTER writing everything
+    # ----------------------
+    for col in (12, 13):
+        for r in range(start_row, last_row + 1):
+            cell = ws.cell(row=r, column=col)
+
+            # style/format first...
+            cell.fill = edit_fill
+            cell.number_format = "0.00"
+            cell.font = normal_font
+            cell.alignment = align_center
+
+            # ...then unlock LAST (to avoid override)
+            cell.protection = Protection(locked=False)
+
+    # ----------------------
+    # Validation (>=0) on L & M
+    # ----------------------
+    dv = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
+    dv.errorTitle = "Invalid value"
+    dv.error = "Only numeric values ≥ 0 are allowed"
+    ws.add_data_validation(dv)
+    dv.add(f"L{start_row}:L{last_row}")
+    dv.add(f"M{start_row}:M{last_row}")
+
+    # ----------------------
+    # Protect sheet (MUST be last)
+    # ----------------------
+    ws.protection.sheet = True
+    ws.protection.enable()
+    ws.protection.selectLockedCells = False
+    ws.protection.selectUnlockedCells = True
+
+    return wb
+
+
+---
+
+🧪 Test immédiat (pour savoir si c’est ton code ou ton pipeline qui écrase)
+
+Juste après génération, ajoute ce test :
+
+wb = create_specific_fees_template_workbook(adl_fees_data)
+ws = wb["Specific Fees"]
+
+print("Sheet protected:", ws.protection.sheet, ws.protection.enabled)
+print("L4 locked?:", ws["L4"].protection.locked)
+print("M4 locked?:", ws["M4"].protection.locked)
+
+wb.save("test_specific_fees.xlsx")
+
+✅ Résultat attendu :
+
+Sheet protected: True True
+
+L4 locked?: False
+
+M4 locked?: False
+
+
+Si tu vois True pour L4/M4
+
+➡️ alors ton code après cette fonction (ailleurs dans ton projet) ré-applique un .style, un NamedStyle, ou une boucle qui remet Protection(locked=True).
+
+
+---
+
+🔥 Et TON screen “problème de style” + crash str has no attribute name
+
+Ça, c’est un 2e bug dans ton projet : wb.named_styles peut contenir des strings + des NamedStyle.
+
+Donc si tu as quelque part :
+
+[s.name for s in wb.named_styles]
+
+➡️ ça casse.
+
+Corrige partout par :
+
+existing = set()
+for s in wb.named_styles:
+    existing.add(getattr(s, "name", s))
+
+
+---
+
+Ce que je te demande (sans débat 😄)
+
+Copie-colle le print test et renvoie-moi les 4 lignes de sortie (sheet protected + L4/M4 locked).
+
+Avec ça, je te dis exactement :
+
+soit “ça marche mais Excel ouvre un autre onglet / autre fichier”
+
+soit “un autre morceau de ton code réécrase la protection”
+
+soit “Excel Table / NamedStyle” écrase
+
+
+Et je te donne le patch précis au bon endroit.
