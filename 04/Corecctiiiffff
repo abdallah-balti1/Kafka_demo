@@ -1,0 +1,223 @@
+Oui, ton screenshot explique exactement pourquoi tu as “toujours le même problème” :
+
+✅ Tu as bien protégé la feuille
+❌ mais les cellules que tu essayes de modifier sont “vides” / pas créées (ou pas explicitement “unlocked”) → et dans Excel, toutes les cellules sont “Locked=True” par défaut, même si elles sont grisées visuellement.
+
+Donc même si tu as “unlock” les cellules que tu as créées, si l’utilisateur clique sur une cellule dans la zone New ADL qui n’a pas été explicitement déverrouillée, Excel bloque.
+
+La solution robuste : déverrouiller une plage entière pour les colonnes 12 et 13 (ex: lignes 4→5000), et appliquer la validation sur cette même plage.
+
+
+---
+
+✅ Fonction complète corrigée (déverrouille une plage entière)
+
+import openpyxl
+from openpyxl.styles import Alignment, Font, PatternFill, Protection
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.utils import get_column_letter
+
+
+def create_specific_fees_template_workbook(adl_fees_data: list[dict], unlock_rows: int = 5000) -> openpyxl.Workbook:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # ----------------------------
+    # Styles
+    # ----------------------------
+    black_fill = PatternFill(fill_type="solid", fgColor="000000")
+    dark_fill = PatternFill(fill_type="solid", fgColor="1F1F1F")
+    light_edit_fill = PatternFill(fill_type="solid", fgColor="E6E6E6")
+
+    font_white_bold = Font(name=FONT_NAME, size=11, bold=True, color="FFFFFF")
+    font_black = Font(name=FONT_NAME, size=11, color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # ----------------------------
+    # Row 1 : Title
+    # ----------------------------
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
+    c = ws.cell(row=1, column=1, value="BNP PARIBAS EASY - Update of real ADL fees (in bps)")
+    c.fill = black_fill
+    c.font = font_white_bold
+    c.alignment = align_left
+    c.border = DEFAULT_BORDER
+    c.protection = Protection(locked=True)
+    ws.row_dimensions[1].height = 24
+
+    # ----------------------------
+    # Row 2 : Group headers
+    # ----------------------------
+    groups = [
+        (1, 7, "Product / Share"),
+        (8, 9, "Current ADL fees"),
+        (10, 11, "Maximum ADL fees"),
+        (12, 13, "New ADL fees\n(editable)"),
+        (14, 14, "Effective NAV\ndate"),
+    ]
+
+    for start_col, end_col, label in groups:
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+        cell = ws.cell(row=2, column=start_col, value=label)
+        cell.fill = black_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = DEFAULT_BORDER
+        cell.protection = Protection(locked=True)
+
+        for col in range(start_col, end_col + 1):
+            cc = ws.cell(row=2, column=col)
+            cc.border = DEFAULT_BORDER
+            cc.protection = Protection(locked=True)
+
+    ws.row_dimensions[2].height = 20
+
+    # ----------------------------
+    # Row 3 : Column headers
+    # ----------------------------
+    headers = [
+        "Umbrella name",
+        "Sub-fund name",
+        "Sub-fund ALADDIN code",
+        "Sub-fund status",
+        "Share name",
+        "ISIN code",
+        "Share status",
+        "ADL in",
+        "ADL out",
+        "Max ADL in",
+        "Max ADL out",
+        "New ADL in",
+        "New ADL out",
+        "Effective NAV date",
+    ]
+
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = DEFAULT_BORDER
+        cell.protection = Protection(locked=True)
+
+    ws.row_dimensions[3].height = 34
+    ws.freeze_panes = "A4"
+
+    # ----------------------------
+    # Column widths
+    # ----------------------------
+    col_widths = {
+        1: 22, 2: 34, 3: 22, 4: 16,
+        5: 55, 6: 18, 7: 16,
+        8: 10, 9: 10,
+        10: 12, 11: 12,
+        12: 12, 13: 12,
+        14: 18
+    }
+    for col_idx, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = w
+
+    # ----------------------------
+    # Data validation for New ADL columns
+    # ----------------------------
+    dv_num = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
+    dv_num.errorStyle = "stop"
+    dv_num.showErrorMessage = True
+    dv_num.errorTitle = "Invalid value"
+    dv_num.error = "Only numeric values are allowed (decimal >= 0)."
+    dv_num.promptTitle = "New ADL fees"
+    dv_num.prompt = "Enter a numeric value (decimal >= 0)."
+    ws.add_data_validation(dv_num)
+
+    # ----------------------------
+    # Write existing data rows
+    # ----------------------------
+    start_row = 4
+    for i, row in enumerate(adl_fees_data or []):
+        r = start_row + i
+
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            row.get("adl_in_fee"),
+            row.get("adl_out_fee"),
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            None,  # New ADL in (editable)
+            None,  # New ADL out (editable)
+            row.get("nav_valuation_date"),
+        ]
+
+        for col_idx, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col_idx, value=v)
+            cell.font = font_black
+            cell.border = DEFAULT_BORDER
+            cell.alignment = align_left if col_idx <= 7 else align_center
+            cell.protection = Protection(locked=True)
+
+            if col_idx in (12, 13):
+                cell.fill = light_edit_fill
+                cell.protection = Protection(locked=False)
+                cell.number_format = "0.00"
+
+            if col_idx == 14:
+                cell.number_format = "yyyy-mm-dd"
+
+    # ----------------------------
+    # ✅ IMPORTANT : unlock a whole range for cols 12 & 13 (even if empty cells)
+    # ----------------------------
+    unlock_start = start_row
+    unlock_end = max(start_row + unlock_rows - 1, start_row + len(adl_fees_data or []) - 1)
+
+    for r in range(unlock_start, unlock_end + 1):
+        for col_idx in (12, 13):
+            cell = ws.cell(row=r, column=col_idx)
+            cell.fill = light_edit_fill
+            cell.border = DEFAULT_BORDER
+            cell.font = font_black
+            cell.alignment = align_center
+            cell.number_format = "0.00"
+            cell.protection = Protection(locked=False)  # ✅ unlock explicitly
+
+    # Apply validation to the whole unlocked range
+    dv_num.add(f"{get_column_letter(12)}{unlock_start}:{get_column_letter(12)}{unlock_end}")
+    dv_num.add(f"{get_column_letter(13)}{unlock_start}:{get_column_letter(13)}{unlock_end}")
+
+    # ----------------------------
+    # Protect sheet
+    # ----------------------------
+    ws.protection.sheet = True
+    ws.protection.enable()
+    ws.protection.selectLockedCells = False
+    ws.protection.selectUnlockedCells = True
+
+    return wb
+
+
+---
+
+Pourquoi ça marche maintenant ?
+
+Excel protège la feuille → OK
+
+Colonnes 12/13 déverrouillées sur une plage entière même si la cellule était “vide”
+
+Validation appliquée sur toute la plage (pas juste sur les lignes existantes)
+
+
+
+---
+
+Si tu veux, envoie-moi juste :
+
+combien de lignes max tu veux autoriser (1000 ? 5000 ? 20000 ?)
+
+et si tu veux que les cellules “New ADL” restent vides ou qu’on pré-remplisse avec la valeur actuelle (ADL in/out) pour faciliter la saisie.
