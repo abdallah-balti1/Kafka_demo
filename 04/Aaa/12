@@ -1,0 +1,189 @@
+Je vois le problème ! L'alerte Excel indique que vous essayez de modifier une cellule ou un graphique sur une feuille protégée. Le souci vient de l'ordre des opérations dans votre code.
+Vous activez la protection de la feuille après avoir ajouté la validation de données, mais Excel considère que certaines propriétés sont verrouillées. Voici la solution :
+Solution : Réorganiser le code
+from typing import List, Dict, Optional
+import openpyxl
+from openpyxl.workbook import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, Protection
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
+
+
+def create_specific_fees_template_workbook(
+    adl_fees_data: List[Dict],
+    sheet_name: str = "Specific Fees",
+    protect_password: Optional[str] = None,
+) -> Workbook:
+    wb = openpyxl.Workbook()
+    ws: Worksheet = wb.active
+    ws.title = sheet_name
+
+    # -----------------------------
+    # Styles
+    # -----------------------------
+    black_fill = PatternFill("solid", fgColor="000000")
+    dark_fill = PatternFill("solid", fgColor="1F1F1F")
+    edit_fill = PatternFill("solid", fgColor="E6E6E6")
+
+    font_white_bold = Font(name="Verdana", size=11, bold=True, color="FFFFFF")
+    font_black = Font(name="Verdana", size=11, color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    thin = Side(style="thin", color="C0C0C0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers = [
+        "Umbrella name", "Sub-fund name", "Sub-fund ALADDIN code", "Sub-fund status",
+        "Share name", "ISIN code", "Share status",
+        "ADL in", "ADL out",
+        "Max ADL in", "Max ADL out",
+        "New ADL in", "New ADL out",
+        "Effective NAV date",
+    ]
+
+    # -----------------------------
+    # Header rows
+    # -----------------------------
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    c = ws.cell(row=1, column=1, value="BNP PARIBAS EASY - Update of real ADL fees (in bps)")
+    c.fill = black_fill
+    c.font = font_white_bold
+    c.alignment = align_left
+    c.border = border
+    c.protection = Protection(locked=True)
+    ws.row_dimensions[1].height = 24
+
+    groups = [
+        (1, 7, "Product / Share"),
+        (8, 9, "Current ADL fees"),
+        (10, 11, "Maximum ADL fees"),
+        (12, 13, "New ADL fees (editable)"),
+        (14, 14, "Effective NAV date"),
+    ]
+    for start_col, end_col, label in groups:
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+        cell = ws.cell(row=2, column=start_col, value=label)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        for col in range(start_col, end_col + 1):
+            cc = ws.cell(row=2, column=col)
+            cc.border = border
+            cc.protection = Protection(locked=True)
+    ws.row_dimensions[2].height = 20
+
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = border
+        cell.protection = Protection(locked=True)
+    ws.row_dimensions[3].height = 34
+
+    ws.freeze_panes = "A4"
+
+    col_widths = {
+        1: 18, 2: 18, 3: 20, 4: 16, 5: 42, 6: 16, 7: 14,
+        8: 10, 9: 10, 10: 12, 11: 12, 12: 12, 13: 12, 14: 18
+    }
+    for col_idx, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = w
+
+    # -----------------------------
+    # 🔑 KEY FIX: Create validation BEFORE writing data
+    # -----------------------------
+    dv_num = DataValidation(
+        type="decimal", 
+        operator="greaterThanOrEqual", 
+        formula1="0", 
+        allow_blank=True
+    )
+    dv_num.errorStyle = "stop"
+    dv_num.showErrorMessage = True
+    dv_num.errorTitle = "Valeur invalide"
+    dv_num.error = "Seules les valeurs numériques sont autorisées (>= 0)."
+    
+    # Calculate the range for editable columns (L and M)
+    start_row = 4
+    end_row = start_row + len(adl_fees_data) - 1
+    
+    # Add validation to ranges BEFORE protecting
+    if len(adl_fees_data) > 0:
+        dv_num.add(f"L{start_row}:L{end_row}")  # New ADL in
+        dv_num.add(f"M{start_row}:M{end_row}")  # New ADL out
+    
+    ws.add_data_validation(dv_num)
+
+    # -----------------------------
+    # Write rows
+    # -----------------------------
+    for i, row in enumerate(adl_fees_data):
+        r = start_row + i
+
+        existing_in = row.get("adl_in_fee")
+        existing_out = row.get("adl_out_fee")
+
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            existing_in,
+            existing_out,
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            existing_in,   # New ADL in
+            existing_out,  # New ADL out
+            row.get("nav_valuation_date"),
+        ]
+
+        for col_idx, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col_idx, value=v)
+            cell.font = font_black
+            cell.border = border
+            cell.alignment = align_left if col_idx <= 7 else align_center
+
+            # Par défaut : verrouillé
+            cell.protection = Protection(locked=True)
+
+            # Colonnes éditables (12=L, 13=M)
+            if col_idx in (12, 13):
+                cell.fill = edit_fill
+                cell.protection = Protection(locked=False)
+                cell.number_format = "0.00"
+
+    # -----------------------------
+    # 🔑 Protect sheet LAST (after everything else)
+    # -----------------------------
+    ws.protection.sheet = True
+    ws.protection.password = protect_password if protect_password else ""
+    ws.protection.formatCells = False
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
+    ws.protection.insertColumns = False
+    ws.protection.insertRows = False
+    ws.protection.insertHyperlinks = False
+    ws.protection.deleteColumns = False
+    ws.protection.deleteRows = False
+    ws.protection.selectLockedCells = True  # Changé à True
+    ws.protection.selectUnlockedCells = True
+    ws.protection.sort = False
+    ws.protection.autoFilter = False
+    ws.protection.pivotTables = False
+    ws.protection.objects = False
+    ws.protection.scenarios = False
+
+    return wb
+Les changements clés :
+Ajout de la validation sur des plages au lieu de cellule par cellule
+selectLockedCells = True : permet de sélectionner les cellules verrouillées (nécessaire pour naviguer)
+Ordre correct : validation → écriture → protection
+Propriétés de protection explicites pour éviter les conflits
+Cette solution devrait résoudre votre problème et permettre l'édition uniquement des colonnes "New ADL in" et "New ADL out" avec validation numérique ! 🎯
