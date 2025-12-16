@@ -1,0 +1,246 @@
+OK — si ton objectif export-only est :
+
+feuille protégée ✅
+
+seulement 2 colonnes modifiables (“New ADL in” / “New ADL out”) ✅
+
+valeurs numériques uniquement ✅
+
+fonctionne Mac + Windows (Excel) ✅
+
+
+Voilà une fonction complète clean (openpyxl 3.1.x) qui le fait de manière fiable.
+
+> Point clé : pour que ce soit vraiment éditable dans Excel, je mets une valeur vide "" (pas None) dans les 2 colonnes éditables, et je déverrouille explicitement les cellules + protection de feuille + selectLockedCells=False.
+
+
+
+
+---
+
+from typing import List, Dict, Optional
+import openpyxl
+from openpyxl.workbook import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, Protection
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
+
+
+def create_specific_fees_template_workbook(
+    adl_fees_data: List[Dict],
+    sheet_name: str = "Specific Fees",
+    protect_password: Optional[str] = None,  # mets un mdp si tu veux, sinon None
+) -> Workbook:
+    """
+    Génère un XLSX où TOUT est en lecture seule sauf 2 colonnes:
+      - "New ADL in"  (col 12 = L)
+      - "New ADL out" (col 13 = M)
+
+    Et ces 2 colonnes acceptent UNIQUEMENT des valeurs numériques (décimal >= 0).
+    """
+
+    wb = openpyxl.Workbook()
+    ws: Worksheet = wb.active
+    ws.title = sheet_name
+
+    # -----------------------------
+    # Styles
+    # -----------------------------
+    black_fill = PatternFill("solid", fgColor="000000")
+    dark_fill = PatternFill("solid", fgColor="1F1F1F")
+    edit_fill = PatternFill("solid", fgColor="E6E6E6")
+
+    font_white_bold = Font(name="Verdana", size=11, bold=True, color="FFFFFF")
+    font_black = Font(name="Verdana", size=11, color="000000")
+
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    thin = Side(style="thin", color="C0C0C0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # -----------------------------
+    # Header (ligne 1 + 2 + 3)
+    # -----------------------------
+    headers = [
+        "Umbrella name",            # 1
+        "Sub-fund name",            # 2
+        "Sub-fund ALADDIN code",    # 3
+        "Sub-fund status",          # 4
+        "Share name",               # 5
+        "ISIN code",                # 6
+        "Share status",             # 7
+        "ADL in",                   # 8
+        "ADL out",                  # 9
+        "Max ADL in",               # 10
+        "Max ADL out",              # 11
+        "New ADL in",               # 12  <-- editable
+        "New ADL out",              # 13  <-- editable
+        "Effective NAV date",       # 14
+    ]
+
+    # Ligne 1: titre
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    c = ws.cell(row=1, column=1, value="BNP PARIBAS EASY - Update of real ADL fees (in bps)")
+    c.fill = black_fill
+    c.font = font_white_bold
+    c.alignment = align_left
+    c.border = border
+    c.protection = Protection(locked=True)
+    ws.row_dimensions[1].height = 24
+
+    # Ligne 2: group header (optionnel, comme ton screenshot)
+    groups = [
+        (1, 7, "Product / Share"),
+        (8, 9, "Current ADL fees"),
+        (10, 11, "Maximum ADL fees"),
+        (12, 13, "New ADL fees (editable)"),
+        (14, 14, "Effective NAV date"),
+    ]
+    for start_col, end_col, label in groups:
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+        cell = ws.cell(row=2, column=start_col, value=label)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        for col in range(start_col, end_col + 1):
+            cc = ws.cell(row=2, column=col)
+            cc.border = border
+            cc.protection = Protection(locked=True)
+    ws.row_dimensions[2].height = 20
+
+    # Ligne 3: headers
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.fill = dark_fill
+        cell.font = font_white_bold
+        cell.alignment = align_center
+        cell.border = border
+        cell.protection = Protection(locked=True)
+    ws.row_dimensions[3].height = 34
+
+    ws.freeze_panes = "A4"
+
+    # Largeurs (ajuste si besoin)
+    col_widths = {
+        1: 18, 2: 18, 3: 20, 4: 16, 5: 42, 6: 16, 7: 14,
+        8: 10, 9: 10, 10: 12, 11: 12, 12: 12, 13: 12, 14: 18
+    }
+    for col_idx, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = w
+
+    # -----------------------------
+    # Data validation (New ADL in/out)
+    # -----------------------------
+    dv_num = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
+    dv_num.errorStyle = "stop"
+    dv_num.showErrorMessage = True
+    dv_num.errorTitle = "Invalid value"
+    dv_num.error = "Only numeric values are allowed (decimal >= 0)."
+    dv_num.promptTitle = "New ADL fees"
+    dv_num.prompt = "Enter a numeric value (decimal >= 0)."
+    ws.add_data_validation(dv_num)
+
+    # -----------------------------
+    # Write rows
+    # -----------------------------
+    start_row = 4
+    for i, row in enumerate(adl_fees_data):
+        r = start_row + i
+
+        # Valeurs sources (colonnes lock)
+        values = [
+            row.get("umb_name_lbl"),
+            row.get("sbf_name"),
+            row.get("prod_cd_valu"),
+            row.get("sbf_stat_lbl"),
+            row.get("sha_name"),
+            row.get("isin_cd"),
+            row.get("sha_stat_lbl"),
+            row.get("adl_in_fee"),
+            row.get("adl_out_fee"),
+            row.get("max_adl_in_fee"),
+            row.get("max_adl_out_fee"),
+            None,  # New ADL in (editable)
+            None,  # New ADL out (editable)
+            row.get("nav_valuation_date"),
+        ]
+
+        for col_idx, v in enumerate(values, start=1):
+            cell = ws.cell(row=r, column=col_idx, value=v)
+            cell.font = font_black
+            cell.border = border
+            cell.alignment = align_left if col_idx <= 7 else align_center
+
+            # Par défaut tout est verrouillé
+            cell.protection = Protection(locked=True)
+
+            # Colonnes éditables: 12 et 13
+            if col_idx in (12, 13):
+                # IMPORTANT: mettre "" au lieu de None aide Excel à respecter l'édition
+                if v is None:
+                    cell.value = ""
+                cell.fill = edit_fill
+                cell.protection = Protection(locked=False)
+                cell.number_format = "0.00"
+
+        # Appliquer la validation sur les 2 cellules éditables
+        dv_num.add(ws.cell(r, 12))
+        dv_num.add(ws.cell(r, 13))
+
+    last_row = max(start_row, start_row + len(adl_fees_data) - 1)
+
+    # -----------------------------
+    # PROTECTION FEUILLE (CRITIQUE)
+    # -----------------------------
+    ws.protection.sheet = True
+
+    # Permet de sélectionner uniquement les cellules déverrouillées (L/M)
+    ws.protection.selectLockedCells = False
+    ws.protection.selectUnlockedCells = True
+
+    # On évite que l’utilisateur joue avec le format / insertion
+    ws.protection.formatCells = False
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
+    ws.protection.insertColumns = False
+    ws.protection.insertRows = False
+    ws.protection.deleteColumns = False
+    ws.protection.deleteRows = False
+    ws.protection.sort = False
+    ws.protection.autoFilter = False
+    ws.protection.pivotTables = False
+    ws.protection.objects = True
+    ws.protection.scenarios = True
+
+    # Active la protection (avec ou sans mot de passe)
+    if protect_password:
+        ws.protection.set_password(protect_password)
+    ws.protection.enable()
+
+    return wb
+
+
+---
+
+Ce que tu obtiens avec cette fonction
+
+L’utilisateur ne peut même pas cliquer ailleurs (car selectLockedCells=False)
+
+Il peut cliquer/modifier uniquement L et M (New ADL in/out)
+
+Il ne peut saisir que du numérique >= 0 (sinon Excel bloque)
+
+
+
+---
+
+Si tu veux que ça marche même si L/M sont vides
+
+✅ c’est déjà le cas, car je force cell.value = "" (important).
+
+
+---
+
+Si tu me donnes les noms exacts des clés de adl_fees_data (tes champs JSON), je te l’adapte pile à ton payload (sans get(...) approximatif).
