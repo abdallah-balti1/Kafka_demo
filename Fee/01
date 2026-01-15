@@ -1,0 +1,78 @@
+SELECT DISTINCT
+    umb.umb_name_lbl,
+    sub.sbf_name,
+    pc.prod_cd_valu,
+    sub.sbf_stat_lbl,
+    sh.sha_name,
+    sh.isin_cd,
+    sh.sha_stat_lbl,
+    shl.nav_valuation_date,
+
+    -- existing fee % columns
+    pf_max_adl_in.fees_pctg  AS max_adl_in_fee,
+    pf_adl_in.fees_pctg      AS adl_in_fee,
+    pf_max_adl_out.fees_pctg AS max_adl_out_fee,
+    pf_adl_out.fees_pctg     AS adl_out_fee,
+
+    -- NEW: ids for each fee row
+    pf_max_adl_in.fee_id       AS max_adl_in_fee_id,
+    pf_max_adl_in.fee_value_id AS max_adl_in_fee_value_id,
+
+    pf_adl_in.fee_id           AS adl_in_fee_id,
+    pf_adl_in.fee_value_id     AS adl_in_fee_value_id,
+
+    pf_max_adl_out.fee_id      AS max_adl_out_fee_id,
+    pf_max_adl_out.fee_value_id AS max_adl_out_fee_value_id,
+
+    pf_adl_out.fee_id          AS adl_out_fee_id,
+    pf_adl_out.fee_value_id    AS adl_out_fee_value_id
+
+FROM own_26967_plmsmartgps.share sh
+JOIN own_26967_plmsmartgps.product p
+    ON p.prod_cd = sh.prod_cd
+JOIN own_26967_plmsmartgps.umbrella umb
+    ON umb.umb_cd_cd = p.umb_cd
+JOIN own_26967_plmsmartgps.subfund sub
+    ON sub.umb_cd = umb.umb_cd_cd
+JOIN own_26967_plmsmartgps.product_codification pc
+    ON pc.prod_cd = p.prod_cd
+JOIN own_26967_plmsmartgps.share_launching_schedule shl
+    ON shl.sha_cd = sh.sha_cd
+
+-- MAX ADL IN
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_adl_in
+    ON pf_max_adl_in.prod_cd = p.prod_cd
+   AND pf_max_adl_in.sha_cd  = sh.sha_cd
+   AND pf_max_adl_in.specific_fees_cgy_cd = '19'
+   AND pf_max_adl_in.fees_lvl_cd = 'MAX'
+
+-- REEL ADL IN
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_adl_in
+    ON pf_adl_in.prod_cd = p.prod_cd
+   AND pf_adl_in.sha_cd  = sh.sha_cd
+   AND pf_adl_in.specific_fees_cgy_cd = '19'
+   AND pf_adl_in.fees_lvl_cd = 'REEL'
+
+-- MAX ADL OUT
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_adl_out
+    ON pf_max_adl_out.prod_cd = p.prod_cd
+   AND pf_max_adl_out.sha_cd  = sh.sha_cd
+   AND pf_max_adl_out.specific_fees_cgy_cd = '27'
+   AND pf_max_adl_out.fees_lvl_cd = 'MAX'
+
+-- REEL ADL OUT
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_adl_out
+    ON pf_adl_out.prod_cd = p.prod_cd
+   AND pf_adl_out.sha_cd  = sh.sha_cd
+   AND pf_adl_out.specific_fees_cgy_cd = '27'
+   AND pf_adl_out.fees_lvl_cd = 'REEL'
+
+WHERE
+    p.prod_cd = '43329'
+    AND pc.codification_typ_cd = 'PTF_BNPPAM'
+
+ORDER BY
+    umb.umb_name_lbl,
+    sub.sbf_name,
+    pc.prod_cd_valu,
+    sub.sbf_stat_lbl;
