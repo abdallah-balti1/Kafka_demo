@@ -1,0 +1,213 @@
+from collections import defaultdict
+from decimal import Decimal, InvalidOperation
+
+# ====== A ADAPTER si besoin (noms exacts dans ton template MassUpdateReader) ======
+PRODUCT_NAME_COLUMN = "Product name"
+SHARE_NAME_COLUMN = "Share name"
+NEW_ADL_IN_COLUMN = "New Real ADL fees ADL in"
+NEW_ADL_OUT_COLUMN = "New Real ADL fees ADL out"
+
+# Si ton fichier utilise "New real ..." (r minuscule) garde la version exacte
+# NEW_ADL_IN_COLUMN = "New real ADL fees ADL in"
+# NEW_ADL_OUT_COLUMN = "New real ADL fees ADL out"
+
+TO_DELETE_VALUE = "to_delete"
+EMPTY_VALUE = ""
+
+FEES_TYP_CD = "2"
+ADL_IN_SUBTYPE = "5"
+ADL_OUT_SUBTYPE = "6"
+
+
+def _norm(s) -> str:
+    return ("" if s is None else str(s)).strip().upper()
+
+
+def _to_decimal_or_none(v):
+    """Convertit une valeur (excel/payload) en Decimal comparable. None si vide/invalide."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        vv = v.strip()
+        if vv == "" or vv == "-":
+            return None
+    try:
+        return Decimal(str(v))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _safe_get_value(mu_reader, mu_row, column_name):
+    """
+    mu_reader.get_value() peut crasher si la colonne n'est pas connue (column_index None).
+    On sécurise: on retourne None si ça arrive.
+    """
+    try:
+        return mu_reader.get_value(mu_row, column_name)
+    except TypeError:
+        # typiquement: tuple indices must be integers or slices, not NoneType
+        return None
+    except KeyError:
+        return None
+
+
+def _get_product_name_from_payload_item(it: dict) -> str:
+    """
+    Le product name Excel peut matcher:
+      - SUB: sbf_name
+      - SIN: sin_name / sin_nam (selon ton naming)
+    On prend le premier non-vide.
+    """
+    return (
+        it.get("sbf_name")
+        or it.get("sin_name")
+        or it.get("sin_nam")
+        or it.get("sbf_nam")
+        or ""
+    )
+
+
+def create_cre_data_for_mass_update_fees_to_send_to_cosmos(user, task, wb, mass_update_template):
+    """
+    - Appelle get_adl_fees_data
+    - Indexe le payload par (product_name, share_name) en gérant SUB/SIN
+    - Parcourt l'excel, compare New ADL in/out avec adl_in_fee/adl_out_fee
+    - Construit cre_data_list_by_product_id[prod_cd]
+    """
+
+    # ------------------------------------------------------------------
+    # 1) field_metadatas (inchangé vs ton existant)
+    # ------------------------------------------------------------------
+    field_ids = [f.field_id for f in mass_update_template.fields]
+    if task.project.product_type:
+        field_metadatas = {
+            fm["id"]: fm for fm in get_fields_metadata(field_ids, task.project.product_type)
+        }
+    else:
+        field_metadatas = {
+            fm["id"]: fm for fm in get_fields_metadata(field_ids, "")
+        }
+
+    mu_reader: MassUpdateReaderBase = get_mass_update_reader(
+        mass_update_template, field_metadatas, wb
+    )
+
+    # ------------------------------------------------------------------
+    # 2) Appel endpoint
+    # ------------------------------------------------------------------
+    # Idéalement: l’endpoint doit accepter [] / None et renvoyer ce qu’il faut.
+    # Si chez toi il faut absolument une liste, tu peux passer les produits du projet
+    # si disponibles (mais tu m’as dit vouloir te baser sur l’endpoint).
+    payload = get_adl_fees_data([])
+
+    sub_items = payload.get("SUB") or []
+    sin_items = payload.get("SIN") or []
+    all_items = sub_items + sin_items
+
+    # ------------------------------------------------------------------
+    # 3) Construction d'un index robuste:
+    #    (product_name (sbf/sin), share_name) -> payload_item
+    # ------------------------------------------------------------------
+    payload_index = {}
+    for it in all_items:
+        product_name_payload = _norm(_get_product_name_from_payload_item(it))
+        share_name_payload = _norm(it.get("sha_name"))
+
+        if not product_name_payload or not share_name_payload:
+            continue
+
+        key = (product_name_payload, share_name_payload)
+
+        # si doublon, on garde le premier (ou remplace selon ton besoin)
+        payload_index.setdefault(key, it)
+
+    # ------------------------------------------------------------------
+    # 4) Parcours Excel + comparaison + CreData
+    # ------------------------------------------------------------------
+    cre_data_list_by_product_id = defaultdict(list)
+    mapping_entity_line_dict = {}
+
+    for row_index, mu_row in enumerate(mu_reader.iter_mu_rows(), start=2):
+        product_name_xls = _safe_get_value(mu_reader, mu_row, PRODUCT_NAME_COLUMN)
+        share_name_xls = _safe_get_value(mu_reader, mu_row, SHARE_NAME_COLUMN)
+
+        if not product_name_xls or not share_name_xls:
+            continue
+
+        key = (_norm(product_name_xls), _norm(share_name_xls))
+        it = payload_index.get(key)
+
+        if not it:
+            # Pas trouvé: soit libellé pas strictement identique, soit colonne Excel différente
+            # Tu peux logger ici si tu veux.
+            continue
+
+        product_id = it.get("prod_cd")
+        fee_id = it.get("fee_id")
+        fee_value_id = it.get("fee_value_id")
+        if not product_id or not fee_id or not fee_value_id:
+            continue
+
+        # Valeurs actuelles (DB) depuis endpoint
+        current_in = _to_decimal_or_none(it.get("adl_in_fee"))
+        current_out = _to_decimal_or_none(it.get("adl_out_fee"))
+
+        # Nouvelles valeurs Excel
+        new_in_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_IN_COLUMN)
+        new_out_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_OUT_COLUMN)
+
+        if isinstance(new_in_raw, str) and new_in_raw.strip().lower() == TO_DELETE_VALUE:
+            new_in_raw = EMPTY_VALUE
+        if isinstance(new_out_raw, str) and new_out_raw.strip().lower() == TO_DELETE_VALUE:
+            new_out_raw = EMPTY_VALUE
+
+        new_in = _to_decimal_or_none(new_in_raw)
+        new_out = _to_decimal_or_none(new_out_raw)
+
+        # ---- ADL IN modifié ? ----
+        if new_in is not None and new_in != current_in:
+            cre_data_in = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",      # garde tes valeurs réelles
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_in),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[product_id].append(cre_data_in)
+
+        # ---- ADL OUT modifié ? ----
+        if new_out is not None and new_out != current_out:
+            cre_data_out = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_out),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[product_id].append(cre_data_out)
+
+    return cre_data_list_by_product_id, mapping_entity_line_dict
