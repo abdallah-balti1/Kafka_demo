@@ -1,0 +1,193 @@
+from collections import defaultdict
+from decimal import Decimal, InvalidOperation
+
+# -------------------------------------------------------------------
+# Constantes à adapter si besoin selon ton MassUpdateReader
+# (ce sont les "column_name" attendus par mu_reader.get_value)
+# -------------------------------------------------------------------
+SHARE_NAME_COLUMN_KEY = "Share name"              # clé pour la colonne Share name
+NEW_ADL_IN_COLUMN_KEY = "New Real ADL fees ADL in"
+NEW_ADL_OUT_COLUMN_KEY = "New Real ADL fees ADL out"
+
+TO_DELETE_VALUE = "to_delete"
+EMPTY_VALUE = ""
+
+FEES_TYP_CD = "2"
+ADL_IN_SUBTYPE = "5"
+ADL_OUT_SUBTYPE = "6"
+
+
+def _norm(s):
+    return ("" if s is None else str(s)).strip().upper()
+
+
+def _to_decimal_or_none(v):
+    if v is None:
+        return None
+    if isinstance(v, str):
+        vv = v.strip()
+        if vv == "" or vv == "-":
+            return None
+    try:
+        return Decimal(str(v))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _safe_get_value(mu_reader, mu_row, column_key):
+    """Sécurise get_value en cas de mauvais column_key (column_index None)."""
+    try:
+        return mu_reader.get_value(mu_row, column_key)
+    except Exception:
+        return None
+
+
+def create_cre_data_for_mass_update_fees_to_send_to_cosmos(user, task, wb, mass_update_template):
+    """
+    1) Lit l'Excel pour récupérer tous les product_ids via mu_reader.get_product_id
+    2) Appelle get_adl_fees_data(product_ids)
+    3) Construit un index payload (prod_cd, sha_name) -> item
+    4) Re-parcourt l'Excel, compare New ADL in/out avec adl_in_fee/adl_out_fee
+       et construit cre_data_list_by_product_id.
+    """
+
+    # ------------------ field_metadatas standard ------------------
+    field_ids = [f.field_id for f in mass_update_template.fields]
+    if task.project.product_type:
+        field_metadatas = {
+            fm["id"]: fm for fm in get_fields_metadata(field_ids, task.project.product_type)
+        }
+    else:
+        field_metadatas = {fm["id"]: fm for fm in get_fields_metadata(field_ids, "")}
+
+    # ================== 1er passage : récupérer les product_ids ==================
+    reader_for_ids: MassUpdateReaderBase = get_mass_update_reader(
+        mass_update_template, field_metadatas, wb
+    )
+
+    product_ids_set = set()
+    for _, mu_row in enumerate(reader_for_ids.iter_mu_rows(), start=2):
+        prod_id = reader_for_ids.get_product_id(mu_row)
+        if prod_id:
+            product_ids_set.add(str(prod_id).strip())
+
+    if not product_ids_set:
+        # rien à envoyer
+        return defaultdict(list), {}
+
+    product_ids = sorted(product_ids_set)
+
+    # ================== 2) Appel endpoint avec cette liste ==================
+    payload = get_adl_fees_data(product_ids)
+
+    sub_items = payload.get("SUB") or []
+    sin_items = payload.get("SIN") or []
+    all_items = sub_items + sin_items
+
+    # ================== 3) Index (prod_cd, sha_name) -> item ==================
+    payload_index = {}
+    for it in all_items:
+        prod_cd = str(it.get("prod_cd") or "").strip()
+        sha_name = _norm(it.get("sha_name"))
+        if not prod_cd or not sha_name:
+            continue
+        key = (prod_cd, sha_name)
+        payload_index.setdefault(key, it)
+
+    # ================== 4) 2e passage sur l'Excel ==================
+    mu_reader: MassUpdateReaderBase = get_mass_update_reader(
+        mass_update_template, field_metadatas, wb
+    )
+
+    cre_data_list_by_product_id = defaultdict(list)
+    mapping_entity_line_dict = {}
+
+    for row_index, mu_row in enumerate(mu_reader.iter_mu_rows(), start=2):
+        # product_id depuis l'Excel (c’est lui qu’attend l’endpoint dans prod_cd)
+        product_id = mu_reader.get_product_id(mu_row)
+        if not product_id:
+            continue
+        product_id = str(product_id).strip()
+
+        # share name Excel
+        share_name_xls = _safe_get_value(mu_reader, mu_row, SHARE_NAME_COLUMN_KEY)
+        if not share_name_xls:
+            continue
+
+        key = (product_id, _norm(share_name_xls))
+        item = payload_index.get(key)
+        if not item:
+            # pas trouvé dans le payload pour ce couple (product_id, share_name)
+            continue
+
+        fee_id = item.get("fee_id")
+        fee_value_id = item.get("fee_value_id")
+        if not fee_id or not fee_value_id:
+            continue
+
+        # valeurs DB (endpoint)
+        current_in = _to_decimal_or_none(item.get("adl_in_fee"))
+        current_out = _to_decimal_or_none(item.get("adl_out_fee"))
+
+        # nouvelles valeurs Excel
+        new_in_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_IN_COLUMN_KEY)
+        new_out_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_OUT_COLUMN_KEY)
+
+        if isinstance(new_in_raw, str) and new_in_raw.strip().lower() == TO_DELETE_VALUE:
+            new_in_raw = EMPTY_VALUE
+        if isinstance(new_out_raw, str) and new_out_raw.strip().lower() == TO_DELETE_VALUE:
+            new_out_raw = EMPTY_VALUE
+
+        new_in = _to_decimal_or_none(new_in_raw)
+        new_out = _to_decimal_or_none(new_out_raw)
+
+        # ---------- ADL IN modifié ? ----------
+        if new_in is not None and new_in != current_in:
+            cre_data_in = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",   # tes valeurs existantes
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_in),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[product_id].append(cre_data_in)
+
+        # ---------- ADL OUT modifié ? ----------
+        if new_out is not None and new_out != current_out:
+            cre_data_out = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_out),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[product_id].append(cre_data_out)
+
+        # si tu as besoin du mapping ligne -> entity_id plus tard :
+        # mapping_entity_line_dict[fee_value_id] = row_index
+
+    return cre_data_list_by_product_id, mapping_entity_line_dict
