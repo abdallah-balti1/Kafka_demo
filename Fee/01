@@ -8,24 +8,14 @@ SELECT DISTINCT
     sh.sha_stat_lbl,
     shl.nav_valuation_date,
 
-    -- existing fee % columns
     pf_max_adl_in.fees_pctg  AS max_adl_in_fee,
     pf_adl_in.fees_pctg      AS adl_in_fee,
     pf_max_adl_out.fees_pctg AS max_adl_out_fee,
     pf_adl_out.fees_pctg     AS adl_out_fee,
 
-    -- NEW: ids for each fee row
-    pf_max_adl_in.fee_id       AS max_adl_in_fee_id,
-    pf_max_adl_in.fee_value_id AS max_adl_in_fee_value_id,
-
-    pf_adl_in.fee_id           AS adl_in_fee_id,
-    pf_adl_in.fee_value_id     AS adl_in_fee_value_id,
-
-    pf_max_adl_out.fee_id      AS max_adl_out_fee_id,
-    pf_max_adl_out.fee_value_id AS max_adl_out_fee_value_id,
-
-    pf_adl_out.fee_id          AS adl_out_fee_id,
-    pf_adl_out.fee_value_id    AS adl_out_fee_value_id
+    -- ONLY ONE pair (same for all rows)
+    pf_ref.fee_id,
+    pf_ref.fee_value_id
 
 FROM own_26967_plmsmartgps.share sh
 JOIN own_26967_plmsmartgps.product p
@@ -39,33 +29,37 @@ JOIN own_26967_plmsmartgps.product_codification pc
 JOIN own_26967_plmsmartgps.share_launching_schedule shl
     ON shl.sha_cd = sh.sha_cd
 
--- MAX ADL IN
+-- existing fee joins
 LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_adl_in
     ON pf_max_adl_in.prod_cd = p.prod_cd
    AND pf_max_adl_in.sha_cd  = sh.sha_cd
    AND pf_max_adl_in.specific_fees_cgy_cd = '19'
    AND pf_max_adl_in.fees_lvl_cd = 'MAX'
 
--- REEL ADL IN
 LEFT JOIN own_26967_plmsmartgps.product_fee pf_adl_in
     ON pf_adl_in.prod_cd = p.prod_cd
    AND pf_adl_in.sha_cd  = sh.sha_cd
    AND pf_adl_in.specific_fees_cgy_cd = '19'
    AND pf_adl_in.fees_lvl_cd = 'REEL'
 
--- MAX ADL OUT
 LEFT JOIN own_26967_plmsmartgps.product_fee pf_max_adl_out
     ON pf_max_adl_out.prod_cd = p.prod_cd
    AND pf_max_adl_out.sha_cd  = sh.sha_cd
    AND pf_max_adl_out.specific_fees_cgy_cd = '27'
    AND pf_max_adl_out.fees_lvl_cd = 'MAX'
 
--- REEL ADL OUT
 LEFT JOIN own_26967_plmsmartgps.product_fee pf_adl_out
     ON pf_adl_out.prod_cd = p.prod_cd
    AND pf_adl_out.sha_cd  = sh.sha_cd
    AND pf_adl_out.specific_fees_cgy_cd = '27'
    AND pf_adl_out.fees_lvl_cd = 'REEL'
+
+-- 🔑 reference join to fetch fee_id / fee_value_id (same for all)
+LEFT JOIN own_26967_plmsmartgps.product_fee pf_ref
+    ON pf_ref.prod_cd = p.prod_cd
+   AND pf_ref.sha_cd  = sh.sha_cd
+   AND pf_ref.specific_fees_cgy_cd = '19'
+   AND pf_ref.fees_lvl_cd = 'REEL'
 
 WHERE
     p.prod_cd = '43329'
