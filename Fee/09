@@ -1,13 +1,12 @@
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+import openpyxl
 
-# Constantes pour CRE
+TO_DELETE_VALUE = "to_delete"
+EMPTY_VALUE = ""
 FEES_TYP_CD = "2"
 ADL_IN_SUBTYPE = "5"
 ADL_OUT_SUBTYPE = "6"
-MODIFY_ACTION = "MODIFY"
-TO_DELETE_VALUE = "to_delete"
-EMPTY_VALUE = ""
 
 def _to_decimal_or_none(v):
     if v is None:
@@ -21,77 +20,114 @@ def _to_decimal_or_none(v):
     except (InvalidOperation, ValueError):
         return None
 
-def create_cre_data_for_mass_update_fees_to_send_to_cosmos_custom_v2(user, task, wb, sheet_name=None):
+def _norm(s):
+    return ("" if s is None else str(s)).strip().upper()
+
+
+def create_cre_data_from_custom_excel(user, task, wb):
     """
-    Excel custom: lit uniquement _PROD_CD, Share name et New Real ADL fees (in/out).
-    Compare avec payload et crée CRE si modifié.
+    Lit l'excel custom, ne dépend pas de MassUpdateReader
+    - Récupère _PROD_CD
+    - Récupère Share name
+    - Se limite à la catégorie 'New Real ADL fees' pour ADL in/out
+    - Compare avec payload de l'endpoint et crée cre_data_list_by_product_id
     """
-    ws = wb[sheet_name] if sheet_name else wb.active
+    ws = wb.active
 
-    # --- helper pour trouver colonne ---
-    def _normalize_header(v):
-        return "" if v is None else str(v).strip().upper()
+    # --- 1) Identifier les colonnes ---
+    # Scan 10 premières lignes pour _PROD_CD et Share name
+    _prod_cd_col_idx = None
+    share_name_col_idx = None
+    for row_idx in range(1, 11):
+        for col_idx in range(1, ws.max_column + 1):
+            val = ws.cell(row=row_idx, column=col_idx).value
+            if val is None:
+                continue
+            val_norm = str(val).strip().upper()
+            if val_norm == "_PROD_CD":
+                _prod_cd_col_idx = col_idx
+            elif val_norm == "SHARE NAME":
+                share_name_col_idx = col_idx
+        if _prod_cd_col_idx and share_name_col_idx:
+            break
 
-    def find_column_index(expected_header):
-        expected = _normalize_header(expected_header)
-        for row_idx in range(1, 11):  # scan first 10 rows
-            for col_idx in range(1, ws.max_column + 1):
-                if _normalize_header(ws.cell(row=row_idx, column=col_idx).value) == expected:
-                    return col_idx
-        return None
+    if not _prod_cd_col_idx or not share_name_col_idx:
+        raise ValueError("Missing _PROD_CD or Share name column")
 
-    # --- trouver toutes les colonnes nécessaires ---
-    prod_col_idx = find_column_index("_PROD_CD")
-    share_col_idx = find_column_index("Share name")
-    adl_in_col_idx = find_column_index("New Real ADL fees ADL in")
-    adl_out_col_idx = find_column_index("New Real ADL fees ADL out")
+    # --- 2) Identifier la catégorie 'New Real ADL fees' ---
+    header_row_for_category = 2  # ligne qui contient les catégories (fusionnée)
+    category_col_start = None
+    category_col_end = None
+    for col_idx in range(1, ws.max_column + 1):
+        val = ws.cell(row=header_row_for_category, column=col_idx).value
+        if val and str(val).strip().upper() == "NEW REAL ADL FEES":
+            category_col_start = col_idx
+            # continuer à droite tant qu'on reste sur la même catégorie (fusion ou non)
+            category_col_end = col_idx
+            while category_col_end + 1 <= ws.max_column:
+                next_val = ws.cell(row=header_row_for_category, column=category_col_end + 1).value
+                if next_val and str(next_val).strip():
+                    break
+                category_col_end += 1
+            break
 
-    if not all([prod_col_idx, share_col_idx, adl_in_col_idx, adl_out_col_idx]):
-        raise ValueError("Missing required column(s) in Excel")
+    if category_col_start is None or category_col_end is None:
+        raise ValueError("Missing category 'New Real ADL fees'")
 
-    # --- lire Excel ligne par ligne ---
-    rows_data = []
-    for row_idx in range(2, ws.max_row + 1):
-        product_id = ws.cell(row=row_idx, column=prod_col_idx).value
-        share_name = ws.cell(row=row_idx, column=share_col_idx).value
-        adl_in_raw = ws.cell(row=row_idx, column=adl_in_col_idx).value
-        adl_out_raw = ws.cell(row=row_idx, column=adl_out_col_idx).value
-
-        if not product_id or not share_name:
+    # --- 3) Identifier les colonnes ADL in et ADL out sous cette catégorie ---
+    header_row = 3  # ligne qui contient les vrais headers
+    adl_in_col_idx = None
+    adl_out_col_idx = None
+    for col_idx in range(category_col_start, category_col_end + 1):
+        val = ws.cell(row=header_row, column=col_idx).value
+        if val is None:
             continue
+        val_norm = str(val).strip().upper()
+        if val_norm == "ADL IN":
+            adl_in_col_idx = col_idx
+        elif val_norm == "ADL OUT":
+            adl_out_col_idx = col_idx
 
-        rows_data.append({
-            "product_id": str(product_id).strip(),
-            "share_name": str(share_name).strip(),
-            "adl_in_raw": adl_in_raw,
-            "adl_out_raw": adl_out_raw
-        })
+    if not adl_in_col_idx or not adl_out_col_idx:
+        raise ValueError("Missing ADL in/out columns in 'New Real ADL fees' category")
 
-    if not rows_data:
+    # --- 4) Extraire _PROD_CD et Share name de toutes les lignes ---
+    product_ids_set = set()
+    share_names_list = []
+    prod_cd_list = []
+
+    for row_idx in range(header_row + 1, ws.max_row + 1):
+        prod_cd = ws.cell(row=row_idx, column=_prod_cd_col_idx).value
+        share_name = ws.cell(row=row_idx, column=share_name_col_idx).value
+        if prod_cd is None or share_name is None:
+            continue
+        prod_cd = str(prod_cd).strip()
+        share_name = str(share_name).strip()
+        product_ids_set.add(prod_cd)
+        prod_cd_list.append(prod_cd)
+        share_names_list.append(share_name)
+
+    if not product_ids_set:
         return defaultdict(list), {}
 
-    # --- appeler endpoint ---
-    product_ids = sorted({row["product_id"] for row in rows_data})
+    product_ids = sorted(product_ids_set)
+
+    # --- 5) Appeler endpoint pour récupérer payload ---
     payload = get_adl_fees_data(product_ids)
     all_items = (payload.get("SUB") or []) + (payload.get("SIN") or [])
-
-    # --- construire index payload (prod_cd, share_name) ---
     payload_index = {}
     for it in all_items:
-        prod_cd = str(it.get("prod_cd") or "").strip()
-        sha_name = (it.get("sha_name") or "").strip().upper()
-        if prod_cd and sha_name:
-            payload_index[(prod_cd, sha_name)] = it
+        key = (str(it.get("prod_cd") or "").strip(), _norm(it.get("sha_name")))
+        payload_index[key] = it
 
-    # --- comparer et créer CRE ---
+    # --- 6) Parcourir chaque ligne et comparer valeurs ---
     cre_data_list_by_product_id = defaultdict(list)
     mapping_entity_line_dict = {}
 
-    for idx, row in enumerate(rows_data, start=2):
-        product_id = row["product_id"]
-        share_name_xls = row["share_name"]
-        key = (product_id, share_name_xls.upper())
-
+    for idx, row_idx in enumerate(range(header_row + 1, ws.max_row + 1)):
+        prod_cd = prod_cd_list[idx]
+        share_name = _norm(share_names_list[idx])
+        key = (prod_cd, share_name)
         item = payload_index.get(key)
         if not item:
             continue
@@ -104,60 +140,62 @@ def create_cre_data_for_mass_update_fees_to_send_to_cosmos_custom_v2(user, task,
         current_in = _to_decimal_or_none(item.get("adl_in_fee"))
         current_out = _to_decimal_or_none(item.get("adl_out_fee"))
 
-        new_in = _to_decimal_or_none(row["adl_in_raw"])
-        new_out = _to_decimal_or_none(row["adl_out_raw"])
+        # --- lire les nouvelles valeurs ADL in/out ---
+        new_in_raw = ws.cell(row=row_idx, column=adl_in_col_idx).value
+        new_out_raw = ws.cell(row=row_idx, column=adl_out_col_idx).value
 
-        if isinstance(row["adl_in_raw"], str) and row["adl_in_raw"].strip().lower() == TO_DELETE_VALUE:
-            new_in = None
-        if isinstance(row["adl_out_raw"], str) and row["adl_out_raw"].strip().lower() == TO_DELETE_VALUE:
-            new_out = None
+        if isinstance(new_in_raw, str) and new_in_raw.strip().lower() == TO_DELETE_VALUE:
+            new_in_raw = EMPTY_VALUE
+        if isinstance(new_out_raw, str) and new_out_raw.strip().lower() == TO_DELETE_VALUE:
+            new_out_raw = EMPTY_VALUE
 
-        # ADL IN modifié ?
+        new_in = _to_decimal_or_none(new_in_raw)
+        new_out = _to_decimal_or_none(new_out_raw)
+
+        # ---------- ADL IN modifié ? ----------
         if new_in is not None and new_in != current_in:
-            cre_data_list_by_product_id[product_id].append(
-                CreData(
-                    parent_entity_type="Fees",
-                    parent_entity_id=fee_id,
-                    entity_type="ProductFee",
-                    entity_id=fee_value_id,
-                    field_plm_id="FIELD_465",
-                    field_sgps_id="PROD_406",
-                    field_type="Drop down list",
-                    new_value=str(new_in),
-                    new_value_code="",
-                    entity_action=MODIFY_ACTION,
-                    task_id=task.id,
-                    is_parent_entity_from_plm=False,
-                    is_entity_from_plm_data_action_type=True,
-                    pivot_field_name="SpecificFeesCgyCd",
-                    pivot_name="ProductFee",
-                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
-                    author=user["fullname"],
-                )
+            cre_data_in = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_in),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
+                author=user["fullname"],
             )
+            cre_data_list_by_product_id[prod_cd].append(cre_data_in)
 
-        # ADL OUT modifié ?
+        # ---------- ADL OUT modifié ? ----------
         if new_out is not None and new_out != current_out:
-            cre_data_list_by_product_id[product_id].append(
-                CreData(
-                    parent_entity_type="Fees",
-                    parent_entity_id=fee_id,
-                    entity_type="ProductFee",
-                    entity_id=fee_value_id,
-                    field_plm_id="FIELD_465",
-                    field_sgps_id="PROD_406",
-                    field_type="Drop down list",
-                    new_value=str(new_out),
-                    new_value_code="",
-                    entity_action=MODIFY_ACTION,
-                    task_id=task.id,
-                    is_parent_entity_from_plm=False,
-                    is_entity_from_plm_data_action_type=True,
-                    pivot_field_name="SpecificFeesCgyCd",
-                    pivot_name="ProductFee",
-                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
-                    author=user["fullname"],
-                )
+            cre_data_out = CreData(
+                parent_entity_type="Fees",
+                parent_entity_id=fee_id,
+                entity_type="ProductFee",
+                entity_id=fee_value_id,
+                field_plm_id="FIELD_465",
+                field_sgps_id="PROD_406",
+                field_type="Drop down list",
+                new_value=str(new_out),
+                new_value_code="",
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=False,
+                is_entity_from_plm_data_action_type=True,
+                pivot_field_name="SpecificFeesCgyCd",
+                pivot_name="ProductFee",
+                identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
+                author=user["fullname"],
             )
+            cre_data_list_by_product_id[prod_cd].append(cre_data_out)
 
     return cre_data_list_by_product_id, mapping_entity_line_dict
