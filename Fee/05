@@ -1,0 +1,142 @@
+def create_cre_data_for_mass_update_fees_to_send_to_cosmos(user, task, wb, mass_update_template):
+    """
+    1) Lit l'Excel pour récupérer tous les product_ids depuis la colonne cachée
+    2) Appelle get_adl_fees_data(product_ids)
+    3) Construit un index payload (prod_cd, sha_name) -> item
+    4) Re-parcourt l'Excel, compare New ADL in/out avec adl_in_fee/adl_out_fee
+       et construit cre_data_list_by_product_id
+    """
+
+    PRODUCT_ID_COLUMN_KEY = "_PROD_CD"
+
+    # ------------------ field_metadatas standard ------------------
+    field_ids = [f.field_id for f in mass_update_template.fields]
+    if task.project.product_type:
+        field_metadatas = {
+            fm["id"]: fm for fm in get_fields_metadata(field_ids, task.project.product_type)
+        }
+    else:
+        field_metadatas = {fm["id"]: fm for fm in get_fields_metadata(field_ids, "")}
+
+    # ================== 1er passage : récupérer les product_ids ==================
+    reader_for_ids: MassUpdateReaderBase = get_mass_update_reader(
+        mass_update_template, field_metadatas, wb
+    )
+
+    product_ids_set = set()
+    for _, mu_row in enumerate(reader_for_ids.iter_mu_rows(), start=2):
+        product_id = _safe_get_value(reader_for_ids, mu_row, PRODUCT_ID_COLUMN_KEY)
+        if product_id:
+            product_ids_set.add(str(product_id).strip())
+
+    if not product_ids_set:
+        return defaultdict(list), {}
+
+    product_ids = sorted(product_ids_set)
+
+    # ================== 2) Appel endpoint ==================
+    payload = get_adl_fees_data(product_ids)
+
+    sub_items = payload.get("SUB") or []
+    sin_items = payload.get("SIN") or []
+    all_items = sub_items + sin_items
+
+    # ================== 3) Index (prod_cd, sha_name) ==================
+    payload_index = {}
+    for it in all_items:
+        prod_cd = str(it.get("prod_cd") or "").strip()
+        sha_name = _norm(it.get("sha_name"))
+        if not prod_cd or not sha_name:
+            continue
+        payload_index[(prod_cd, sha_name)] = it
+
+    # ================== 4) 2e passage sur l'Excel ==================
+    mu_reader: MassUpdateReaderBase = get_mass_update_reader(
+        mass_update_template, field_metadatas, wb
+    )
+
+    cre_data_list_by_product_id = defaultdict(list)
+    mapping_entity_line_dict = {}
+
+    for row_index, mu_row in enumerate(mu_reader.iter_mu_rows(), start=2):
+        product_id = _safe_get_value(mu_reader, mu_row, PRODUCT_ID_COLUMN_KEY)
+        if not product_id:
+            continue
+        product_id = str(product_id).strip()
+
+        share_name_xls = _safe_get_value(mu_reader, mu_row, SHARE_NAME_COLUMN_KEY)
+        if not share_name_xls:
+            continue
+
+        item = payload_index.get((product_id, _norm(share_name_xls)))
+        if not item:
+            continue
+
+        fee_id = item.get("fee_id")
+        fee_value_id = item.get("fee_value_id")
+        if not fee_id or not fee_value_id:
+            continue
+
+        current_in = _to_decimal_or_none(item.get("adl_in_fee"))
+        current_out = _to_decimal_or_none(item.get("adl_out_fee"))
+
+        new_in_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_IN_COLUMN_KEY)
+        new_out_raw = _safe_get_value(mu_reader, mu_row, NEW_ADL_OUT_COLUMN_KEY)
+
+        if isinstance(new_in_raw, str) and new_in_raw.strip().lower() == TO_DELETE_VALUE:
+            new_in_raw = EMPTY_VALUE
+        if isinstance(new_out_raw, str) and new_out_raw.strip().lower() == TO_DELETE_VALUE:
+            new_out_raw = EMPTY_VALUE
+
+        new_in = _to_decimal_or_none(new_in_raw)
+        new_out = _to_decimal_or_none(new_out_raw)
+
+        # ---------- ADL IN ----------
+        if new_in is not None and new_in != current_in:
+            cre_data_list_by_product_id[product_id].append(
+                CreData(
+                    parent_entity_type="Fees",
+                    parent_entity_id=fee_id,
+                    entity_type="ProductFee",
+                    entity_id=fee_value_id,
+                    field_plm_id="FIELD_465",
+                    field_sgps_id="PROD_406",
+                    field_type="Drop down list",
+                    new_value=str(new_in),
+                    new_value_code="",
+                    entity_action=MODIFY_ACTION,
+                    task_id=task.id,
+                    is_parent_entity_from_plm=False,
+                    is_entity_from_plm_data_action_type=True,
+                    pivot_field_name="SpecificFeesCgyCd",
+                    pivot_name="ProductFee",
+                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
+                    author=user["fullname"],
+                )
+            )
+
+        # ---------- ADL OUT ----------
+        if new_out is not None and new_out != current_out:
+            cre_data_list_by_product_id[product_id].append(
+                CreData(
+                    parent_entity_type="Fees",
+                    parent_entity_id=fee_id,
+                    entity_type="ProductFee",
+                    entity_id=fee_value_id,
+                    field_plm_id="FIELD_465",
+                    field_sgps_id="PROD_406",
+                    field_type="Drop down list",
+                    new_value=str(new_out),
+                    new_value_code="",
+                    entity_action=MODIFY_ACTION,
+                    task_id=task.id,
+                    is_parent_entity_from_plm=False,
+                    is_entity_from_plm_data_action_type=True,
+                    pivot_field_name="SpecificFeesCgyCd",
+                    pivot_name="ProductFee",
+                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
+                    author=user["fullname"],
+                )
+            )
+
+    return cre_data_list_by_product_id, mapping_entity_line_dict
