@@ -1,0 +1,160 @@
+from collections import defaultdict
+from decimal import Decimal, InvalidOperation
+
+def create_cre_data_for_mass_update_fees_to_send_to_cosmos_custom(user, task, wb, sheet_name=None):
+    """
+    Version pour Excel custom, sans MassUpdateReader ni field_metadatas.
+    - Lit directement les colonnes via openpyxl
+    - Compare Excel vs endpoint payload
+    - Crée CRE uniquement si ADL in/out modifié
+    """
+
+    # ---------- helpers ----------
+    def _normalize_header(v):
+        return "" if v is None else str(v).strip().upper()
+
+    def _to_decimal_or_none(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            vv = v.strip()
+            if vv == "" or vv == "-":
+                return None
+        try:
+            return Decimal(str(v))
+        except (InvalidOperation, ValueError):
+            return None
+
+    def find_column_index(ws, expected_header):
+        expected = _normalize_header(expected_header)
+        for row_idx in range(1, 11):
+            for col_idx in range(1, ws.max_column + 1):
+                if _normalize_header(ws.cell(row=row_idx, column=col_idx).value) == expected:
+                    return col_idx
+        return None
+
+    # ---------- worksheet ----------
+    ws = wb[sheet_name] if sheet_name else wb.active
+
+    # ---------- find columns ----------
+    prod_col_idx = find_column_index(ws, "_PROD_CD")
+    share_col_idx = find_column_index(ws, "Share name")
+    adl_in_col_idx = find_column_index(ws, "New Real ADL fees ADL in")
+    adl_out_col_idx = find_column_index(ws, "New Real ADL fees ADL out")
+
+    if not all([prod_col_idx, share_col_idx, adl_in_col_idx, adl_out_col_idx]):
+        raise ValueError("Missing one or more required columns in Excel")
+
+    # ---------- read Excel into list ----------
+    rows_data = []
+    for row_idx in range(2, ws.max_row + 1):
+        product_id = ws.cell(row=row_idx, column=prod_col_idx).value
+        share_name = ws.cell(row=row_idx, column=share_col_idx).value
+        adl_in_raw = ws.cell(row=row_idx, column=adl_in_col_idx).value
+        adl_out_raw = ws.cell(row=row_idx, column=adl_out_col_idx).value
+
+        if not product_id or not share_name:
+            continue
+
+        rows_data.append({
+            "product_id": str(product_id).strip(),
+            "share_name": str(share_name).strip(),
+            "adl_in_raw": adl_in_raw,
+            "adl_out_raw": adl_out_raw
+        })
+
+    if not rows_data:
+        return defaultdict(list), {}
+
+    # ---------- call endpoint ----------
+    product_ids = sorted({row["product_id"] for row in rows_data})
+    payload = get_adl_fees_data(product_ids)
+    all_items = (payload.get("SUB") or []) + (payload.get("SIN") or [])
+
+    # ---------- build payload index ----------
+    payload_index = {}
+    for it in all_items:
+        prod_cd = str(it.get("prod_cd") or "").strip()
+        sha_name = (it.get("sha_name") or "").strip().upper()
+        if prod_cd and sha_name:
+            payload_index[(prod_cd, sha_name)] = it
+
+    # ---------- process each row ----------
+    cre_data_list_by_product_id = defaultdict(list)
+    mapping_entity_line_dict = {}
+
+    for row_idx, row in enumerate(rows_data, start=2):
+        product_id = row["product_id"]
+        share_name_xls = row["share_name"]
+        key = (product_id, share_name_xls.upper())
+
+        item = payload_index.get(key)
+        if not item:
+            continue
+
+        fee_id = item.get("fee_id")
+        fee_value_id = item.get("fee_value_id")
+        if not fee_id or not fee_value_id:
+            continue
+
+        current_in = _to_decimal_or_none(item.get("adl_in_fee"))
+        current_out = _to_decimal_or_none(item.get("adl_out_fee"))
+
+        # handle "to_delete"
+        new_in = _to_decimal_or_none(row["adl_in_raw"])
+        new_out = _to_decimal_or_none(row["adl_out_raw"])
+
+        if isinstance(row["adl_in_raw"], str) and row["adl_in_raw"].strip().lower() == "to_delete":
+            new_in = None
+        if isinstance(row["adl_out_raw"], str) and row["adl_out_raw"].strip().lower() == "to_delete":
+            new_out = None
+
+        # ---------- ADL IN ----------
+        if new_in is not None and new_in != current_in:
+            cre_data_list_by_product_id[product_id].append(
+                CreData(
+                    parent_entity_type="Fees",
+                    parent_entity_id=fee_id,
+                    entity_type="ProductFee",
+                    entity_id=fee_value_id,
+                    field_plm_id="FIELD_465",
+                    field_sgps_id="PROD_406",
+                    field_type="Drop down list",
+                    new_value=str(new_in),
+                    new_value_code="",
+                    entity_action=MODIFY_ACTION,
+                    task_id=task.id,
+                    is_parent_entity_from_plm=False,
+                    is_entity_from_plm_data_action_type=True,
+                    pivot_field_name="SpecificFeesCgyCd",
+                    pivot_name="ProductFee",
+                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_IN_SUBTYPE},
+                    author=user["fullname"],
+                )
+            )
+
+        # ---------- ADL OUT ----------
+        if new_out is not None and new_out != current_out:
+            cre_data_list_by_product_id[product_id].append(
+                CreData(
+                    parent_entity_type="Fees",
+                    parent_entity_id=fee_id,
+                    entity_type="ProductFee",
+                    entity_id=fee_value_id,
+                    field_plm_id="FIELD_465",
+                    field_sgps_id="PROD_406",
+                    field_type="Drop down list",
+                    new_value=str(new_out),
+                    new_value_code="",
+                    entity_action=MODIFY_ACTION,
+                    task_id=task.id,
+                    is_parent_entity_from_plm=False,
+                    is_entity_from_plm_data_action_type=True,
+                    pivot_field_name="SpecificFeesCgyCd",
+                    pivot_name="ProductFee",
+                    identification_fields={"FeesTypCd": FEES_TYP_CD, "FeesSubtypeCd": ADL_OUT_SUBTYPE},
+                    author=user["fullname"],
+                )
+            )
+
+    return cre_data_list_by_product_id, mapping_entity_line_dict
