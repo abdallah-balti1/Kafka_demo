@@ -37,9 +37,9 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
         "id": "FIELD_01",
         "smartgps_id": "ADL_IN_FEE_ID_LABEL",
         "object_type": "Fees",
-        "name_en": "ADL In Fee ID",
-        "name_fr": "ADL In Fee ID",
-        "type": "String",
+        "name_en": "ADL In",
+        "name_fr": "ADL In",
+        "type": "Decimal",
         "category": "Fees",
         "subcategory": "",
         "field_values_type": "",
@@ -56,9 +56,9 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
         "id": "FIELD_02",
         "smartgps_id": "ADL_OUT_FEE_ID_LABEL",
         "object_type": "Fees",
-        "name_en": "ADL Out Fee ID",
-        "name_fr": "ADL Out Fee ID",
-        "type": "String",
+        "name_en": "ADL Out",
+        "name_fr": "ADL Out",
+        "type": "Decimal",
         "category": "Fees",
         "subcategory": "",
         "field_values_type": "",
@@ -75,8 +75,8 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
         "id": "FIELD_03",
         "smartgps_id": "PROD_CD",
         "object_type": "Product",
-        "name_en": "Product Code",
-        "name_fr": "Code Produit",
+        "name_en": "_PROD_CD",
+        "name_fr": "_PROD_CD",
         "type": "String",
         "category": "Product",
         "subcategory": "",
@@ -94,8 +94,8 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
         "id": "FIELD_04",
         "smartgps_id": "SHARE_NAME",
         "object_type": "Product",
-        "name_en": "Share Name",
-        "name_fr": "Nom de la part",
+        "name_en": "Share name",
+        "name_fr": "Share name",
         "type": "String",
         "category": "Product",
         "subcategory": "",
@@ -111,12 +111,12 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
     },
     {
         "id": "FIELD_05",
-        "smartgps_id": "CATEGORY_NAME",
-        "object_type": "Fees",
-        "name_en": "Category",
-        "name_fr": "Catégorie",
+        "smartgps_id": "ISIN_CODE",
+        "object_type": "Product",
+        "name_en": "ISIN code",
+        "name_fr": "ISIN code",
         "type": "String",
-        "category": "Fees",
+        "category": "Product",
         "subcategory": "",
         "field_values_type": "",
         "aggregation_id": "",
@@ -130,12 +130,12 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
     },
     {
         "id": "FIELD_06",
-        "smartgps_id": "ADL_IN_FEE_VALUE_ID_LABEL",
-        "object_type": "Fees",
-        "name_en": "ADL In Fee Value",
-        "name_fr": "Valeur ADL In",
+        "smartgps_id": "PRODUCT_STATUS",
+        "object_type": "Product",
+        "name_en": "Product status",
+        "name_fr": "Product status",
         "type": "String",
-        "category": "Fees",
+        "category": "Product",
         "subcategory": "",
         "field_values_type": "",
         "aggregation_id": "",
@@ -149,11 +149,106 @@ GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
     },
     {
         "id": "FIELD_07",
+        "smartgps_id": "SHARE_STATUS",
+        "object_type": "Product",
+        "name_en": "Share status",
+        "name_fr": "Share status",
+        "type": "String",
+        "category": "Product",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_08",
+        "smartgps_id": "ADL_IN_FEE_VALUE_ID_LABEL",
+        "object_type": "Fees",
+        "name_en": "ADL in",
+        "name_fr": "ADL in",
+        "type": "Decimal",
+        "category": "Current Real ADL fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_09",
         "smartgps_id": "ADL_OUT_FEE_VALUE_ID_LABEL",
         "object_type": "Fees",
-        "name_en": "ADL Out Fee Value",
-        "name_fr": "Valeur ADL Out",
-        "type": "String",
+        "name_en": "ADL out",
+        "name_fr": "ADL out",
+        "type": "Decimal",
+        "category": "Current Real ADL fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_10",
+        "smartgps_id": "NEW_ADL_IN",
+        "object_type": "Fees",
+        "name_en": "ADL in",
+        "name_fr": "ADL in",
+        "type": "Decimal",
+        "category": "New Real ADL fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_11",
+        "smartgps_id": "NEW_ADL_OUT",
+        "object_type": "Fees",
+        "name_en": "ADL out",
+        "name_fr": "ADL out",
+        "type": "Decimal",
+        "category": "New Real ADL fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_12",
+        "smartgps_id": "EFFECTIVE_NAV_DATE",
+        "object_type": "Fees",
+        "name_en": "Effective NAV date",
+        "name_fr": "Effective NAV date",
+        "type": "Date",
         "category": "Fees",
         "subcategory": "",
         "field_values_type": "",
@@ -189,47 +284,80 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
             product_id_column="Product ID",
         ).save()
         
-        # Create template fields
+        # Create template fields to match Excel structure
         MassUpdateTemplateFields(
             mass_update_template_id=cls.mass_update_template_fees.id,
             field_id="FIELD_03",
-            column_name="Product Code",
-        ).save()
-        
-        MassUpdateTemplateFields(
-            mass_update_template_id=cls.mass_update_template_fees.id,
-            field_id="FIELD_04",
-            column_name="Share Name",
-        ).save()
-        
-        MassUpdateTemplateFields(
-            mass_update_template_id=cls.mass_update_template_fees.id,
-            field_id="FIELD_05",
-            column_name="Category",
-        ).save()
-        
-        MassUpdateTemplateFields(
-            mass_update_template_id=cls.mass_update_template_fees.id,
-            field_id="FIELD_01",
-            column_name="ADL In Fee ID",
-        ).save()
-        
-        MassUpdateTemplateFields(
-            mass_update_template_id=cls.mass_update_template_fees.id,
-            field_id="FIELD_02",
-            column_name="ADL Out Fee ID",
+            column_name="_PROD_CD",
         ).save()
         
         MassUpdateTemplateFields(
             mass_update_template_id=cls.mass_update_template_fees.id,
             field_id="FIELD_06",
-            column_name="ADL In Fee Value",
+            column_name="Product status",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_04",
+            column_name="Share name",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_05",
+            column_name="ISIN code",
         ).save()
         
         MassUpdateTemplateFields(
             mass_update_template_id=cls.mass_update_template_fees.id,
             field_id="FIELD_07",
-            column_name="ADL Out Fee Value",
+            column_name="Share status",
+        ).save()
+        
+        # Maximum ADL fees (not used but in template)
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_01",
+            column_name="ADL in",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_02",
+            column_name="ADL out",
+        ).save()
+        
+        # Current Real ADL fees
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_08",
+            column_name="ADL in",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_09",
+            column_name="ADL out",
+        ).save()
+        
+        # New Real ADL fees (the ones we will modify)
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_10",
+            column_name="ADL in",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_11",
+            column_name="ADL out",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_12",
+            column_name="Effective NAV date",
         ).save()
         
         # Create task model
@@ -341,54 +469,88 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
         )
         mass_update_document.save()
 
-        # Create Excel workbook with fees data
+        # Create Excel workbook with fees data matching real format
         wb = openpyxl.Workbook()
         ws = wb.active
         
-        # Headers row
-        ws.cell(row=1, column=1).value = "Action"
-        ws.cell(row=1, column=2).value = "Product ID"
-        ws.cell(row=1, column=3).value = "Product Code"
-        ws.cell(row=1, column=4).value = "Share Name"
-        ws.cell(row=1, column=5).value = "Category"
-        ws.cell(row=1, column=6).value = "ADL In Fee ID"
-        ws.cell(row=1, column=7).value = "ADL Out Fee ID"
-        ws.cell(row=1, column=8).value = "ADL In Fee Value"
-        ws.cell(row=1, column=9).value = "ADL Out Fee Value"
+        # Multi-level headers
+        # Row 1: Main header
+        ws.cell(row=1, column=1).value = "ADL fees (in bps)"
+        ws.merge_cells('A1:O1')
         
-        # Data rows with modifications
-        # Product 1 - Modified ADL In Fee Value
-        ws.cell(row=2, column=1).value = ""
-        ws.cell(row=2, column=2).value = "PROD_001"
-        ws.cell(row=2, column=3).value = "PC001"
-        ws.cell(row=2, column=4).value = "Share A"
-        ws.cell(row=2, column=5).value = "New Real ADL fees"
-        ws.cell(row=2, column=6).value = "ADL_IN_001"
-        ws.cell(row=2, column=7).value = "ADL_OUT_001"
-        ws.cell(row=2, column=8).value = "1.50"  # Modified from 1.25
-        ws.cell(row=2, column=9).value = "2.00"
+        # Row 2: Category headers
+        ws.cell(row=2, column=1).value = "Product ALADDIN"
+        ws.cell(row=2, column=2).value = "Product / Share"
+        ws.cell(row=2, column=7).value = "Maximum ADL fees"
+        ws.cell(row=2, column=9).value = "Current Real ADL fees"
+        ws.cell(row=2, column=11).value = "New Real ADL fees"
+        ws.cell(row=2, column=13).value = "Effective NAV date"
+        ws.cell(row=2, column=14).value = "_PROD_CD"
         
-        # Product 2 - Modified ADL Out Fee Value
-        ws.cell(row=3, column=1).value = ""
-        ws.cell(row=3, column=2).value = "PROD_002"
-        ws.cell(row=3, column=3).value = "PC002"
-        ws.cell(row=3, column=4).value = "Share B"
-        ws.cell(row=3, column=5).value = "New Real ADL fees"
-        ws.cell(row=3, column=6).value = "ADL_IN_002"
-        ws.cell(row=3, column=7).value = "ADL_OUT_002"
-        ws.cell(row=3, column=8).value = "0.75"
-        ws.cell(row=3, column=9).value = "1.75"  # Modified from 1.50
+        # Row 3: Column names
+        ws.cell(row=3, column=1).value = "Product ALADDIN"
+        ws.cell(row=3, column=2).value = "Product status"
+        ws.cell(row=3, column=3).value = "Share name"
+        ws.cell(row=3, column=4).value = "ISIN code"
+        ws.cell(row=3, column=5).value = "Share status"
+        ws.cell(row=3, column=6).value = "Action"
+        ws.cell(row=3, column=7).value = "ADL in"
+        ws.cell(row=3, column=8).value = "ADL out"
+        ws.cell(row=3, column=9).value = "ADL in"
+        ws.cell(row=3, column=10).value = "ADL out"
+        ws.cell(row=3, column=11).value = "ADL in"
+        ws.cell(row=3, column=12).value = "ADL out"
+        ws.cell(row=3, column=13).value = "Effective NAV date"
+        ws.cell(row=3, column=14).value = "_PROD_CD"
         
-        # Product 3 - Both values modified
-        ws.cell(row=4, column=1).value = ""
-        ws.cell(row=4, column=2).value = "PROD_003"
-        ws.cell(row=4, column=3).value = "PC003"
-        ws.cell(row=4, column=4).value = "Share C"
-        ws.cell(row=4, column=5).value = "New Real ADL fees"
-        ws.cell(row=4, column=6).value = "ADL_IN_003"
-        ws.cell(row=4, column=7).value = "ADL_OUT_003"
-        ws.cell(row=4, column=8).value = "2.25"  # Modified from 2.00
-        ws.cell(row=4, column=9).value = "3.25"  # Modified from 3.00
+        # Data rows with modifications (starting from row 4)
+        # Product 1 - Modified New ADL In from 0.21 to 0.21 (no change for first test)
+        ws.cell(row=4, column=1).value = "USDCB"
+        ws.cell(row=4, column=2).value = "Launched"
+        ws.cell(row=4, column=3).value = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, D]"
+        ws.cell(row=4, column=4).value = "LU2616774076"
+        ws.cell(row=4, column=5).value = "Launched"
+        ws.cell(row=4, column=6).value = ""
+        ws.cell(row=4, column=7).value = 1.5
+        ws.cell(row=4, column=8).value = 1
+        ws.cell(row=4, column=9).value = 0.21
+        ws.cell(row=4, column=10).value = 0
+        ws.cell(row=4, column=11).value = 0.21  # Modified from current
+        ws.cell(row=4, column=12).value = 0
+        ws.cell(row=4, column=13).value = "20230906"
+        ws.cell(row=4, column=14).value = "44480"
+        
+        # Product 2 - Modified New ADL In from 0.21 to 1.00
+        ws.cell(row=5, column=1).value = "USDCB"
+        ws.cell(row=5, column=2).value = "Launched"
+        ws.cell(row=5, column=3).value = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [Track I A, D]"
+        ws.cell(row=5, column=4).value = "LU2616775636"
+        ws.cell(row=5, column=5).value = "Not yet launched"
+        ws.cell(row=5, column=6).value = ""
+        ws.cell(row=5, column=7).value = 1.5
+        ws.cell(row=5, column=8).value = 1
+        ws.cell(row=5, column=9).value = 0.21
+        ws.cell(row=5, column=10).value = 0
+        ws.cell(row=5, column=11).value = 1.00  # Modified
+        ws.cell(row=5, column=12).value = 0
+        ws.cell(row=5, column=13).value = ""
+        ws.cell(row=5, column=14).value = "44480"
+        
+        # Product 3 - Modified New ADL In from 0.21 to 1.00
+        ws.cell(row=6, column=1).value = "USDCB"
+        ws.cell(row=6, column=2).value = "Launched"
+        ws.cell(row=6, column=3).value = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [Track I A, C]"
+        ws.cell(row=6, column=4).value = "LU2616776014"
+        ws.cell(row=6, column=5).value = "Not yet launched"
+        ws.cell(row=6, column=6).value = ""
+        ws.cell(row=6, column=7).value = 1.5
+        ws.cell(row=6, column=8).value = 1
+        ws.cell(row=6, column=9).value = 0.21
+        ws.cell(row=6, column=10).value = 0
+        ws.cell(row=6, column=11).value = 1.00  # Modified
+        ws.cell(row=6, column=12).value = 0
+        ws.cell(row=6, column=13).value = ""
+        ws.cell(row=6, column=14).value = "44480"
 
         # Save workbook to bytes
         excel_file = BytesIO()
