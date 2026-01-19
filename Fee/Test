@@ -1,0 +1,662 @@
+import unittest
+import openpyxl
+import uuid
+from freezegun import freeze_time
+from helpers import init_database, insert_user
+from io import BytesIO
+from mock import call, patch
+
+import pytest
+from config import COSMOS_MASSUPDATE_READ_TIMEOUT
+from constants import DATE_FIELD_TYPE, FLAG_FIELD_TYPE, PRODUCT_TYPES, STRING_FIELD_TYPE, ProjectStatus, TaskStatus
+from constants.objects_metadata import PIVOT_ACTOR_IN_CHARGE, PIVOT_SINGLE, SINGLE, FEES
+from db import db
+from models import (
+    Document,
+    MassUpdateTemplate,
+    MassUpdateTemplateFields,
+    Project,
+    ProjectMassUpdateProduct,
+    ProjectModel,
+    ProjectModelVersion,
+    Task,
+    TaskModel,
+    User,
+)
+from repositories import DocumentRepository, ProjectMassUpdateProductRepository
+from util.errors import InvalidMassUpdateEvents
+from util.mass_update.send_mass_update_data import (
+    create_cre_data_for_mass_update_actors_to_send_to_cosmos,
+    create_cre_data_for_mass_update_fees_to_send_to_cosmos,
+    send_mass_update_data_to_cosmos,
+)
+
+
+GET_FIELDS_METADATA_RETURN_VALUE_FEES = [
+    {
+        "id": "FIELD_01",
+        "smartgps_id": "ADL_IN_FEE_ID_LABEL",
+        "object_type": "Fees",
+        "name_en": "ADL In Fee ID",
+        "name_fr": "ADL In Fee ID",
+        "type": "String",
+        "category": "Fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_02",
+        "smartgps_id": "ADL_OUT_FEE_ID_LABEL",
+        "object_type": "Fees",
+        "name_en": "ADL Out Fee ID",
+        "name_fr": "ADL Out Fee ID",
+        "type": "String",
+        "category": "Fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_03",
+        "smartgps_id": "PROD_CD",
+        "object_type": "Product",
+        "name_en": "Product Code",
+        "name_fr": "Code Produit",
+        "type": "String",
+        "category": "Product",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_04",
+        "smartgps_id": "SHARE_NAME",
+        "object_type": "Product",
+        "name_en": "Share Name",
+        "name_fr": "Nom de la part",
+        "type": "String",
+        "category": "Product",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_05",
+        "smartgps_id": "CATEGORY_NAME",
+        "object_type": "Fees",
+        "name_en": "Category",
+        "name_fr": "Catégorie",
+        "type": "String",
+        "category": "Fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_06",
+        "smartgps_id": "ADL_IN_FEE_VALUE_ID_LABEL",
+        "object_type": "Fees",
+        "name_en": "ADL In Fee Value",
+        "name_fr": "Valeur ADL In",
+        "type": "String",
+        "category": "Fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+    {
+        "id": "FIELD_07",
+        "smartgps_id": "ADL_OUT_FEE_VALUE_ID_LABEL",
+        "object_type": "Fees",
+        "name_en": "ADL Out Fee Value",
+        "name_fr": "Valeur ADL Out",
+        "type": "String",
+        "category": "Fees",
+        "subcategory": "",
+        "field_values_type": "",
+        "aggregation_id": "",
+        "default_value": "",
+        "max_length": None,
+        "fixed_size": None,
+        "is_mandatory": False,
+        "is_read_only": False,
+        "is_write_allowed_for_live_project": False,
+        "is_currency": False,
+    },
+]
+
+
+class TestSendMassUpdateDataFees(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        init_database()
+        insert_user()
+        
+        # Create Mass Update Template for Fees
+        cls.mass_update_template_fees = MassUpdateTemplate(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            data_action_type_column="Action",
+            entity_type=FEES,
+            entity_id_column=None,
+            parent_entity_id_column=None,
+            parent_entity_type=None,
+            product_id_column="Product ID",
+        ).save()
+        
+        # Create template fields
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_03",
+            column_name="Product Code",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_04",
+            column_name="Share Name",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_05",
+            column_name="Category",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_01",
+            column_name="ADL In Fee ID",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_02",
+            column_name="ADL Out Fee ID",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_06",
+            column_name="ADL In Fee Value",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_07",
+            column_name="ADL Out Fee Value",
+        ).save()
+        
+        # Create task model
+        cls.task_model_fees = TaskModel(
+            name="test_fees_template",
+            type="upload_with_template",
+            duration=2,
+            is_milestone=False,
+            is_exceptional=False,
+            process_id="LFC08",
+            mass_update_template_id=cls.mass_update_template_fees.id,
+        )
+        cls.task_model_fees.save()
+
+    @classmethod
+    def tearDownClass(cls):
+        db.session.remove()
+
+    def setUp(self):
+        self.document_is_deletable = True
+        self.second_document_is_deletable = True
+
+    @classmethod
+    def tearDown(cls):
+        db.session.remove()
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch(
+        "util.mass_update.send_mass_update_data.get_fields_metadata",
+        return_value=GET_FIELDS_METADATA_RETURN_VALUE_FEES,
+    )
+    @patch(
+        "util.mass_update.send_mass_update_data.send_cre",
+        return_value={"isSuccess": True},
+    )
+    @patch("util.mass_update.send_mass_update_data.uuid4")
+    @patch("util.mass_update.send_mass_update_data.report_document_create")
+    @patch("util.mass_update.send_mass_update_data.report_document_log")
+    def test_should_send_mass_update_fees_with_modifications(
+        self,
+        report_document_log_mock,
+        report_document_create_mock,
+        uid_mock,
+        send_cre_mock,
+        get_fields_metadata,
+        cos_read_file_mock,
+    ):
+        """Test that fees modifications are correctly detected and events are sent"""
+        
+        # Create project
+        project_model = ProjectModel(name="Fees Mass Update", type="mass_update")
+        project_model.save()
+        project_model_version = ProjectModelVersion(project_model_id=project_model.id)
+        cls.task_model = TaskModel(
+            name="test",
+            type="upload_with_template",
+            duration=2,
+            is_milestone=False,
+            is_exceptional=False,
+            process_id="LFC08",
+            mass_update_template_id=cls.mass_update_template_fees.id,
+        )
+        cls.task_model.save()
+        project_model_version.task_models.append(cls.task_model)
+        project_model_version.save()
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="abcde",
+            project_model_id=1,
+            description="test",
+            project_model_version_id=project_model_version.id,
+            version_type="RCD",
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=cls.task_model.id)
+        task.save()
+        
+        # Create mass update file document
+        mass_update_file = DocumentRepository.search(task.id, is_to_send_to_cosmos=True)
+        self.assertEqual(mass_update_file, [])
+
+        # Create Excel workbook with fees data
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        
+        # Headers row
+        ws.cell(row=1, column=1).value = "Action"
+        ws.cell(row=1, column=2).value = "Product ID"
+        ws.cell(row=1, column=3).value = "Product Code"
+        ws.cell(row=1, column=4).value = "Share Name"
+        ws.cell(row=1, column=5).value = "Category"
+        ws.cell(row=1, column=6).value = "ADL In Fee ID"
+        ws.cell(row=1, column=7).value = "ADL Out Fee ID"
+        ws.cell(row=1, column=8).value = "ADL In Fee Value"
+        ws.cell(row=1, column=9).value = "ADL Out Fee Value"
+        
+        # Data rows with modifications
+        # Product 1 - Modified ADL In Fee Value
+        ws.cell(row=2, column=1).value = ""
+        ws.cell(row=2, column=2).value = "PROD_001"
+        ws.cell(row=2, column=3).value = "PC001"
+        ws.cell(row=2, column=4).value = "Share A"
+        ws.cell(row=2, column=5).value = "New Real ADL fees"
+        ws.cell(row=2, column=6).value = "ADL_IN_001"
+        ws.cell(row=2, column=7).value = "ADL_OUT_001"
+        ws.cell(row=2, column=8).value = "1.50"  # Modified from 1.25
+        ws.cell(row=2, column=9).value = "2.00"
+        
+        # Product 2 - Modified ADL Out Fee Value
+        ws.cell(row=3, column=1).value = ""
+        ws.cell(row=3, column=2).value = "PROD_002"
+        ws.cell(row=3, column=3).value = "PC002"
+        ws.cell(row=3, column=4).value = "Share B"
+        ws.cell(row=3, column=5).value = "New Real ADL fees"
+        ws.cell(row=3, column=6).value = "ADL_IN_002"
+        ws.cell(row=3, column=7).value = "ADL_OUT_002"
+        ws.cell(row=3, column=8).value = "0.75"
+        ws.cell(row=3, column=9).value = "1.75"  # Modified from 1.50
+        
+        # Product 3 - Both values modified
+        ws.cell(row=4, column=1).value = ""
+        ws.cell(row=4, column=2).value = "PROD_003"
+        ws.cell(row=4, column=3).value = "PC003"
+        ws.cell(row=4, column=4).value = "Share C"
+        ws.cell(row=4, column=5).value = "New Real ADL fees"
+        ws.cell(row=4, column=6).value = "ADL_IN_003"
+        ws.cell(row=4, column=7).value = "ADL_OUT_003"
+        ws.cell(row=4, column=8).value = "2.25"  # Modified from 2.00
+        ws.cell(row=4, column=9).value = "3.25"  # Modified from 3.00
+
+        # Save workbook to bytes
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        # Create products in DB
+        db.session.bulk_save_objects([
+            ProjectMassUpdateProduct(task.project_id, "PROD_001"),
+            ProjectMassUpdateProduct(task.project_id, "PROD_002"),
+            ProjectMassUpdateProduct(task.project_id, "PROD_003"),
+        ])
+
+        # Mock returns
+        uid_mock.return_value = "uid_generated"
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Mock payload from database (old values)
+        payload_data = {
+            "PROD_001": [
+                {
+                    "productCode": "PC001",
+                    "shareName": "Share A",
+                    "category": "New Real ADL fees",
+                    "adlInFeeId": "ADL_IN_001",
+                    "adlOutFeeId": "ADL_OUT_001",
+                    "adlInFeeValue": "1.25",  # Old value
+                    "adlOutFeeValue": "2.00"
+                }
+            ],
+            "PROD_002": [
+                {
+                    "productCode": "PC002",
+                    "shareName": "Share B",
+                    "category": "New Real ADL fees",
+                    "adlInFeeId": "ADL_IN_002",
+                    "adlOutFeeId": "ADL_OUT_002",
+                    "adlInFeeValue": "0.75",
+                    "adlOutFeeValue": "1.50"  # Old value
+                }
+            ],
+            "PROD_003": [
+                {
+                    "productCode": "PC003",
+                    "shareName": "Share C",
+                    "category": "New Real ADL fees",
+                    "adlInFeeId": "ADL_IN_003",
+                    "adlOutFeeId": "ADL_OUT_003",
+                    "adlInFeeValue": "2.00",  # Old value
+                    "adlOutFeeValue": "3.00"  # Old value
+                }
+            ]
+        }
+        
+        with patch('util.mass_update.send_mass_update_data.get_adl_fees_data', return_value=payload_data):
+            send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+
+        # Expected events for Product 1 (ADL In Fee Value modified)
+        expected_events_prod_001 = [
+            {
+                "projectId": f"1-{project.id}",
+                "dataEventType": "Modify",
+                "fieldName": "adl_in_fee_value_id_label",
+                "oldValue": "1.25",
+                "newValue": "1.50",
+                "sender": "PLM",
+                "userUid": "mySpecialUid John Bobby",
+                "productId": "PROD_001",
+                "productType": "abcde",
+            }
+        ]
+        
+        # Expected events for Product 2 (ADL Out Fee Value modified)
+        expected_events_prod_002 = [
+            {
+                "projectId": f"1-{project.id}",
+                "dataEventType": "Modify",
+                "fieldName": "adl_out_fee_value_id_label",
+                "oldValue": "1.50",
+                "newValue": "1.75",
+                "sender": "PLM",
+                "userUid": "mySpecialUid John Bobby",
+                "productId": "PROD_002",
+                "productType": "abcde",
+            }
+        ]
+        
+        # Expected events for Product 3 (both values modified)
+        expected_events_prod_003 = [
+            {
+                "projectId": f"1-{project.id}",
+                "dataEventType": "Modify",
+                "fieldName": "adl_in_fee_value_id_label",
+                "oldValue": "2.00",
+                "newValue": "2.25",
+                "sender": "PLM",
+                "userUid": "mySpecialUid John Bobby",
+                "productId": "PROD_003",
+                "productType": "abcde",
+            },
+            {
+                "projectId": f"1-{project.id}",
+                "dataEventType": "Modify",
+                "fieldName": "adl_out_fee_value_id_label",
+                "oldValue": "3.00",
+                "newValue": "3.25",
+                "sender": "PLM",
+                "userUid": "mySpecialUid John Bobby",
+                "productId": "PROD_003",
+                "productType": "abcde",
+            }
+        ]
+
+        # Verify send_cre was called with correct events
+        assert send_cre_mock.call_count == 3
+        
+        # Check all calls contain expected data
+        calls = send_cre_mock.call_args_list
+        
+        # Verify each product's events
+        for call_item in calls:
+            events = call_item[0][0]
+            if events[0]['productId'] == 'PROD_001':
+                self.assertEqual(len(events), 1)
+                self.assertDictEqual(events[0], expected_events_prod_001[0])
+            elif events[0]['productId'] == 'PROD_002':
+                self.assertEqual(len(events), 1)
+                self.assertDictEqual(events[0], expected_events_prod_002[0])
+            elif events[0]['productId'] == 'PROD_003':
+                self.assertEqual(len(events), 2)
+                self.assertDictEqual(events[0], expected_events_prod_003[0])
+                self.assertDictEqual(events[1], expected_events_prod_003[1])
+
+        # Verify products were marked as successfully sent
+        for product_id in ["PROD_001", "PROD_002", "PROD_003"]:
+            product = ProjectMassUpdateProduct.query.filter_by(
+                project_id=task.project_id, 
+                product_id=product_id
+            ).first()
+            self.assertIsNotNone(product)
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch(
+        "util.mass_update.send_mass_update_data.get_fields_metadata",
+        return_value=GET_FIELDS_METADATA_RETURN_VALUE_FEES,
+    )
+    def test_should_not_send_events_when_no_modifications(
+        self,
+        get_fields_metadata,
+        cos_read_file_mock,
+    ):
+        """Test that no events are sent when there are no modifications"""
+        
+        # Create project and task similar to previous test
+        project_model = ProjectModel(name="Fees No Change", type="mass_update")
+        project_model.save()
+        project_model_version = ProjectModelVersion(project_model_id=project_model.id)
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="abcde",
+            project_model_id=1,
+            description="test",
+            project_model_version_id=project_model_version.id,
+            version_type="RCD",
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=cls.task_model_fees.id)
+        task.save()
+
+        # Create Excel with NO modifications
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        
+        ws.cell(row=1, column=1).value = "Action"
+        ws.cell(row=1, column=2).value = "Product ID"
+        ws.cell(row=1, column=3).value = "Product Code"
+        ws.cell(row=1, column=4).value = "Share Name"
+        ws.cell(row=1, column=5).value = "Category"
+        ws.cell(row=1, column=6).value = "ADL In Fee ID"
+        ws.cell(row=1, column=7).value = "ADL Out Fee ID"
+        ws.cell(row=1, column=8).value = "ADL In Fee Value"
+        ws.cell(row=1, column=9).value = "ADL Out Fee Value"
+        
+        # Same values as in payload
+        ws.cell(row=2, column=1).value = ""
+        ws.cell(row=2, column=2).value = "PROD_001"
+        ws.cell(row=2, column=3).value = "PC001"
+        ws.cell(row=2, column=4).value = "Share A"
+        ws.cell(row=2, column=5).value = "New Real ADL fees"
+        ws.cell(row=2, column=6).value = "ADL_IN_001"
+        ws.cell(row=2, column=7).value = "ADL_OUT_001"
+        ws.cell(row=2, column=8).value = "1.25"  # Same as payload
+        ws.cell(row=2, column=9).value = "2.00"  # Same as payload
+
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        db.session.bulk_save_objects([
+            ProjectMassUpdateProduct(task.project_id, "PROD_001"),
+        ])
+
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        payload_data = {
+            "PROD_001": [
+                {
+                    "productCode": "PC001",
+                    "shareName": "Share A",
+                    "category": "New Real ADL fees",
+                    "adlInFeeId": "ADL_IN_001",
+                    "adlOutFeeId": "ADL_OUT_001",
+                    "adlInFeeValue": "1.25",
+                    "adlOutFeeValue": "2.00"
+                }
+            ]
+        }
+        
+        with patch('util.mass_update.send_mass_update_data.get_adl_fees_data', return_value=payload_data):
+            with patch('util.mass_update.send_mass_update_data.send_cre') as send_cre_mock:
+                send_cre_mock.return_value = {"isSuccess": True}
+                
+                send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+                
+                # Verify send_cre was NOT called since there are no changes
+                send_cre_mock.assert_not_called()
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch(
+        "util.mass_update.send_mass_update_data.get_fields_metadata",
+        return_value=GET_FIELDS_METADATA_RETURN_VALUE_FEES,
+    )
+    def test_should_handle_missing_category(
+        self,
+        get_fields_metadata,
+        cos_read_file_mock,
+    ):
+        """Test that function raises error when category is missing in Excel"""
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="abcde",
+            project_model_id=1,
+            description="test",
+            version_type="RCD",
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=cls.task_model_fees.id)
+        task.save()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        
+        # Missing Category column
+        ws.cell(row=1, column=1).value = "Action"
+        ws.cell(row=1, column=2).value = "Product ID"
+        ws.cell(row=1, column=3).value = "Product Code"
+        ws.cell(row=1, column=4).value = "Share Name"
+        # Category column missing!
+        ws.cell(row=1, column=5).value = "ADL In Fee ID"
+        
+        ws.cell(row=2, column=1).value = ""
+        ws.cell(row=2, column=2).value = "PROD_001"
+
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        with self.assertRaises(ValueError) as context:
+            send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        
+        self.assertIn("Missing", str(context.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
