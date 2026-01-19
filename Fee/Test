@@ -304,10 +304,42 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
         
         task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
         task.save()
-        
-        # Create mass update file document
-        mass_update_file = DocumentRepository.search(task.id, is_to_send_to_cosmos=True)
-        self.assertEqual(mass_update_file, [])
+
+        # Create the mass update document
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees_error",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+
+        # Create the mass update document
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees_no_change",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+
+        # Create the mass update document
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
 
         # Create Excel workbook with fees data
         wb = openpyxl.Workbook()
