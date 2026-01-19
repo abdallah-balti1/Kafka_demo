@@ -243,6 +243,13 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
             mass_update_template_id=cls.mass_update_template_fees.id,
         )
         cls.task_model_fees.save()
+        
+        # Create project model
+        cls.project_model = ProjectModel(name="Fees Mass Update", type="mass_update")
+        cls.project_model.save()
+        cls.project_model_version = ProjectModelVersion(project_model_id=cls.project_model.id)
+        cls.project_model_version.task_models.append(cls.task_model_fees)
+        cls.project_model_version.save()
 
     @classmethod
     def tearDownClass(cls):
@@ -280,23 +287,7 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
     ):
         """Test that fees modifications are correctly detected and events are sent"""
         
-        # Create project
-        project_model = ProjectModel(name="Fees Mass Update", type="mass_update")
-        project_model.save()
-        project_model_version = ProjectModelVersion(project_model_id=project_model.id)
-        cls.task_model = TaskModel(
-            name="test",
-            type="upload_with_template",
-            duration=2,
-            is_milestone=False,
-            is_exceptional=False,
-            process_id="LFC08",
-            mass_update_template_id=cls.mass_update_template_fees.id,
-        )
-        cls.task_model.save()
-        project_model_version.task_models.append(cls.task_model)
-        project_model_version.save()
-        
+        # Create project using class variables
         project = Project(
             starting_date="2019-01-08",
             has_prospectus_update=False,
@@ -305,14 +296,13 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
             complexity="low",
             priority="low",
             product_id="abcde",
-            project_model_id=1,
+            project_model_id=self.project_model.id,
             description="test",
-            project_model_version_id=project_model_version.id,
-            version_type="RCD",
+            project_model_version_id=self.project_model_version.id,
         )
         project.save()
         
-        task = Task(project_id=project.id, task_model_id=cls.task_model.id)
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
         task.save()
         
         # Create mass update file document
@@ -521,11 +511,7 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
     ):
         """Test that no events are sent when there are no modifications"""
         
-        # Create project and task similar to previous test
-        project_model = ProjectModel(name="Fees No Change", type="mass_update")
-        project_model.save()
-        project_model_version = ProjectModelVersion(project_model_id=project_model.id)
-        
+        # Create project using class variables
         project = Project(
             starting_date="2019-01-08",
             has_prospectus_update=False,
@@ -534,14 +520,13 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
             complexity="low",
             priority="low",
             product_id="abcde",
-            project_model_id=1,
+            project_model_id=self.project_model.id,
             description="test",
-            project_model_version_id=project_model_version.id,
-            version_type="RCD",
+            project_model_version_id=self.project_model_version.id,
         )
         project.save()
         
-        task = Task(project_id=project.id, task_model_id=cls.task_model_fees.id)
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
         task.save()
 
         # Create Excel with NO modifications
@@ -623,13 +608,13 @@ class TestSendMassUpdateDataFees(unittest.TestCase):
             complexity="low",
             priority="low",
             product_id="abcde",
-            project_model_id=1,
+            project_model_id=self.project_model.id,
             description="test",
-            version_type="RCD",
+            project_model_version_id=self.project_model_version.id,
         )
         project.save()
         
-        task = Task(project_id=project.id, task_model_id=cls.task_model_fees.id)
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
         task.save()
 
         wb = openpyxl.Workbook()
