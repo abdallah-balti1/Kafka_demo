@@ -1,0 +1,92 @@
+def test_create_cre_data_for_mass_update_fees_to_send_to_cosmos_ok():
+    # ---------- Arrange ----------
+    user = {
+        "id": "user-id",
+        "fullname": "John Doe",
+    }
+
+    task = Task(
+        id="task-id",
+        name="Test task",
+        status=TaskStatus.IN_PROGRESS,
+    )
+
+    document = Document(
+        id="doc-id",
+        name="test.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+    # ---------- Create Excel in memory ----------
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # Row 1–2 : junk / titles
+    ws.append([])
+    ws.append([])
+
+    # Row 3 : headers
+    ws.append([
+        "_PROD_CD",
+        "Share name",
+        "Current Real ADL fees - ADL in",
+        "Current Real ADL fees - ADL out",
+        "New Real ADL fees - ADL in",
+        "New Real ADL fees - ADL out",
+    ])
+
+    # Row 4 : data
+    ws.append([
+        44480,                # _PROD_CD
+        "BNP SHARE A",        # Share name
+        0.21,                 # current ADL in
+        0.00,                 # current ADL out
+        0.25,                 # new ADL in
+        0.05,                 # new ADL out
+    ])
+
+    excel_stream = BytesIO()
+    wb.save(excel_stream)
+    excel_stream.seek(0)
+
+    # ---------- Mock document repository ----------
+    with patch.object(
+        DocumentRepository,
+        "get_file_content",
+        return_value=excel_stream.getvalue(),
+    ):
+        # ---------- Act ----------
+        result = create_cre_data_for_mass_update_fees_to_send_to_cosmos(
+            document=document,
+            task=task,
+            user=user,
+        )
+
+    # ---------- Assert ----------
+    assert 44480 in result
+    cre_data_list = result[44480]
+
+    # We expect 2 CreData: ADL IN + ADL OUT
+    assert len(cre_data_list) == 2
+
+    adl_in = next(
+        cd for cd in cre_data_list
+        if cd.identification_fields["FeesSubtypeCd"] == ADL_IN_SUBTYPE
+    )
+    adl_out = next(
+        cd for cd in cre_data_list
+        if cd.identification_fields["FeesSubtypeCd"] == ADL_OUT_SUBTYPE
+    )
+
+    # ---------- ADL IN checks ----------
+    assert adl_in.old_value == "0.21"
+    assert adl_in.new_value == "0.25"
+    assert adl_in.entity_action == MODIFY_ACTION
+    assert adl_in.author == "John Doe"
+
+    # ---------- ADL OUT checks ----------
+    assert adl_out.old_value == "0.0"
+    assert adl_out.new_value == "0.05"
+    assert adl_out.entity_action == MODIFY_ACTION
+    assert adl_out.author == "John Doe"
