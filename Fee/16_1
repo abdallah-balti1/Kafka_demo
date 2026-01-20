@@ -1,0 +1,45 @@
+def _build_specific_fees_excel_bytes(
+    *,
+    prod_cd,
+    share_name,
+    new_adl_in,
+    new_adl_out,
+    smu,  # module send_mass_update_data
+):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # Colonnes fixes (peu importe lesquelles, ton code scanne)
+    PROD_COL = 15
+    SHARE_COL = 5
+    ADL_IN_COL = 12
+    ADL_OUT_COL = 13
+    STOP_COL = 14
+
+    # -------- Row 1 (title)
+    ws.cell(row=1, column=1).value = "Specific ADL Fees (in bps)"
+
+    # -------- Row 2 (CATEGORY)  <<<< CRITIQUE
+    category_value = smu.CATEGORY_NAME.strip().upper()
+    ws.cell(row=2, column=ADL_IN_COL).value = category_value
+    ws.cell(row=2, column=ADL_OUT_COL).value = category_value
+
+    # Stopper l’extension vers la droite
+    ws.cell(row=2, column=STOP_COL).value = "X"
+
+    # -------- Row 3 (HEADERS)  <<<< CRITIQUE
+    ws.cell(row=3, column=PROD_COL).value = smu.PROD_CD_COLUMN_NAME.strip().upper()
+    ws.cell(row=3, column=SHARE_COL).value = smu.SHARE_NAME_COLUMN_NAME.strip().upper()
+    ws.cell(row=3, column=ADL_IN_COL).value = smu.ADL_IN_COLUMN_NAME.strip().upper()
+    ws.cell(row=3, column=ADL_OUT_COL).value = smu.ADL_OUT_COLUMN_NAME.strip().upper()
+
+    # -------- Row 4 (DATA)
+    ws.cell(row=4, column=PROD_COL).value = prod_cd
+    ws.cell(row=4, column=SHARE_COL).value = share_name
+    ws.cell(row=4, column=ADL_IN_COL).value = new_adl_in
+    ws.cell(row=4, column=ADL_OUT_COL).value = new_adl_out
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
