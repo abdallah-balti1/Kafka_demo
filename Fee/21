@@ -1,0 +1,49 @@
+SELECT
+    sin.sin_name,
+    pc.prod_cd_valu,
+    sh.sha_cd,
+    sh.sha_name,
+    sh.isin_cd,
+    sh.sha_stat_lbl,
+    shl.nav_valuation_date,
+
+    -- ✅ Ici on expose les fees en lignes (1 ligne = 1 fee)
+    pf.specific_fees_cgy_cd,
+    pf.fees_lvl_cd,
+    pf.fees_pctg,
+
+    -- (optionnel mais souvent utile pour debug/traçabilité)
+    pf.id               AS product_fee_row_id,
+    pf.fee_id,
+    pf.fee_value_id,
+    pf.version_num,
+    pf.fees_typ_cd,
+    pf.fees_subtype_cd
+
+FROM own_26967_plmsmartgps.single_sin sin
+
+JOIN own_26967_plmsmartgps.share sh
+    ON sh.prod_cd = sin.sin_cd
+
+JOIN own_26967_plmsmartgps.product_codification pc
+    ON pc.prod_cd = sin.sin_cd
+
+LEFT JOIN own_26967_plmsmartgps.share_launching_schedule shl
+    ON shl.sha_cd = sh.sha_cd
+
+-- ✅ Solution 1 : UNE SEULE jointure sur product_fee
+LEFT JOIN own_26967_plmsmartgps.product_fee pf
+    ON pf.sha_cd = sh.sha_cd
+   AND pf.specific_fees_cgy_cd IN ('19', '27')
+   AND pf.fees_lvl_cd IN ('MAX', 'REEL')
+
+WHERE
+    sin.sin_cd = '47991'
+    AND pc.codification_typ_cd = 'PTF_BNPPAM'
+
+ORDER BY
+    sh.sha_cd,
+    pf.specific_fees_cgy_cd,
+    pf.fees_lvl_cd,
+    pf.version_num DESC,
+    pf.id;
