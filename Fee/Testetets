@@ -37,16 +37,15 @@ from constants.other_constants import TO_DELETE_VALUE
 def _install_generate_cre_stub_if_needed():
     """
     Prevent pytest collection from failing due to a circular import in generators.generate_cre.
-    The function under test (create_cre_data_for_mass_update_fees_to_send_to_cosmos)
-    does NOT require generators.generate_cre, but send_mass_update_data imports it at module import time.
-    We install a minimal stub to break the cycle during this test module execution.
+    send_mass_update_data imports generators.generate_cre at import time; our function under test
+    does not rely on these symbols, so we can stub them safely for unit tests.
     """
     if "generators.generate_cre" in sys.modules:
         return
 
     stub = types.ModuleType("generators.generate_cre")
 
-    # Minimal API used by send_mass_update_data imports
+    # Symbols that may be imported by send_mass_update_data (depending on your repo version)
     def _noop_format_cre_for_cosmos(*args, **kwargs):
         return []
 
@@ -56,16 +55,26 @@ def _install_generate_cre_stub_if_needed():
     def _noop_parse_value_as_dict(*args, **kwargs):
         return {}
 
+    def _noop_get_cre_data(*args, **kwargs):
+        # sometimes used by other code paths; not needed for our tests
+        return []
+
+    # Attach to stub
     stub.format_cre_for_cosmos = _noop_format_cre_for_cosmos
     stub.has_field_label = _noop_has_field_label
     stub.parse_value_as_dict = _noop_parse_value_as_dict
+    stub.get_cre_data = _noop_get_cre_data
+
+    # Optional aliases (safe if your code imports different names)
+    stub.get_cre = _noop_get_cre_data
+    stub.generate_cre = _noop_get_cre_data
 
     sys.modules["generators.generate_cre"] = stub
 
 
 def _get_func_under_test():
     """
-    Lazy import to avoid pytest collection crash.
+    Lazy import to avoid pytest collection crash (circular import in generators.generate_cre).
     """
     _install_generate_cre_stub_if_needed()
     from util.mass_update.send_mass_update_data import (
@@ -95,7 +104,7 @@ def _build_specific_fees_excel_bytes(
     ws = wb.active
     ws.title = "Specific Fees"
 
-    # Column positions (stable + close to real template)
+    # Column positions (stable + close to your real template)
     PROD_COL = 15    # O
     SHARE_COL = 5    # E
     ADL_IN_COL = 12  # L
@@ -107,7 +116,7 @@ def _build_specific_fees_excel_bytes(
     # Row 2: categories
     ws.cell(row=2, column=ADL_IN_COL).value = CATEGORY_NAME
     ws.cell(row=2, column=ADL_OUT_COL).value = CATEGORY_NAME
-    ws.cell(row=2, column=ADL_OUT_COL + 1).value = None  # stop range
+    ws.cell(row=2, column=ADL_OUT_COL + 1).value = None  # stop category range
 
     # Row 3: headers
     ws.cell(row=3, column=PROD_COL).value = PROD_CD_COLUMN_NAME
@@ -160,7 +169,6 @@ def user():
 
 @pytest.fixture
 def task():
-    # function reads task.id and sets author=user["fullname"]
     return SimpleNamespace(id="TASK_1")
 
 
@@ -168,15 +176,11 @@ def task():
 # Tests
 # -----------------------------
 def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
-    """
-    ADL IN change => 1 CreData in cre_data_list_by_product_id[prod_cd]
-    """
     func = _get_func_under_test()
 
     prod_cd = "44480"
     share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
 
-    # Excel: ADL IN changed 0.21 -> 0.30 ; ADL OUT unchanged
     xlsx_bytes = _build_specific_fees_excel_bytes(
         prod_cd=prod_cd,
         share_name=share_name,
@@ -214,15 +218,11 @@ def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
 
 
 def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
-    """
-    ADL OUT change => 1 CreData, and old_value must be current_out (after your bugfix)
-    """
     func = _get_func_under_test()
 
     prod_cd = "44480"
     share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
 
-    # Excel: ADL OUT changed 0 -> 0.10 ; ADL IN unchanged
     xlsx_bytes = _build_specific_fees_excel_bytes(
         prod_cd=prod_cd,
         share_name=share_name,
@@ -260,10 +260,6 @@ def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
 
 
 def test_specific_fees_to_delete_value_does_not_create_credata(user, task):
-    """
-    Covers branch: if cell == TO_DELETE_VALUE -> EMPTY_VALUE -> Decimal conversion => None
-    => no CreData should be created for that field.
-    """
     func = _get_func_under_test()
 
     prod_cd = "44480"
@@ -272,7 +268,7 @@ def test_specific_fees_to_delete_value_does_not_create_credata(user, task):
     xlsx_bytes = _build_specific_fees_excel_bytes(
         prod_cd=prod_cd,
         share_name=share_name,
-        new_adl_in=TO_DELETE_VALUE,  # triggers delete branch for ADL IN
+        new_adl_in=TO_DELETE_VALUE,
         new_adl_out="0",
     )
     wb = _load_wb(xlsx_bytes)
