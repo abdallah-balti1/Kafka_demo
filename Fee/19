@@ -1,0 +1,628 @@
+import unittest
+import openpyxl
+import uuid
+from freezegun import freeze_time
+from helpers import init_database, insert_user
+from io import BytesIO
+from mock import call, patch, MagicMock
+
+import pytest
+from config import COSMOS_MASSUPDATE_READ_TIMEOUT
+from constants import FEES
+from db import db
+from models import (
+    Document,
+    MassUpdateTemplate,
+    MassUpdateTemplateFields,
+    Project,
+    ProjectMassUpdateProduct,
+    ProjectModel,
+    ProjectModelVersion,
+    Task,
+    TaskModel,
+    User,
+)
+from repositories import DocumentRepository, ProjectMassUpdateProductRepository
+from util.mass_update.send_mass_update_data import (
+    create_cre_data_for_mass_update_fees_to_send_to_cosmos,
+    send_mass_update_data_to_cosmos,
+)
+
+
+# Sample metadata returned by get_fields_metadata - simplified version
+GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE = [
+    {
+        "id": "FIELD_PROD_CD",
+        "smartgps_id": "PROD_CD",
+        "name_en": "_PROD_CD",
+        "category": "Product",
+    },
+    {
+        "id": "FIELD_SHARE_NAME",
+        "smartgps_id": "SHARE_NAME",
+        "name_en": "Share name",
+        "category": "Product",
+    },
+    {
+        "id": "FIELD_ADL_IN",
+        "smartgps_id": "ADL_IN_FEE_VALUE_ID_LABEL",
+        "name_en": "ADL in",
+        "category": "New Real ADL fees",
+    },
+    {
+        "id": "FIELD_ADL_OUT",
+        "smartgps_id": "ADL_OUT_FEE_VALUE_ID_LABEL",
+        "name_en": "ADL out",
+        "category": "New Real ADL fees",
+    },
+]
+
+
+class TestSendMassUpdateDataFees(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        init_database()
+        insert_user()
+        
+        # Create Mass Update Template for Fees
+        cls.mass_update_template_fees = MassUpdateTemplate(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            data_action_type_column="Action",
+            entity_type=FEES,
+            entity_id_column=None,
+            parent_entity_id_column=None,
+            parent_entity_type=None,
+            product_id_column="_PROD_CD",
+        ).save()
+        
+        # Create template fields matching Excel structure
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_PROD_CD",
+            column_name="_PROD_CD",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_SHARE_NAME",
+            column_name="Share name",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_ADL_IN",
+            column_name="ADL in",
+        ).save()
+        
+        MassUpdateTemplateFields(
+            mass_update_template_id=cls.mass_update_template_fees.id,
+            field_id="FIELD_ADL_OUT",
+            column_name="ADL out",
+        ).save()
+        
+        # Create task model
+        cls.task_model_fees = TaskModel(
+            name="test_fees_template",
+            type="upload_with_template",
+            duration=2,
+            is_milestone=False,
+            is_exceptional=False,
+            process_id="LFC08",
+            mass_update_template_id=cls.mass_update_template_fees.id,
+        )
+        cls.task_model_fees.save()
+        
+        # Create project model
+        cls.project_model = ProjectModel(name="Fees Mass Update Test", type="mass_update")
+        cls.project_model.save()
+        cls.project_model_version = ProjectModelVersion(project_model_id=cls.project_model.id)
+        cls.project_model_version.task_models.append(cls.task_model_fees)
+        cls.project_model_version.save()
+
+    @classmethod
+    def tearDownClass(cls):
+        db.session.remove()
+
+    def setUp(self):
+        self.document_is_deletable = True
+
+    @classmethod
+    def tearDown(cls):
+        db.session.remove()
+
+    def _create_test_excel(self, data_rows):
+        """Helper to create Excel file with proper structure"""
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        
+        # Row 1: Main header
+        ws.cell(row=1, column=1).value = "ADL fees (in bps)"
+        
+        # Row 2: Category headers - identify where "New Real ADL fees" starts
+        ws.cell(row=2, column=1).value = "Product / Share"
+        ws.cell(row=2, column=5).value = "New Real ADL fees"
+        
+        # Row 3: Column names
+        ws.cell(row=3, column=1).value = "_PROD_CD"
+        ws.cell(row=3, column=2).value = "Share name"
+        ws.cell(row=3, column=3).value = "ISIN code"
+        ws.cell(row=3, column=4).value = "Share status"
+        ws.cell(row=3, column=5).value = "ADL in"   # New Real ADL fees
+        ws.cell(row=3, column=6).value = "ADL out"  # New Real ADL fees
+        
+        # Data rows (starting from row 4)
+        for idx, row_data in enumerate(data_rows, start=4):
+            ws.cell(row=idx, column=1).value = row_data.get("prod_cd")
+            ws.cell(row=idx, column=2).value = row_data.get("share_name")
+            ws.cell(row=idx, column=3).value = row_data.get("isin")
+            ws.cell(row=idx, column=4).value = row_data.get("status")
+            ws.cell(row=idx, column=5).value = row_data.get("adl_in")
+            ws.cell(row=idx, column=6).value = row_data.get("adl_out")
+        
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        return excel_file
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch("util.mass_update.send_mass_update_data.get_fields_metadata")
+    @patch("util.mass_update.send_mass_update_data.send_cre")
+    @patch("util.mass_update.send_mass_update_data.uuid4")
+    @patch("util.mass_update.send_mass_update_data.report_document_create")
+    @patch("util.mass_update.send_mass_update_data.report_document_log")
+    @patch("util.mass_update.send_mass_update_data.get_adl_fees_data")
+    def test_should_create_modify_events_for_changed_fees(
+        self,
+        get_adl_fees_data_mock,
+        report_document_log_mock,
+        report_document_create_mock,
+        uid_mock,
+        send_cre_mock,
+        get_fields_metadata_mock,
+        cos_read_file_mock,
+    ):
+        """Test that modify events are created when ADL fees change"""
+        
+        # Setup
+        get_fields_metadata_mock.return_value = GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE
+        uid_mock.return_value = "test-uuid-123"
+        send_cre_mock.return_value = {"isSuccess": True}
+        
+        # Create project and task
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="test-product",
+            project_model_id=self.project_model.id,
+            description="test",
+            project_model_version_id=self.project_model_version.id,
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
+        task.save()
+
+        # Create mass update document
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+        
+        # Create products
+        ProjectMassUpdateProduct(task.project_id, "44480").save()
+        
+        # Create Excel with modified fees
+        excel_data = [
+            {
+                "prod_cd": "44480",
+                "share_name": "BNP PARIBAS EASY USD Corp Bond SRI",
+                "isin": "LU2616774076",
+                "status": "Launched",
+                "adl_in": 0.25,  # Changed from 0.21
+                "adl_out": 0,
+            },
+            {
+                "prod_cd": "44480",
+                "share_name": "BNP PARIBAS EASY USD Corp Bond Track",
+                "isin": "LU2616775636",
+                "status": "Launched",
+                "adl_in": 0.21,
+                "adl_out": 0.05,  # Changed from 0
+            },
+        ]
+        excel_file = self._create_test_excel(excel_data)
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Mock payload from DB (current values before modification)
+        payload_data = {
+            "44480": [
+                {
+                    "shareName": "BNP PARIBAS EASY USD Corp Bond SRI",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+                {
+                    "shareName": "BNP PARIBAS EASY USD Corp Bond Track",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+            ]
+        }
+        get_adl_fees_data_mock.return_value = payload_data
+        
+        # Execute
+        send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        
+        # Verify send_cre was called
+        self.assertTrue(send_cre_mock.called)
+        
+        # Get all events sent
+        all_events = []
+        for call_args in send_cre_mock.call_args_list:
+            events = call_args[0][0]
+            all_events.extend(events)
+        
+        # Should have 2 events: one for ADL in change, one for ADL out change
+        self.assertEqual(len(all_events), 2)
+        
+        # Verify first event (ADL in changed from 0.21 to 0.25)
+        adl_in_event = next((e for e in all_events if e['fieldName'] == 'adl_in_fee_value_id_label'), None)
+        self.assertIsNotNone(adl_in_event)
+        self.assertEqual(adl_in_event['dataEventType'], 'Modify')
+        self.assertEqual(adl_in_event['oldValue'], '0.21')
+        self.assertEqual(adl_in_event['newValue'], '0.25')
+        self.assertEqual(adl_in_event['productId'], '44480')
+        
+        # Verify second event (ADL out changed from 0 to 0.05)
+        adl_out_event = next((e for e in all_events if e['fieldName'] == 'adl_out_fee_value_id_label'), None)
+        self.assertIsNotNone(adl_out_event)
+        self.assertEqual(adl_out_event['dataEventType'], 'Modify')
+        self.assertEqual(adl_out_event['oldValue'], '0')
+        self.assertEqual(adl_out_event['newValue'], '0.05')
+        self.assertEqual(adl_out_event['productId'], '44480')
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch("util.mass_update.send_mass_update_data.get_fields_metadata")
+    @patch("util.mass_update.send_mass_update_data.send_cre")
+    @patch("util.mass_update.send_mass_update_data.get_adl_fees_data")
+    def test_should_not_create_events_when_no_changes(
+        self,
+        get_adl_fees_data_mock,
+        send_cre_mock,
+        get_fields_metadata_mock,
+        cos_read_file_mock,
+    ):
+        """Test that no events are created when fees haven't changed"""
+        
+        # Setup
+        get_fields_metadata_mock.return_value = GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE
+        send_cre_mock.return_value = {"isSuccess": True}
+        
+        # Create project and task
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="test-product",
+            project_model_id=self.project_model.id,
+            description="test",
+            project_model_version_id=self.project_model_version.id,
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
+        task.save()
+
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+        
+        ProjectMassUpdateProduct(task.project_id, "44480").save()
+        
+        # Create Excel with SAME fees as in DB
+        excel_data = [
+            {
+                "prod_cd": "44480",
+                "share_name": "BNP PARIBAS EASY USD Corp Bond SRI",
+                "isin": "LU2616774076",
+                "status": "Launched",
+                "adl_in": 0.21,  # Same as DB
+                "adl_out": 0,    # Same as DB
+            },
+        ]
+        excel_file = self._create_test_excel(excel_data)
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Mock payload - same values as Excel
+        payload_data = {
+            "44480": [
+                {
+                    "shareName": "BNP PARIBAS EASY USD Corp Bond SRI",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+            ]
+        }
+        get_adl_fees_data_mock.return_value = payload_data
+        
+        # Execute
+        send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        
+        # Verify send_cre was NOT called (no changes)
+        send_cre_mock.assert_not_called()
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch("util.mass_update.send_mass_update_data.get_fields_metadata")
+    def test_should_raise_error_when_category_not_found(
+        self,
+        get_fields_metadata_mock,
+        cos_read_file_mock,
+    ):
+        """Test that error is raised when 'New Real ADL fees' category is missing"""
+        
+        get_fields_metadata_mock.return_value = GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="test-product",
+            project_model_id=self.project_model.id,
+            description="test",
+            project_model_version_id=self.project_model_version.id,
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
+        task.save()
+
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+        
+        # Create Excel WITHOUT "New Real ADL fees" category
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1).value = "ADL fees (in bps)"
+        ws.cell(row=2, column=1).value = "Product / Share"
+        # Missing row 2 "New Real ADL fees" header!
+        ws.cell(row=3, column=1).value = "_PROD_CD"
+        
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Should raise ValueError about missing category
+        with self.assertRaises(ValueError) as context:
+            send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        
+        self.assertIn("category", str(context.exception).lower())
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch("util.mass_update.send_mass_update_data.get_fields_metadata")
+    @patch("util.mass_update.send_mass_update_data.send_cre")
+    @patch("util.mass_update.send_mass_update_data.get_adl_fees_data")
+    def test_should_handle_multiple_products(
+        self,
+        get_adl_fees_data_mock,
+        send_cre_mock,
+        get_fields_metadata_mock,
+        cos_read_file_mock,
+    ):
+        """Test handling multiple products with different changes"""
+        
+        get_fields_metadata_mock.return_value = GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE
+        send_cre_mock.return_value = {"isSuccess": True}
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="test-product",
+            project_model_id=self.project_model.id,
+            description="test",
+            project_model_version_id=self.project_model_version.id,
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
+        task.save()
+
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+        
+        # Multiple products
+        ProjectMassUpdateProduct(task.project_id, "44480").save()
+        ProjectMassUpdateProduct(task.project_id, "44481").save()
+        
+        # Excel with multiple products
+        excel_data = [
+            {
+                "prod_cd": "44480",
+                "share_name": "Product A",
+                "isin": "LU001",
+                "status": "Launched",
+                "adl_in": 0.30,  # Changed
+                "adl_out": 0,
+            },
+            {
+                "prod_cd": "44481",
+                "share_name": "Product B",
+                "isin": "LU002",
+                "status": "Launched",
+                "adl_in": 0.21,  # Not changed
+                "adl_out": 0,
+            },
+        ]
+        excel_file = self._create_test_excel(excel_data)
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Payload with old values
+        payload_data = {
+            "44480": [
+                {
+                    "shareName": "Product A",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+            ],
+            "44481": [
+                {
+                    "shareName": "Product B",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+            ],
+        }
+        get_adl_fees_data_mock.return_value = payload_data
+        
+        # Execute
+        send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        
+        # Should have exactly 1 event (only Product A changed)
+        all_events = []
+        for call_args in send_cre_mock.call_args_list:
+            events = call_args[0][0]
+            all_events.extend(events)
+        
+        self.assertEqual(len(all_events), 1)
+        self.assertEqual(all_events[0]['productId'], '44480')
+        self.assertEqual(all_events[0]['newValue'], '0.30')
+
+    @freeze_time("2019-01-16")
+    @patch("util.mass_update.send_mass_update_data.cos_read_file")
+    @patch("util.mass_update.send_mass_update_data.get_fields_metadata")
+    @patch("util.mass_update.send_mass_update_data.get_adl_fees_data")
+    def test_should_handle_missing_share_in_payload(
+        self,
+        get_adl_fees_data_mock,
+        get_fields_metadata_mock,
+        cos_read_file_mock,
+    ):
+        """Test behavior when Excel has a share not in the payload"""
+        
+        get_fields_metadata_mock.return_value = GET_FIELDS_METADATA_RETURN_VALUE_SAMPLE
+        
+        project = Project(
+            starting_date="2019-01-08",
+            has_prospectus_update=False,
+            project_owner_id=1,
+            creator_id=1,
+            complexity="low",
+            priority="low",
+            product_id="test-product",
+            project_model_id=self.project_model.id,
+            description="test",
+            project_model_version_id=self.project_model_version.id,
+        )
+        project.save()
+        
+        task = Task(project_id=project.id, task_model_id=self.task_model_fees.id)
+        task.save()
+
+        mass_update_document = Document(
+            id=str(uuid.uuid4()),
+            filename="mass_update_fees",
+            extension=".xlsx",
+            type="mass_update_template",
+            tasks=[task],
+            is_deletable=True,
+            is_to_send_to_cosmos=True,
+        )
+        mass_update_document.save()
+        
+        ProjectMassUpdateProduct(task.project_id, "44480").save()
+        
+        # Excel with a share
+        excel_data = [
+            {
+                "prod_cd": "44480",
+                "share_name": "New Share Not In DB",
+                "isin": "LU999",
+                "status": "Launched",
+                "adl_in": 0.30,
+                "adl_out": 0,
+            },
+        ]
+        excel_file = self._create_test_excel(excel_data)
+        cos_read_file_mock.return_value = excel_file.read()
+        
+        # Payload without this share
+        payload_data = {
+            "44480": [
+                {
+                    "shareName": "Different Share",
+                    "category": "New Real ADL fees",
+                    "adlInFeeValue": "0.21",
+                    "adlOutFeeValue": "0",
+                },
+            ]
+        }
+        get_adl_fees_data_mock.return_value = payload_data
+        
+        # Should handle gracefully (no error, just skip this share)
+        try:
+            send_mass_update_data_to_cosmos(db.session.get(User, 1).to_json(), task)
+        except Exception as e:
+            # If your function is supposed to skip unknown shares, this should not raise
+            # If it should raise, adjust the assertion
+            self.fail(f"Should handle missing share gracefully, but raised: {e}")
+
+
+if __name__ == "__main__":
+    unittest.main()
