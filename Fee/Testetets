@@ -1,0 +1,295 @@
+import io
+import sys
+import types
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import openpyxl
+import pytest
+
+# Project imports (all at top, like your existing tests)
+from constants.api_keys import (
+    SUB_KEY,
+    SIN_KEY,
+    PROD_CD_KEY,
+    SHA_NAME_KEY,
+    ADL_IN_FEE_ID_LABEL,
+    ADL_OUT_FEE_ID_LABEL,
+    ADL_IN_FEE_VALUE_ID_LABEL,
+    ADL_OUT_FEE_VALUE_ID_LABEL,
+    ADL_IN_FEE_KEY,
+    ADL_OUT_FEE_KEY,
+)
+from constants.column_names import (
+    PROD_CD_COLUMN_NAME,
+    SHARE_NAME_COLUMN_NAME,
+    ADL_IN_COLUMN_NAME,
+    ADL_OUT_COLUMN_NAME,
+    CATEGORY_NAME,
+)
+from constants.other_constants import TO_DELETE_VALUE
+
+
+# -----------------------------
+# Import guard against circular
+# -----------------------------
+def _install_generate_cre_stub_if_needed():
+    """
+    Prevent pytest collection from failing due to a circular import in generators.generate_cre.
+    The function under test (create_cre_data_for_mass_update_fees_to_send_to_cosmos)
+    does NOT require generators.generate_cre, but send_mass_update_data imports it at module import time.
+    We install a minimal stub to break the cycle during this test module execution.
+    """
+    if "generators.generate_cre" in sys.modules:
+        return
+
+    stub = types.ModuleType("generators.generate_cre")
+
+    # Minimal API used by send_mass_update_data imports
+    def _noop_format_cre_for_cosmos(*args, **kwargs):
+        return []
+
+    def _noop_has_field_label(*args, **kwargs):
+        return False
+
+    def _noop_parse_value_as_dict(*args, **kwargs):
+        return {}
+
+    stub.format_cre_for_cosmos = _noop_format_cre_for_cosmos
+    stub.has_field_label = _noop_has_field_label
+    stub.parse_value_as_dict = _noop_parse_value_as_dict
+
+    sys.modules["generators.generate_cre"] = stub
+
+
+def _get_func_under_test():
+    """
+    Lazy import to avoid pytest collection crash.
+    """
+    _install_generate_cre_stub_if_needed()
+    from util.mass_update.send_mass_update_data import (
+        create_cre_data_for_mass_update_fees_to_send_to_cosmos,
+    )
+
+    return create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+
+# -----------------------------
+# Excel builders
+# -----------------------------
+def _build_specific_fees_excel_bytes(
+    *,
+    prod_cd: str,
+    share_name: str,
+    new_adl_in,
+    new_adl_out,
+):
+    """
+    Build an in-memory Excel matching the 3-header-level structure your function expects:
+      - Row 2: categories (CATEGORY_NAME spanning ADL IN/OUT columns)
+      - Row 3: actual headers (PROD_CD_COLUMN_NAME / SHARE_NAME_COLUMN_NAME and ADL headers)
+      - Row 4+: data
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # Column positions (stable + close to real template)
+    PROD_COL = 15    # O
+    SHARE_COL = 5    # E
+    ADL_IN_COL = 12  # L
+    ADL_OUT_COL = 13 # M
+
+    # Row 1 (optional title)
+    ws.cell(row=1, column=1).value = "Specific ADL Fees (in bps)"
+
+    # Row 2: categories
+    ws.cell(row=2, column=ADL_IN_COL).value = CATEGORY_NAME
+    ws.cell(row=2, column=ADL_OUT_COL).value = CATEGORY_NAME
+    ws.cell(row=2, column=ADL_OUT_COL + 1).value = None  # stop range
+
+    # Row 3: headers
+    ws.cell(row=3, column=PROD_COL).value = PROD_CD_COLUMN_NAME
+    ws.cell(row=3, column=SHARE_COL).value = SHARE_NAME_COLUMN_NAME
+    ws.cell(row=3, column=ADL_IN_COL).value = ADL_IN_COLUMN_NAME
+    ws.cell(row=3, column=ADL_OUT_COL).value = ADL_OUT_COLUMN_NAME
+
+    # Row 4: data
+    ws.cell(row=4, column=PROD_COL).value = prod_cd
+    ws.cell(row=4, column=SHARE_COL).value = share_name
+    ws.cell(row=4, column=ADL_IN_COL).value = new_adl_in
+    ws.cell(row=4, column=ADL_OUT_COL).value = new_adl_out
+
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _load_wb(xlsx_bytes: bytes):
+    return openpyxl.load_workbook(filename=io.BytesIO(xlsx_bytes), data_only=True)
+
+
+def _make_payload_item(*, prod_cd: str, share_name: str, current_in, current_out):
+    """
+    Payload item using the exact api_keys constants used by your function.
+    """
+    return {
+        PROD_CD_KEY: prod_cd,
+        SHA_NAME_KEY: share_name,
+
+        # IDs used to build CreData (parent_entity_id / entity_id)
+        ADL_IN_FEE_ID_LABEL: "ADL_IN_FEE_ID_001",
+        ADL_OUT_FEE_ID_LABEL: "ADL_OUT_FEE_ID_001",
+        ADL_IN_FEE_VALUE_ID_LABEL: "ADL_IN_FEE_VALUE_ID_001",
+        ADL_OUT_FEE_VALUE_ID_LABEL: "ADL_OUT_FEE_VALUE_ID_001",
+
+        # Current values from DB payload
+        ADL_IN_FEE_KEY: current_in,
+        ADL_OUT_FEE_KEY: current_out,
+    }
+
+
+# -----------------------------
+# Fixtures
+# -----------------------------
+@pytest.fixture
+def user():
+    return {"fullname": "Unit Test User"}
+
+
+@pytest.fixture
+def task():
+    # function reads task.id and sets author=user["fullname"]
+    return SimpleNamespace(id="TASK_1")
+
+
+# -----------------------------
+# Tests
+# -----------------------------
+def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
+    """
+    ADL IN change => 1 CreData in cre_data_list_by_product_id[prod_cd]
+    """
+    func = _get_func_under_test()
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: ADL IN changed 0.21 -> 0.30 ; ADL OUT unchanged
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in="0.30",
+        new_adl_out="0",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, mapping = func(user=user, task=task, wb=wb)
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_IN_FEE_ID_001"
+    assert cre.entity_id == "ADL_IN_FEE_VALUE_ID_001"
+    assert cre.old_value == str(Decimal("0.21"))
+    assert cre.new_value == str(Decimal("0.30"))
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
+
+
+def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
+    """
+    ADL OUT change => 1 CreData, and old_value must be current_out (after your bugfix)
+    """
+    func = _get_func_under_test()
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: ADL OUT changed 0 -> 0.10 ; ADL IN unchanged
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in="0.21",
+        new_adl_out="0.10",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, mapping = func(user=user, task=task, wb=wb)
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_OUT_FEE_ID_001"
+    assert cre.entity_id == "ADL_OUT_FEE_VALUE_ID_001"
+    assert cre.old_value == str(Decimal("0"))
+    assert cre.new_value == str(Decimal("0.10"))
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
+
+
+def test_specific_fees_to_delete_value_does_not_create_credata(user, task):
+    """
+    Covers branch: if cell == TO_DELETE_VALUE -> EMPTY_VALUE -> Decimal conversion => None
+    => no CreData should be created for that field.
+    """
+    func = _get_func_under_test()
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in=TO_DELETE_VALUE,  # triggers delete branch for ADL IN
+        new_adl_out="0",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, _ = func(user=user, task=task, wb=wb)
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
