@@ -1,0 +1,305 @@
+import io
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import openpyxl
+import pytest
+
+
+def _build_specific_fees_excel_bytes(
+    *,
+    prod_cd: str,
+    share_name: str,
+    new_adl_in,
+    new_adl_out,
+):
+    """
+    Construit un Excel conforme à ce que ta fonction scanne :
+      - row 2 : catégories (CATEGORY_NAME doit exister et couvrir ADL IN/OUT)
+      - row 3 : headers (PROD_CD_COLUMN_NAME, SHARE_NAME_COLUMN_NAME,
+                         ADL_IN_COLUMN_NAME, ADL_OUT_COLUMN_NAME)
+      - row 4+ : data
+    On utilise les constantes du projet => correspondance EXACTE.
+    """
+    from constants.column_names import (
+        PROD_CD_COLUMN_NAME,
+        SHARE_NAME_COLUMN_NAME,
+        ADL_IN_COLUMN_NAME,
+        ADL_OUT_COLUMN_NAME,
+        CATEGORY_NAME,
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"  # peu importe, ta fonction prend wb.active
+
+    # On crée un layout proche du vrai fichier :
+    # - _PROD_CD est plutôt vers la droite dans ton screenshot
+    # - Share name au milieu
+    #
+    # Pour rester robuste, on place quand même les colonnes avec des index fixes,
+    # et on aligne la catégorie + headers dessus.
+
+    PROD_COL = 15   # colonne O
+    SHARE_COL = 5   # colonne E
+    ADL_IN_COL = 12 # colonne L
+    ADL_OUT_COL = 13# colonne M
+
+    # ===== Row 1 (optionnel) =====
+    ws.cell(row=1, column=1).value = "Specific ADL Fees (in bps)"
+
+    # ===== Row 2 : catégories =====
+    # La fonction fait: header_row_for_category = 2
+    # Elle cherche CATEGORY_NAME dans cette row, puis "continue right" jusqu'à cellule vide
+    # => on remplit CATEGORY_NAME sur L et M, et on laisse N vide.
+    ws.cell(row=2, column=ADL_IN_COL).value = CATEGORY_NAME
+    ws.cell(row=2, column=ADL_OUT_COL).value = CATEGORY_NAME
+    ws.cell(row=2, column=ADL_OUT_COL + 1).value = None  # stop category range
+
+    # ===== Row 3 : headers =====
+    # La fonction fait: header_row = 3, et cherche ADL_IN_COLUMN_NAME / ADL_OUT_COLUMN_NAME
+    # dans l'intervalle category_col_start..category_col_end
+    ws.cell(row=3, column=ADL_IN_COL).value = ADL_IN_COLUMN_NAME
+    ws.cell(row=3, column=ADL_OUT_COL).value = ADL_OUT_COLUMN_NAME
+
+    # Elle scanne aussi les 10 premières lignes pour trouver PROD_CD_COLUMN_NAME & SHARE_NAME_COLUMN_NAME
+    ws.cell(row=3, column=PROD_COL).value = PROD_CD_COLUMN_NAME
+    ws.cell(row=3, column=SHARE_COL).value = SHARE_NAME_COLUMN_NAME
+
+    # ===== Row 4 : data =====
+    ws.cell(row=4, column=PROD_COL).value = prod_cd
+    ws.cell(row=4, column=SHARE_COL).value = share_name
+    ws.cell(row=4, column=ADL_IN_COL).value = new_adl_in
+    ws.cell(row=4, column=ADL_OUT_COL).value = new_adl_out
+
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _load_wb(xlsx_bytes: bytes):
+    return openpyxl.load_workbook(filename=io.BytesIO(xlsx_bytes), data_only=True)
+
+
+@pytest.fixture
+def user():
+    return {"fullname": "Unit Test User"}
+
+
+@pytest.fixture
+def task():
+    # ta fonction lit task.id, et author=user["fullname"]
+    return SimpleNamespace(id="TASK_1")
+
+
+def _make_payload_item(*, prod_cd: str, share_name: str, current_in, current_out):
+    """
+    Construit un item payload avec les clés EXACTES utilisées dans ta fonction
+    (ADL_IN_FEE_ID_LABEL etc.).
+    """
+    from constants.api_keys import (
+        PROD_CD_KEY,
+        SHA_NAME_KEY,
+        ADL_IN_FEE_ID_LABEL,
+        ADL_OUT_FEE_ID_LABEL,
+        ADL_IN_FEE_VALUE_ID_LABEL,
+        ADL_OUT_FEE_VALUE_ID_LABEL,
+        ADL_IN_FEE_KEY,
+        ADL_OUT_FEE_KEY,
+    )
+
+    return {
+        PROD_CD_KEY: prod_cd,
+        SHA_NAME_KEY: share_name,
+
+        # IDs nécessaires pour parent_entity_id / entity_id
+        ADL_IN_FEE_ID_LABEL: "ADL_IN_FEE_ID_001",
+        ADL_OUT_FEE_ID_LABEL: "ADL_OUT_FEE_ID_001",
+        ADL_IN_FEE_VALUE_ID_LABEL: "ADL_IN_FEE_VALUE_ID_001",
+        ADL_OUT_FEE_VALUE_ID_LABEL: "ADL_OUT_FEE_VALUE_ID_001",
+
+        # valeurs actuelles (payload DB)
+        ADL_IN_FEE_KEY: current_in,
+        ADL_OUT_FEE_KEY: current_out,
+    }
+
+
+def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
+    """
+    ADL IN change => 1 CreData dans cre_data_list_by_product_id[prod_cd]
+    """
+    from constants.api_keys import SUB_KEY, SIN_KEY
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: nouveau ADL IN diff, ADL OUT identique
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in="0.30",
+        new_adl_out="0",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        from util.mass_update.send_mass_update_data import create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+        cre_by_product, mapping = create_cre_data_for_mass_update_fees_to_send_to_cosmos(
+            user=user, task=task, wb=wb
+        )
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    # champs importants (exacts selon ta création CreData)
+    assert cre.parent_entity_id == "ADL_IN_FEE_ID_001"
+    assert cre.entity_id == "ADL_IN_FEE_VALUE_ID_001"
+    assert cre.old_value == str(Decimal("0.21"))
+    assert cre.new_value == str(Decimal("0.30"))
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
+
+
+def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
+    """
+    ADL OUT change => 1 CreData
+    """
+    from constants.api_keys import SUB_KEY, SIN_KEY
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: ADL OUT diff, ADL IN identique
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in="0.21",
+        new_adl_out="0.10",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        from util.mass_update.send_mass_update_data import create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+        cre_by_product, mapping = create_cre_data_for_mass_update_fees_to_send_to_cosmos(
+            user=user, task=task, wb=wb
+        )
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_OUT_FEE_ID_001"
+    assert cre.entity_id == "ADL_OUT_FEE_VALUE_ID_001"
+
+    # ⚠️ Note: dans ton screenshot, old_value pour ADL OUT est "current_in" (probable bug)
+    # Si ton code est tel quel, le test doit coller à ce comportement.
+    # Si tu as corrigé le bug, remplace par str(Decimal("0")).
+    assert cre.new_value == str(Decimal("0.10"))
+
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
+
+
+def test_specific_fees_delete_value_does_not_create_credata(user, task):
+    """
+    Branche TO_DELETE_VALUE => new value devient EMPTY_VALUE => Decimal None => aucun CreData.
+    (couvre le if isinstance(..., str) and == TO_DELETE_VALUE)
+    """
+    from constants.api_keys import SUB_KEY, SIN_KEY
+    from constants.other_constants import TO_DELETE_VALUE
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: valeur "TO_DELETE_VALUE" sur ADL IN
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in=TO_DELETE_VALUE,  # déclenche la branche
+        new_adl_out="0",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        from util.mass_update.send_mass_update_data import create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+        cre_by_product, _ = create_cre_data_for_mass_update_fees_to_send_to_cosmos(
+            user=user, task=task, wb=wb
+        )
+
+    # Pas d'event car new_in devient None après conversion
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+
+
+
+
+
+
+
+def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
+    """
+    ADL OUT change => 1 CreData, old_value doit être current_out (bugfix)
+    """
+    from constants.api_keys import SUB_KEY, SIN_KEY
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel: ADL OUT diff, ADL IN identique
+    xlsx_bytes = _build_specific_fees_excel_bytes(
+        prod_cd=prod_cd,
+        share_name=share_name,
+        new_adl_in="0.21",
+        new_adl_out="0.10",
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        from util.mass_update.send_mass_update_data import create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+        cre_by_product, mapping = create_cre_data_for_mass_update_fees_to_send_to_cosmos(
+            user=user, task=task, wb=wb
+        )
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_OUT_FEE_ID_001"
+    assert cre.entity_id == "ADL_OUT_FEE_VALUE_ID_001"
+
+    # ✅ bugfix verrouillé ici
+    assert cre.old_value == str(Decimal("0"))
+    assert cre.new_value == str(Decimal("0.10"))
+
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
