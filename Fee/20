@@ -1,0 +1,336 @@
+import io
+import sys
+import types
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import openpyxl
+import pytest
+
+from constants.api_keys import (
+    SUB_KEY,
+    SIN_KEY,
+    PROD_CD_KEY,
+    SHA_NAME_KEY,
+    ADL_IN_FEE_ID_LABEL,
+    ADL_OUT_FEE_ID_LABEL,
+    ADL_IN_FEE_VALUE_ID_LABEL,
+    ADL_OUT_FEE_VALUE_ID_LABEL,
+    ADL_IN_FEE_KEY,
+    ADL_OUT_FEE_KEY,
+)
+from constants.other_constants import TO_DELETE_VALUE
+
+
+# -----------------------------
+# Stub generators.generate_cre (circular import safe)
+# -----------------------------
+def _install_generate_cre_stub():
+    if "generators.generate_cre" in sys.modules:
+        return
+    stub = types.ModuleType("generators.generate_cre")
+    stub.format_cre_for_cosmos = lambda *a, **k: []
+    stub.has_field_label = lambda *a, **k: False
+    stub.parse_value_as_dict = lambda *a, **k: {}
+    stub.get_cre_data = lambda *a, **k: []
+    sys.modules["generators.generate_cre"] = stub
+
+
+def _import_module_and_func():
+    _install_generate_cre_stub()
+    import util.mass_update.send_mass_update_data as smu
+
+    return smu, smu.create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+
+def _upper_patch_module_constants(smu):
+    """
+    Your code does:
+      val_norm = str(val).strip().upper()
+      if val_norm == SOME_CONSTANT:
+    So SOME_CONSTANT must be uppercase too.
+    We patch constants inside the tested module to uppercase.
+    """
+    for name in [
+        "CATEGORY_NAME",
+        "PROD_CD_COLUMN_NAME",
+        "SHARE_NAME_COLUMN_NAME",
+        "ADL_IN_COLUMN_NAME",
+        "ADL_OUT_COLUMN_NAME",
+        "EMPTY_VALUE",
+        "TO_DELETE_VALUE",
+    ]:
+        if hasattr(smu, name):
+            v = getattr(smu, name)
+            if isinstance(v, str):
+                setattr(smu, name, v.strip().upper())
+
+
+def _build_excel_bytes_using_module_constants(
+    *,
+    smu,
+    rows,
+):
+    """
+    rows: list of dicts:
+      {"prod_cd": str, "share_name": str, "new_in": any, "new_out": any}
+
+    Build Excel using (patched) constants from send_mass_update_data module.
+    This guarantees the scan logic finds columns.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # Keep same columns as your working test
+    PROD_COL = 15
+    SHARE_COL = 5
+    ADL_IN_COL = 12
+    ADL_OUT_COL = 13
+
+    ws.cell(1, 1).value = "Specific ADL Fees (in bps)"
+
+    # Row 2: category merged over ADL IN/OUT
+    ws.merge_cells(start_row=2, start_column=ADL_IN_COL, end_row=2, end_column=ADL_OUT_COL)
+    ws.cell(2, ADL_IN_COL).value = smu.CATEGORY_NAME
+
+    # Row 3: headers
+    ws.cell(3, PROD_COL).value = smu.PROD_CD_COLUMN_NAME
+    ws.cell(3, SHARE_COL).value = smu.SHARE_NAME_COLUMN_NAME
+    ws.cell(3, ADL_IN_COL).value = smu.ADL_IN_COLUMN_NAME
+    ws.cell(3, ADL_OUT_COL).value = smu.ADL_OUT_COLUMN_NAME
+
+    # Data rows start at row 4
+    r = 4
+    for row in rows:
+        ws.cell(r, PROD_COL).value = row["prod_cd"]
+        ws.cell(r, SHARE_COL).value = row["share_name"]
+        ws.cell(r, ADL_IN_COL).value = row.get("new_in")
+        ws.cell(r, ADL_OUT_COL).value = row.get("new_out")
+        r += 1
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _make_payload_item(*, prod_cd: str, share_name: str, current_in, current_out):
+    return {
+        PROD_CD_KEY: prod_cd,
+        SHA_NAME_KEY: share_name,
+        ADL_IN_FEE_ID_LABEL: "IN_ID",
+        ADL_OUT_FEE_ID_LABEL: "OUT_ID",
+        ADL_IN_FEE_VALUE_ID_LABEL: "IN_VAL_ID",
+        ADL_OUT_FEE_VALUE_ID_LABEL: "OUT_VAL_ID",
+        ADL_IN_FEE_KEY: current_in,
+        ADL_OUT_FEE_KEY: current_out,
+    }
+
+
+@pytest.fixture
+def user():
+    return {"fullname": "Unit Test User"}
+
+
+@pytest.fixture
+def task():
+    return SimpleNamespace(id="TASK_1")
+
+
+def _run_func_with_payload_and_excel(smu, func, user, task, payload, excel_rows):
+    xlsx_bytes = _build_excel_bytes_using_module_constants(smu=smu, rows=excel_rows)
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True)
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        return func(user=user, task=task, wb=wb)
+
+
+# ============================================================
+# TESTS
+# ============================================================
+
+def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    cre_by_product, mapping = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": share_name, "new_in": "0.21", "new_out": "0.10"}],
+    )
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "OUT_ID"
+    assert cre.entity_id == "OUT_VAL_ID"
+    assert cre.old_value == "0"
+    assert cre.new_value == "0.10"
+    assert cre.task_id == task.id
+    assert cre.author == user["fullname"]
+
+
+def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    cre_by_product, _ = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": share_name, "new_in": "0.30", "new_out": "0"}],
+    )
+
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "IN_ID"
+    assert cre.entity_id == "IN_VAL_ID"
+    assert cre.old_value == "0.21"
+    assert cre.new_value == "0.30"
+
+
+def test_specific_fees_builds_two_credata_when_both_in_and_out_change(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    cre_by_product, _ = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": share_name, "new_in": "0.30", "new_out": "0.10"}],
+    )
+
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 2
+
+    # Order is not guaranteed; assert by ids
+    parents = {c.parent_entity_id for c in cre_by_product[prod_cd]}
+    assert parents == {"IN_ID", "OUT_ID"}
+
+
+def test_specific_fees_no_change_returns_empty_for_product(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0.10"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    cre_by_product, _ = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": share_name, "new_in": "0.21", "new_out": "0.10"}],
+    )
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+def test_specific_fees_row_not_in_payload_is_ignored(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "REAL SHARE"
+    other_share = "UNKNOWN SHARE"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    # Excel has a row that doesn't match payload key (prod_cd/share_name), should be ignored
+    cre_by_product, _ = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": other_share, "new_in": "0.30", "new_out": "0.10"}],
+    )
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+def test_specific_fees_to_delete_value_does_not_create_event(user, task):
+    smu, func = _import_module_and_func()
+    _upper_patch_module_constants(smu)
+
+    prod_cd = "44480"
+    share_name = "REAL SHARE"
+
+    payload = {
+        SUB_KEY: [
+            _make_payload_item(
+                prod_cd=prod_cd,
+                share_name=share_name,
+                current_in=Decimal("0.21"),
+                current_out=Decimal("0"),
+            )
+        ],
+        SIN_KEY: [],
+    }
+
+    # Put TO_DELETE_VALUE in ADL IN -> your code converts it to EMPTY_VALUE -> Decimal(None) -> no change event
+    cre_by_product, _ = _run_func_with_payload_and_excel(
+        smu, func, user, task, payload,
+        excel_rows=[{"prod_cd": prod_cd, "share_name": share_name, "new_in": TO_DELETE_VALUE, "new_out": "0"}],
+    )
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
