@@ -1,0 +1,31 @@
+from openpyxl.worksheet.datavalidation import DataValidation
+
+def create_data_validation(ws, adl_fees_data):
+    if not adl_fees_data:
+        return
+
+    end_row = DATA_START_ROW + len(adl_fees_data) - 1
+
+    # La formule doit référencer la 1ère cellule de la plage (relative)
+    first_cell = f"L{DATA_START_ROW}"
+
+    # Accepte vide OU nombre >= 0, en acceptant "." ou ","
+    # 1) remplace "." par ","
+    # 2) VALUE() convertit en nombre (selon locale)
+    # 3) IFERROR => FALSE si conversion impossible
+    formula = (
+        f'=OR({first_cell}="";'
+        f'IFERROR(VALUE(SUBSTITUTE({first_cell},".",","))>=0;FALSE))'
+    )
+
+    dv = DataValidation(
+        type="custom",
+        formula1=formula,
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle=DATA_VALIDATION_ERROR_TITLE,
+        error=DATA_VALIDATION_ERROR_MESSAGE,
+    )
+
+    dv.add(f"L{DATA_START_ROW}:M{end_row}")
+    ws.add_data_validation(dv)
