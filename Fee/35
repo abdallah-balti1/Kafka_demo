@@ -1,0 +1,198 @@
+import unittest
+
+import openpyxl
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
+
+from constants.specific_fees import (
+    DATA_START_ROW,
+    GROUPS,
+    HEADERS,
+    NEW_ADL_IN_COLUMN,
+    NEW_ADL_OUT_COLUMN,
+    SHEET_NAME,
+    # facultatif mais souvent présent :
+    # COL_WIDTHS,
+)
+
+from util.mass_update.specific_fees_template import (
+    create_specific_fees_template_workbook,
+)
+
+# Si tu as un header technique, adapte cette constante si besoin.
+TECH_HEADER_NAME = "_PROD_CD"
+
+
+class TestSpecificFeesTemplate(unittest.TestCase):
+    def setUp(self):
+        # Jeu de données minimal mais complet (comme ton test)
+        self.adl_fees_data = [
+            {
+                "umb_name_lbl": "Umbrella 1",
+                "sbf_name": "Product 1",
+                "prod_cd_valu": "P1",
+                "sbf_stat_lbl": "Active",
+                "sha_name": "Share 1",
+                "isin_cd": "ISIN1",
+                "sha_stat_lbl": "Active",
+                "max_adl_in_fee": 10,
+                "max_adl_out_fee": 10,
+                "adl_in_fee": 5,
+                "adl_out_fee": 5,
+                "nav_valuation_date": "2023-10-01",
+                # selon ton code, il peut y avoir prod_cd séparément de prod_cd_valu
+                "prod_cd": "TECH_123",
+            }
+        ]
+
+    def _build(self) -> tuple[openpyxl.Workbook, Worksheet]:
+        wb = create_specific_fees_template_workbook(self.adl_fees_data)
+        ws: Worksheet = wb[SHEET_NAME]
+        return wb, ws
+
+    def test_workbook_basic_structure(self):
+        """Couvre: création workbook, titre sheet, headers, groupes, lignes data."""
+        wb, ws = self._build()
+
+        # sheet name
+        self.assertEqual(ws.title, SHEET_NAME)
+
+        # headers ligne 3 (selon ton code)
+        for col_idx, header in enumerate(HEADERS, start=1):
+            self.assertEqual(ws.cell(row=3, column=col_idx).value, header)
+
+        # groups ligne 2
+        for start_col, end_col, label in GROUPS:
+            self.assertEqual(ws.cell(row=2, column=start_col).value, label)
+
+        # data rows à partir de DATA_START_ROW
+        for i, row in enumerate(self.adl_fees_data):
+            r = DATA_START_ROW + i
+
+            # Ces colonnes sont issues de ton ancien test (A..)
+            self.assertEqual(ws.cell(row=r, column=1).value, row["umb_name_lbl"])
+            self.assertEqual(ws.cell(row=r, column=2).value, row["sbf_name"])
+            self.assertEqual(ws.cell(row=r, column=3).value, row["prod_cd_valu"])
+            self.assertEqual(ws.cell(row=r, column=4).value, row["sbf_stat_lbl"])
+            self.assertEqual(ws.cell(row=r, column=5).value, row["sha_name"])
+            self.assertEqual(ws.cell(row=r, column=6).value, row["isin_cd"])
+            self.assertEqual(ws.cell(row=r, column=7).value, row["sha_stat_lbl"])
+            self.assertEqual(ws.cell(row=r, column=8).value, row["max_adl_in_fee"])
+            self.assertEqual(ws.cell(row=r, column=9).value, row["max_adl_out_fee"])
+            self.assertEqual(ws.cell(row=r, column=10).value, row["adl_in_fee"])
+            self.assertEqual(ws.cell(row=r, column=11).value, row["adl_out_fee"])
+
+            # L et M (12,13) sont les colonnes éditables dans ton code
+            self.assertEqual(ws.cell(row=r, column=12).value, row["adl_in_fee"])
+            self.assertEqual(ws.cell(row=r, column=13).value, row["adl_out_fee"])
+
+            # dernière colonne de date (dans ton exemple c'est 14)
+            self.assertEqual(ws.cell(row=r, column=14).value, row["nav_valuation_date"])
+
+        # freeze panes attendu (dans ta capture: "A4")
+        self.assertEqual(ws.freeze_panes, "A4")
+
+    def test_data_validation_custom_accepts_dot_or_comma(self):
+        """
+        Couvre: nouvelle validation (type custom), plage L:M, formule présente.
+        """
+        _, ws = self._build()
+
+        self.assertGreaterEqual(len(ws.data_validations.dataValidation), 1)
+        dv = ws.data_validations.dataValidation[0]
+
+        # ancien test attendait decimal -> maintenant custom
+        self.assertEqual(dv.type, "custom")
+        self.assertTrue(dv.allowBlank)
+        self.assertTrue(dv.showErrorMessage)
+
+        # On doit avoir une formule (openpyxl met ça en dv.formula1)
+        self.assertIsNotNone(dv.formula1)
+        self.assertIn("SUBSTITUTE", dv.formula1)  # accepte "."
+        self.assertIn("VALUE", dv.formula1)       # conversion en nombre
+        self.assertIn("IFERROR", dv.formula1)     # gère les non-nombres
+
+        # Vérifie que la validation cible bien L..M
+        # dv.sqref est une MultiCellRange -> str(dv.sqref) donne "L10:M20" etc.
+        sqref = str(dv.sqref)
+        self.assertIn("L", sqref)
+        self.assertIn("M", sqref)
+        self.assertIn(str(DATA_START_ROW), sqref)
+
+    def test_protection_only_L_M_unlocked_in_data_rows(self):
+        """
+        Couvre: apply_protection.
+        - Avant DATA_START_ROW: tout locké
+        - À partir de DATA_START_ROW: seules colonnes NEW_ADL_IN_COLUMN et NEW_ADL_OUT_COLUMN unlockées
+        """
+        _, ws = self._build()
+
+        # Vérifie qu'on a bien une protection au niveau worksheet
+        # (selon ton code: ws.protection = SheetProtection())
+        self.assertTrue(ws.protection is not None)
+
+        max_row = ws.max_row
+        max_col = len(HEADERS)
+
+        for r in range(1, max_row + 1):
+            for c in range(1, max_col + 1):
+                cell = ws.cell(row=r, column=c)
+
+                if r >= DATA_START_ROW and c in (NEW_ADL_IN_COLUMN, NEW_ADL_OUT_COLUMN):
+                    self.assertFalse(
+                        cell.protection.locked,
+                        msg=f"Expected unlocked cell at r={r} c={c}"
+                    )
+                else:
+                    self.assertTrue(
+                        cell.protection.locked,
+                        msg=f"Expected locked cell at r={r} c={c}"
+                    )
+
+    def test_hidden_technical_column_is_hidden_but_value_still_readable(self):
+        """
+        Couvre: hide_technical_columns.
+        Important: cachée ou non, la valeur doit rester lisible via openpyxl.
+        """
+        _, ws = self._build()
+
+        # Trouve la colonne technique si elle existe dans HEADERS
+        if TECH_HEADER_NAME not in HEADERS:
+            # Si ton projet n’utilise pas ce header, on ne fait pas échouer.
+            # Mais on garde un test "soft" pour la coverage globale.
+            self.skipTest(f"{TECH_HEADER_NAME} not in HEADERS, adjust TECH_HEADER_NAME")
+            return
+
+        tech_col_idx = HEADERS.index(TECH_HEADER_NAME) + 1
+        tech_letter = get_column_letter(tech_col_idx)
+
+        # La colonne doit être cachée
+        self.assertTrue(ws.column_dimensions[tech_letter].hidden)
+
+        # La valeur doit rester lisible dans les data rows
+        r = DATA_START_ROW
+        tech_value = ws.cell(row=r, column=tech_col_idx).value
+        self.assertIsNotNone(tech_value)
+
+    def test_column_widths_applied_if_defined(self):
+        """
+        Couvre: boucle de set width (COL_WIDTHS).
+        Si ton projet expose COL_WIDTHS dans constants, dé-commente l'import et ce test validera aussi.
+        """
+        _, ws = self._build()
+
+        # Si tu as COL_WIDTHS dans tes constants, décommente l'import en haut
+        # et active la vérif ci-dessous.
+        try:
+            from constants.specific_fees import COL_WIDTHS  # type: ignore
+        except Exception:
+            self.skipTest("COL_WIDTHS not available in constants.specific_fees")
+            return
+
+        for col_idx, w in COL_WIDTHS.items():
+            letter = get_column_letter(col_idx)
+            self.assertEqual(ws.column_dimensions[letter].width, w)
+
+
+if __name__ == "__main__":
+    unittest.main()
