@@ -1,0 +1,27 @@
+from openpyxl.worksheet.datavalidation import DataValidation
+
+def create_data_validation(ws, adl_fees_data):
+    if not adl_fees_data:
+        return
+
+    end_row = DATA_START_ROW + len(adl_fees_data) - 1
+
+    # IMPORTANT: pas de '=' au début, et séparateurs d'arguments = ','
+    # Accepte vide OU nombre >= 0 en acceptant '.' ou ',' (on remplace '.' -> ',')
+    anchor = f"L{DATA_START_ROW}"
+    formula = (
+        f'OR({anchor}="",'
+        f'IFERROR(VALUE(SUBSTITUTE({anchor},".",","))>=0,FALSE))'
+    )
+
+    dv = DataValidation(
+        type="custom",
+        formula1=formula,
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle=DATA_VALIDATION_ERROR_TITLE,
+        error=DATA_VALIDATION_ERROR_MESSAGE,
+    )
+
+    dv.add(f"L{DATA_START_ROW}:M{end_row}")
+    ws.add_data_validation(dv)
