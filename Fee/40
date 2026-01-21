@@ -1,0 +1,385 @@
+import io
+import sys
+import types
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import openpyxl
+import pytest
+
+# =========================
+# Project imports (TOP)
+# =========================
+from constants.api_keys import (
+    SUB_KEY,
+    SIN_KEY,
+    PROD_CD_KEY,
+    SHA_NAME_KEY,
+    ADL_IN_FEE_ID_LABEL,
+    ADL_OUT_FEE_ID_LABEL,
+    ADL_IN_FEE_VALUE_ID_LABEL,
+    ADL_OUT_FEE_VALUE_ID_LABEL,
+    ADL_IN_FEE_KEY,
+    ADL_OUT_FEE_KEY,
+)
+from constants.other_constants import TO_DELETE_VALUE
+
+
+# =========================
+# Stub generators.generate_cre
+# (avoid circular import at collection)
+# =========================
+def _install_generate_cre_stub_if_needed():
+    if "generators.generate_cre" in sys.modules:
+        return
+
+    stub = types.ModuleType("generators.generate_cre")
+    stub.format_cre_for_cosmos = lambda *a, **k: []
+    stub.has_field_label = lambda *a, **k: False
+    stub.parse_value_as_dict = lambda *a, **k: {}
+    stub.get_cre_data = lambda *a, **k: []
+    sys.modules["generators.generate_cre"] = stub
+
+
+def _get_module_and_func_under_test():
+    _install_generate_cre_stub_if_needed()
+    import util.mass_update.send_mass_update_data as smu
+
+    return smu, smu.create_cre_data_for_mass_update_fees_to_send_to_cosmos
+
+
+def _patch_headers_to_upper(smu):
+    """
+    Your code compares val_norm=cell.upper() against constants,
+    so we patch the module constants to uppercase for the duration of the test.
+    This makes the test robust even if constants are not upper in the project.
+    """
+    for name in [
+        "PROD_CD_COLUMN_NAME",
+        "SHARE_NAME_COLUMN_NAME",
+        "ADL_IN_COLUMN_NAME",
+        "ADL_OUT_COLUMN_NAME",
+        "CATEGORY_NAME",
+    ]:
+        if hasattr(smu, name):
+            val = getattr(smu, name)
+            if isinstance(val, str):
+                setattr(smu, name, val.strip().upper())
+
+
+def _build_specific_fees_excel_bytes_multi(
+    *,
+    smu,
+    rows,
+    add_only_headers=False,
+):
+    """
+    Builds an Excel matching your function expectations:
+      - header_row_for_category = 2 (categories)
+      - header_row = 3 (actual headers)
+      - data starts at row 4
+
+    rows: list of dicts:
+      {"prod_cd": ..., "share_name": ..., "new_adl_in": ..., "new_adl_out": ...}
+
+    add_only_headers=True:
+      build headers but no valid data lines (to hit product_ids_set empty branch)
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Specific Fees"
+
+    # Stable column positions (any positions work; your code scans)
+    PROD_COL = 15    # O
+    SHARE_COL = 5    # E
+    ADL_IN_COL = 12  # L
+    ADL_OUT_COL = 13 # M
+    STOP_COL = 14    # N (used to stop category range)
+
+    ws.cell(row=1, column=1).value = "Specific ADL Fees (in bps)"
+
+    # Row 2: category
+    ws.cell(row=2, column=ADL_IN_COL).value = smu.CATEGORY_NAME
+    ws.cell(row=2, column=ADL_OUT_COL).value = smu.CATEGORY_NAME
+    ws.cell(row=2, column=STOP_COL).value = "STOP"
+
+    # Row 3: headers
+    ws.cell(row=3, column=PROD_COL).value = smu.PROD_CD_COLUMN_NAME
+    ws.cell(row=3, column=SHARE_COL).value = smu.SHARE_NAME_COLUMN_NAME
+    ws.cell(row=3, column=ADL_IN_COL).value = smu.ADL_IN_COLUMN_NAME
+    ws.cell(row=3, column=ADL_OUT_COL).value = smu.ADL_OUT_COLUMN_NAME
+
+    if add_only_headers:
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    # Data rows
+    row_idx = 4
+    for r in rows:
+        ws.cell(row=row_idx, column=PROD_COL).value = r.get("prod_cd")
+        ws.cell(row=row_idx, column=SHARE_COL).value = r.get("share_name")
+        ws.cell(row=row_idx, column=ADL_IN_COL).value = r.get("new_adl_in")
+        ws.cell(row=row_idx, column=ADL_OUT_COL).value = r.get("new_adl_out")
+        row_idx += 1
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _load_wb(xlsx_bytes: bytes):
+    return openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True)
+
+
+def _make_payload_item(*, prod_cd: str, share_name: str, current_in, current_out):
+    return {
+        PROD_CD_KEY: prod_cd,
+        SHA_NAME_KEY: share_name,
+        ADL_IN_FEE_ID_LABEL: "ADL_IN_FEE_ID_001",
+        ADL_OUT_FEE_ID_LABEL: "ADL_OUT_FEE_ID_001",
+        ADL_IN_FEE_VALUE_ID_LABEL: "ADL_IN_FEE_VALUE_ID_001",
+        ADL_OUT_FEE_VALUE_ID_LABEL: "ADL_OUT_FEE_VALUE_ID_001",
+        ADL_IN_FEE_KEY: current_in,
+        ADL_OUT_FEE_KEY: current_out,
+    }
+
+
+# =========================
+# Fixtures
+# =========================
+@pytest.fixture
+def user():
+    return {"fullname": "Unit Test User"}
+
+
+@pytest.fixture
+def task():
+    return SimpleNamespace(id="TASK_1")
+
+
+# =========================
+# TESTS (existing)
+# =========================
+def test_specific_fees_builds_credata_when_adl_in_changes(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name,
+            "new_adl_in": "0.30",
+            "new_adl_out": "0",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, mapping = func(user=user, task=task, wb=wb)
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_IN_FEE_ID_001"
+    assert cre.entity_id == "ADL_IN_FEE_VALUE_ID_001"
+    assert cre.old_value == str(Decimal("0.21"))
+    assert cre.new_value == str(Decimal("0.30"))
+
+
+def test_specific_fees_builds_credata_when_adl_out_changes(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name,
+            "new_adl_in": "0.21",
+            "new_adl_out": "0.10",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, mapping = func(user=user, task=task, wb=wb)
+
+    assert mapping == {}
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 1
+
+    cre = cre_by_product[prod_cd][0]
+    assert cre.parent_entity_id == "ADL_OUT_FEE_ID_001"
+    assert cre.entity_id == "ADL_OUT_FEE_VALUE_ID_001"
+    assert cre.old_value == str(Decimal("0"))
+    assert cre.new_value == str(Decimal("0.10"))
+
+
+def test_specific_fees_to_delete_value_does_not_create_credata(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name,
+            "new_adl_in": TO_DELETE_VALUE,
+            "new_adl_out": "0",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, _ = func(user=user, task=task, wb=wb)
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+# =========================
+# TESTS (NEW for coverage)
+# =========================
+def test_specific_fees_builds_two_credata_when_both_adl_in_and_out_change(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name,
+            "new_adl_in": "0.30",
+            "new_adl_out": "0.10",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, _ = func(user=user, task=task, wb=wb)
+
+    assert prod_cd in cre_by_product
+    assert len(cre_by_product[prod_cd]) == 2
+    parents = {c.parent_entity_id for c in cre_by_product[prod_cd]}
+    assert parents == {"ADL_IN_FEE_ID_001", "ADL_OUT_FEE_ID_001"}
+
+
+def test_specific_fees_no_change_returns_no_credata(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name = "BNP PARIBAS EASY USD Corp Bond SRI Fossil Free [UCITS ETF, C]"
+
+    # Excel equals payload -> no events
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name,
+            "new_adl_in": "0.21",
+            "new_adl_out": "0",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, _ = func(user=user, task=task, wb=wb)
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+def test_specific_fees_row_not_found_in_payload_is_ignored(user, task):
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    prod_cd = "44480"
+    share_name_payload = "REAL SHARE"
+    share_name_excel = "UNKNOWN SHARE"  # will not match payload index -> item None -> continue
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[{
+            "prod_cd": prod_cd,
+            "share_name": share_name_excel,
+            "new_adl_in": "0.30",
+            "new_adl_out": "0.10",
+        }],
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {
+        SUB_KEY: [_make_payload_item(prod_cd=prod_cd, share_name=share_name_payload, current_in=Decimal("0.21"), current_out=Decimal("0"))],
+        SIN_KEY: [],
+    }
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, _ = func(user=user, task=task, wb=wb)
+
+    assert prod_cd not in cre_by_product or len(cre_by_product[prod_cd]) == 0
+
+
+def test_specific_fees_no_valid_rows_returns_empty_structures(user, task):
+    """
+    Hit branch:
+      if not product_ids_set: return defaultdict(list), {}
+    by producing workbook with headers only and no valid prod/share rows.
+    """
+    smu, func = _get_module_and_func_under_test()
+    _patch_headers_to_upper(smu)
+
+    xlsx_bytes = _build_specific_fees_excel_bytes_multi(
+        smu=smu,
+        rows=[],
+        add_only_headers=True,
+    )
+    wb = _load_wb(xlsx_bytes)
+
+    payload = {SUB_KEY: [], SIN_KEY: []}
+
+    with patch("util.mass_update.send_mass_update_data.get_adl_fees_data", return_value=payload):
+        cre_by_product, mapping = func(user=user, task=task, wb=wb)
+
+    assert mapping == {}
+    assert cre_by_product == {} or len(cre_by_product) == 0
