@@ -1,0 +1,116 @@
+from freezegun import freeze_time
+from unittest.mock import patch
+from openpyxl.workbook.workbook import Workbook
+
+@freeze_time("2019-01-16")
+@patch("util.mass_update.get_mass_update_template.cos_read_file")
+@patch("util.mass_update.get_mass_update_template.get_adl_fees_data")
+def test_retrieve_mass_update_template_with_specific_fees(
+    self,
+    get_adl_fees_data_mock,
+    cos_read_file_mock,
+):
+    """Test should check the specific case for 'Upload Specific Fees template'"""
+
+    # Mock the return value for get_adl_fees_data
+    get_adl_fees_data_mock.return_value = [
+        {
+            # NEW: cosmos ids (for new template columns)
+            "prod_cd": 15766,          # Cosmos ID
+            "sha_cd": 28399,           # Cosmos ID Share
+
+            # existing fields
+            "umb_name_lbl": "Umbrella 1",
+            "sbf_name": "Product 1",
+            "prod_cd_valu": "P1",      # Product ALADDIN code
+            # NEW: mffa (optional, depends on your implementation)
+            # "mffa_cd_valu": "MFFA1",
+
+            "sbf_stat_lbl": "Active",  # Product status
+            "sha_name": "Share 1",
+            "isin_cd": "ISIN1",
+            "sha_stat_lbl": "Active",  # Share status
+
+            # fees
+            "max_adl_in_fee": 10,
+            "max_adl_out_fee": 10,
+            "adl_in_fee": 5,
+            "adl_out_fee": 5,
+
+            # effective date
+            "nav_valuation_date": "2023-10-01",
+        }
+    ]
+
+    # Set the task name to "Upload Specific Fees template"
+    self.task.name = "Upload Specific Fees template"
+
+    # Call the function
+    wb: Workbook = retrieve_mass_update_template(self.task)
+
+    # Ensure the workbook is created correctly
+    self.assertIsInstance(wb, Workbook)
+    self.assertIn("Specific Fees", wb.sheetnames)
+
+    # Check the content of the "Specific Fees" sheet
+    ws = wb["Specific Fees"]
+
+    # New template: 3 header rows + 1 data row
+    self.assertEqual(ws.max_row, 4)
+
+    # New template: 18 columns
+    self.assertEqual(ws.max_column, 18)
+
+    # Check the headers (row 3)
+    headers = [cell.value for cell in ws[3]]
+    self.assertEqual(
+        headers,
+        [
+            "Cosmos ID",
+            "Cosmos ID Share",
+            "Umbrella name",
+            "Product name",
+            "Product ALADDIN code",
+            "MFFA Code",
+            "Product status",
+            "Share name",
+            "ISIN code",
+            "Share status",
+            "ADL in",
+            "ADL out",
+            "ADL in",
+            "ADL out",
+            "ADL in",
+            "ADL out",
+            "Effective date",
+            "_PROD_CD",
+        ],
+    )
+
+    # Check the data row (row 4)
+    data_row = [cell.value for cell in ws[4]]
+    self.assertEqual(
+        data_row,
+        [
+            15766,          # Cosmos ID
+            28399,          # Cosmos ID Share
+            "Umbrella 1",
+            "Product 1",
+            "P1",           # Product ALADDIN code
+            None,           # MFFA Code (update if your code fills it)
+            "Active",       # Product status
+            "Share 1",
+            "ISIN1",
+            "Active",       # Share status
+            10,             # Maximum ADL fees - ADL in
+            10,             # Maximum ADL fees - ADL out
+            5,              # Current Real ADL fees - ADL in
+            5,              # Current Real ADL fees - ADL out
+            5,              # New Real ADL fees - ADL in
+            5,              # New Real ADL fees - ADL out
+            "2023-10-01",   # Effective date
+            None,           # _PROD_CD
+        ],
+    )
+
+    wb.close()
