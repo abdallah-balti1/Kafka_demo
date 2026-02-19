@@ -1,0 +1,182 @@
+import unittest
+
+import openpyxl
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
+
+from constants.specific_fees import (
+    DATA_START_ROW,
+    GROUPS,
+    HEADERS,
+    NEW_ADL_IN_COLUMN,
+    NEW_ADL_OUT_COLUMN,
+    SHEET_NAME,
+    # Keys used by the template builder (new specific_fees.py)
+    UMB_NAME_LBL_KEY,
+    SBF_NAME_KEY,
+    PROD_CD_VALU_KEY,
+    PROD_CD_MFFA,
+    SBF_STAT_LBL_KEY,
+    SHARE_CD,
+    SHA_NAME_KEY,
+    ISIN_CD_KEY,
+    SHA_STAT_LBL_KEY,
+    ADL_IN_FEE_KEY,
+    ADL_OUT_FEE_KEY,
+    MAX_ADL_IN_FEE_KEY,
+    MAX_ADL_OUT_FEE_KEY,
+    NAV_VALUATION_DATE_KEY,
+    PROD_CD,
+)
+from util.mass_update.specific_fees_template import create_specific_fees_template_workbook
+
+
+class TestSpecificFeesTemplate(unittest.TestCase):
+    def setUp(self):
+        # One row of data matching the keys expected by the template builder
+        self.adl_fees_data = [
+            {
+                PROD_CD: 15766,                 # Cosmos ID (visible now)
+                SHARE_CD: 28399,                # Cosmos ID Share
+                UMB_NAME_LBL_KEY: "Umbrella 1",
+                SBF_NAME_KEY: "Product 1",
+                PROD_CD_VALU_KEY: "P1",         # Product ALADDIN code
+                PROD_CD_MFFA: None,             # MFFA Code (optional)
+                SBF_STAT_LBL_KEY: "Active",     # Product status
+                SHA_NAME_KEY: "Share 1",
+                ISIN_CD_KEY: "ISIN1",
+                SHA_STAT_LBL_KEY: "Active",     # Share status
+                MAX_ADL_IN_FEE_KEY: 10,
+                MAX_ADL_OUT_FEE_KEY: 10,
+                ADL_IN_FEE_KEY: 5,
+                ADL_OUT_FEE_KEY: 5,
+                NAV_VALUATION_DATE_KEY: "2023-10-01",
+            }
+        ]
+
+    def _build(self, data) -> tuple[openpyxl.Workbook, Worksheet]:
+        wb = create_specific_fees_template_workbook(data)
+        ws: Worksheet = wb[SHEET_NAME]
+        return wb, ws
+
+    def _col(self, header_name: str) -> int:
+        """1-based column index for a header, based on HEADERS constant."""
+        return HEADERS.index(header_name) + 1
+
+    def test_create_specific_fees_template_workbook_full(self):
+        """Covers: structure + freeze panes + data validation + protection."""
+        wb, ws = self._build(self.adl_fees_data)
+
+        # Sheet name
+        self.assertEqual(ws.title, SHEET_NAME)
+
+        # Basic shape: 3 header rows + 1 data row
+        self.assertGreaterEqual(ws.max_row, DATA_START_ROW)
+        self.assertEqual(ws.max_column, len(HEADERS))
+        self.assertEqual(len(HEADERS), 17)  # guard: new template has 17 columns
+
+        # Headers are row=3
+        for col_idx, header in enumerate(HEADERS, start=1):
+            self.assertEqual(ws.cell(row=3, column=col_idx).value, header)
+
+        # Groups are row=2 (labels)
+        for start_col, end_col, label in GROUPS:
+            self.assertEqual(ws.cell(row=2, column=start_col).value, label)
+
+        # Data row starts at DATA_START_ROW
+        r = DATA_START_ROW
+        row = self.adl_fees_data[0]
+
+        # Column-by-column checks aligned with new HEADERS order
+        # 1  Cosmos ID
+        self.assertEqual(ws.cell(row=r, column=self._col("Cosmos ID")).value, row[PROD_CD])
+        # 2  Cosmos ID Share
+        self.assertEqual(ws.cell(row=r, column=self._col("Cosmos ID Share")).value, row[SHARE_CD])
+        # 3  Umbrella name
+        self.assertEqual(ws.cell(row=r, column=self._col("Umbrella name")).value, row[UMB_NAME_LBL_KEY])
+        # 4  Product name
+        self.assertEqual(ws.cell(row=r, column=self._col("Product name")).value, row[SBF_NAME_KEY])
+        # 5  Product ALADDIN code
+        self.assertEqual(ws.cell(row=r, column=self._col("Product ALADDIN code")).value, row[PROD_CD_VALU_KEY])
+        # 6  MFFA Code
+        self.assertEqual(ws.cell(row=r, column=self._col("MFFA Code")).value, row[PROD_CD_MFFA])
+        # 7  Product status
+        self.assertEqual(ws.cell(row=r, column=self._col("Product status")).value, row[SBF_STAT_LBL_KEY])
+        # 8  Share name
+        self.assertEqual(ws.cell(row=r, column=self._col("Share name")).value, row[SHA_NAME_KEY])
+        # 9  ISIN code
+        self.assertEqual(ws.cell(row=r, column=self._col("ISIN code")).value, row[ISIN_CD_KEY])
+        # 10 Share status
+        self.assertEqual(ws.cell(row=r, column=self._col("Share status")).value, row[SHA_STAT_LBL_KEY])
+
+        # Fees blocks
+        # 11/12 Maximum ADL fees
+        self.assertEqual(ws.cell(row=r, column=11).value, row[MAX_ADL_IN_FEE_KEY])
+        self.assertEqual(ws.cell(row=r, column=12).value, row[MAX_ADL_OUT_FEE_KEY])
+        # 13/14 Current Real ADL fees
+        self.assertEqual(ws.cell(row=r, column=13).value, row[ADL_IN_FEE_KEY])
+        self.assertEqual(ws.cell(row=r, column=14).value, row[ADL_OUT_FEE_KEY])
+        # 15/16 New Real ADL fees (editable columns)
+        self.assertEqual(ws.cell(row=r, column=NEW_ADL_IN_COLUMN).value, row[ADL_IN_FEE_KEY])
+        self.assertEqual(ws.cell(row=r, column=NEW_ADL_OUT_COLUMN).value, row[ADL_OUT_FEE_KEY])
+
+        # 17 Effective date
+        self.assertEqual(ws.cell(row=r, column=self._col("Effective date")).value, row[NAV_VALUATION_DATE_KEY])
+
+        # Editable columns formatting
+        self.assertEqual(ws.cell(row=r, column=NEW_ADL_IN_COLUMN).number_format, "0.00")
+        self.assertEqual(ws.cell(row=r, column=NEW_ADL_OUT_COLUMN).number_format, "0.00")
+
+        # Freeze panes
+        self.assertEqual(ws.freeze_panes, "A4")
+
+        # Data validation exists
+        self.assertGreaterEqual(len(ws.data_validations.dataValidation), 1)
+        dv = ws.data_validations.dataValidation[0]
+        self.assertEqual(dv.type, "custom")
+        self.assertTrue(dv.allowBlank)
+        self.assertTrue(dv.showErrorMessage)
+        self.assertIsNotNone(dv.formula1)
+        self.assertIn("SUBSTITUTE", dv.formula1)
+        self.assertIn("VALUE", dv.formula1)
+
+        # DV targets NEW ADL columns starting from DATA_START_ROW
+        sqref = str(dv.sqref)
+        new_in_letter = get_column_letter(NEW_ADL_IN_COLUMN)   # should be "O"
+        new_out_letter = get_column_letter(NEW_ADL_OUT_COLUMN) # should be "P"
+        self.assertIn(new_in_letter, sqref)
+        self.assertIn(new_out_letter, sqref)
+        self.assertIn(str(DATA_START_ROW), sqref)
+
+        # Protection: editable cells must be unlocked
+        self.assertFalse(ws.cell(row=r, column=NEW_ADL_IN_COLUMN).protection.locked)
+        self.assertFalse(ws.cell(row=r, column=NEW_ADL_OUT_COLUMN).protection.locked)
+        # A normal cell should be locked (example: first column)
+        self.assertTrue(ws.cell(row=r, column=1).protection.locked)
+
+        # Cosmos ID is NOT hidden anymore
+        cosmos_col = self._col("Cosmos ID")
+        cosmos_letter = get_column_letter(cosmos_col)
+        self.assertNotEqual(ws.column_dimensions[cosmos_letter].hidden, True)
+
+        wb.close()
+
+    def test_create_specific_fees_template_workbook_empty_data(self):
+        """
+        Coverage booster:
+        - no data branch
+        - workbook stays valid and does not crash (DV may exist depending on implementation)
+        """
+        wb, ws = self._build([])
+
+        # Headers always present
+        for col_idx, header in enumerate(HEADERS, start=1):
+            self.assertEqual(ws.cell(row=3, column=col_idx).value, header)
+
+        # No data rows
+        self.assertLess(ws.max_row, DATA_START_ROW)
+
+        # DV object exists (may be empty list, but should not crash)
+        self.assertIsNotNone(ws.data_validations.dataValidation)
+
+        wb.close()
