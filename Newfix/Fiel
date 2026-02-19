@@ -2,15 +2,17 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 
 def create_data_validation(ws, adl_fees_data):
-    # On veut quand même une DV même si la liste est vide (pour garder le template valide)
-    # mais si tu préfères l'ancien comportement, garde le return.
+    """Add numeric >= 0 validation to editable ADL columns."""
+
     end_row = DATA_START_ROW + max(len(adl_fees_data), 1) - 1
 
-    # IMPORTANT: pas de '=' au début, et séparateurs d'arguments = ';'
-    # Accepte vide OU nombre >= 0, en acceptant '.' ou ',' (on remplace '.' -> ',')
-    anchor = f"{get_column_letter(NEW_ADL_IN_COLUMN)}{DATA_START_ROW}"
-    formula = f'OR({anchor}="";IFERROR(VALUE(SUBSTITUTE({anchor},"."," ,"))>=0;FALSE))'
-    # ↑ attention: si tu veux exactement remplacer '.' par ',' : remets juste "," (voir variante ci-dessous)
+    anchor_col = get_column_letter(NEW_ADL_IN_COLUMN)
+    anchor = f"{anchor_col}{DATA_START_ROW}"
+
+    formula = (
+        f'OR({anchor}="";'
+        f'IFERROR(VALUE(SUBSTITUTE({anchor},".",","))>=0;FALSE))'
+    )
 
     dv = DataValidation(
         type="custom",
@@ -21,8 +23,8 @@ def create_data_validation(ws, adl_fees_data):
         error=DATA_VALIDATION_ERROR_MESSAGE,
     )
 
-    col_in = get_column_letter(NEW_ADL_IN_COLUMN)    # O
-    col_out = get_column_letter(NEW_ADL_OUT_COLUMN)  # P
+    col_in = get_column_letter(NEW_ADL_IN_COLUMN)
+    col_out = get_column_letter(NEW_ADL_OUT_COLUMN)
 
-    dv.add(f"{col_in}{DATA_START_ROW}:{col_out}{end_row}")
     ws.add_data_validation(dv)
+    dv.add(f"{col_in}{DATA_START_ROW}:{col_out}{end_row}")
