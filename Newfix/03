@@ -1,0 +1,53 @@
+# Check the header row (new template)
+header_row = [cell.value for cell in ws[3]]
+self.assertEqual(
+    header_row,
+    [
+        "Cosmos ID",
+        "Cosmos ID Share",
+        "Umbrella name",
+        "Product name",
+        "Product ALADDIN code",
+        "MFFA Code",
+        "Product status",
+        "Share name",
+        "ISIN code",
+        "Share status",
+        "ADL in",            # Maximum ADL fees
+        "ADL out",
+        "ADL in",            # Current Real ADL fees
+        "ADL out",
+        "ADL in",            # New Real ADL fees (editable)
+        "ADL out",           # New Real ADL fees (editable)
+        "Effective date",
+        "_PROD_CD",
+    ],
+)
+
+# Check the data row (new template)
+data_row = [cell.value for cell in ws[4]]
+self.assertEqual(
+    data_row,
+    [
+        15766,          # Cosmos ID
+        28399,          # Cosmos ID Share
+        "Umbrella 1",
+        "Product 1",
+        "P1",           # Product ALADDIN code
+        None,           # MFFA Code (or set "MFFA1" if your fixture provides it)
+        "Active",       # Product status
+        "Share 1",
+        "ISIN1",
+        "Active",       # Share status
+        10,             # Maximum ADL in
+        10,             # Maximum ADL out
+        5,              # Current Real ADL in
+        5,              # Current Real ADL out
+        5,              # New Real ADL in
+        5,              # New Real ADL out
+        "2023-10-01",   # Effective date
+        None,           # _PROD_CD
+    ],
+)
+
+wb.close()
