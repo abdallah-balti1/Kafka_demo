@@ -3,3 +3,9 @@ assert mapping[(prod_cd, share_name)] == DATA_START_ROW
 
 assert (prod_cd, share_name) in mapping
 assert isinstance(mapping[(prod_cd, share_name)], int)
+
+
+assert len(mapping) == 1
+(k_prod, k_share), line = next(iter(mapping.items()))
+assert k_prod == str(prod_cd).strip()
+assert line == 4
