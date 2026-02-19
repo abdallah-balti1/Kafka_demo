@@ -1,0 +1,236 @@
+import re
+from collections import defaultdict
+
+def _norm_header(v) -> str:
+    if v is None:
+        return ""
+    s = str(v).strip().upper()
+    s = re.sub(r"[\s\-_]+", " ", s)
+    s = re.sub(r"[^A-Z0-9 ]+", "", s)
+    return s
+
+def _cell_value(ws, row, col):
+    # Works for both normal and ReadOnlyWorksheet
+    return ws.cell(row=row, column=col).value
+
+def _find_category_row(ws, category_name: str, max_rows=50):
+    target = _norm_header(category_name)
+    for r in range(1, min(ws.max_row, max_rows) + 1):
+        for c in range(1, ws.max_column + 1):
+            if _norm_header(_cell_value(ws, r, c)) == target:
+                return r
+    return None
+
+def _find_category_span_readonly(ws, category_row: int, category_name: str):
+    """
+    Read-only friendly category span detection:
+    - Find first column where category_name appears
+    - Extend right while cells are empty (merged header effect),
+      stop when next non-empty header appears.
+    """
+    target = _norm_header(category_name)
+
+    start = None
+    for c in range(1, ws.max_column + 1):
+        if _norm_header(_cell_value(ws, category_row, c)) == target:
+            start = c
+            break
+    if start is None:
+        return None, None
+
+    end = start
+    c = start + 1
+    while c <= ws.max_column:
+        v = _cell_value(ws, category_row, c)
+        # In merged headers, only the first cell has value, others are None/empty.
+        # Stop when we meet the next category header cell (non-empty).
+        if v is not None and str(v).strip():
+            break
+        end = c
+        c += 1
+
+    return start, end
+
+def _build_header_map(ws, header_row: int):
+    m = {}
+    for c in range(1, ws.max_column + 1):
+        k = _norm_header(_cell_value(ws, header_row, c))
+        if k:
+            m[k] = c
+    return m
+
+def _get_col_by_variants(header_map: dict, *variants: str):
+    for v in variants:
+        k = _norm_header(v)
+        if k in header_map:
+            return header_map[k]
+    return None
+
+
+def create_cre_data_for_mass_update_fees_to_send_to_cosmos(user, task, wb, sheet_name=None):
+    """
+    Read-only Excel compatible version.
+    Works with template having:
+      - a category row with merged group headers (values only in left cell)
+      - a real header row right below
+    """
+    ws = wb[sheet_name] if sheet_name else wb.active
+
+    # 1) Find category row (e.g. "New Real ADL fees")
+    category_row = _find_category_row(ws, CATEGORY_NAME, max_rows=80)
+    if not category_row:
+        raise ValueError(f"Missing category '{CATEGORY_NAME}' (not found)")
+
+    # In your template: real headers are on next row
+    header_row = category_row + 1
+
+    # 2) Get category span (read-only safe)
+    category_col_start, category_col_end = _find_category_span_readonly(ws, category_row, CATEGORY_NAME)
+    if not category_col_start or not category_col_end:
+        raise ValueError(f"Unable to determine column span for category '{CATEGORY_NAME}'")
+
+    # 3) Build header map from real header row
+    header_map = _build_header_map(ws, header_row)
+
+    # 4) Identify prod_cd + share_name columns (robust variants)
+    _prod_cd_col_idx = _get_col_by_variants(
+        header_map,
+        PROD_CD_COLUMN_NAME,     # your existing constant
+        "COSMOS ID",             # matches your screenshot
+        "PRODUCT"                # fallback
+    )
+    share_name_col_idx = _get_col_by_variants(
+        header_map,
+        SHARE_NAME_COLUMN_NAME,  # your existing constant
+        "SHARE NAME"
+    )
+
+    if not _prod_cd_col_idx or not share_name_col_idx:
+        raise ValueError(
+            f"Missing required columns. header_row={header_row}. "
+            f"Seen headers: {list(header_map.keys())[:30]}"
+        )
+
+    # 5) Identify ADL IN/OUT headers inside the category span
+    adl_in_col_idx = None
+    adl_out_col_idx = None
+    adl_in_key = _norm_header(ADL_IN_COLUMN_NAME)
+    adl_out_key = _norm_header(ADL_OUT_COLUMN_NAME)
+
+    for c in range(category_col_start, category_col_end + 1):
+        vn = _norm_header(_cell_value(ws, header_row, c))
+        if vn == adl_in_key:
+            adl_in_col_idx = c
+        elif vn == adl_out_key:
+            adl_out_col_idx = c
+
+    if not adl_in_col_idx or not adl_out_col_idx:
+        raise ValueError(
+            f"Missing '{ADL_IN_COLUMN_NAME}'/'{ADL_OUT_COLUMN_NAME}' in '{CATEGORY_NAME}'. "
+            f"span={category_col_start}-{category_col_end}, header_row={header_row}"
+        )
+
+    # 6) Extract product ids + rows
+    product_ids_set = set()
+    rows_meta = []  # (row_idx, prod_cd, share_name_norm)
+
+    for row_idx in range(header_row + 1, ws.max_row + 1):
+        prod_cd = _cell_value(ws, row_idx, _prod_cd_col_idx)
+        share_name = _cell_value(ws, row_idx, share_name_col_idx)
+
+        if prod_cd is None or share_name is None:
+            continue
+
+        prod_cd = str(prod_cd).strip()
+        share_name_norm = _norm(str(share_name).strip())  # your existing _norm()
+
+        if not prod_cd or not share_name_norm:
+            continue
+
+        product_ids_set.add(prod_cd)
+        rows_meta.append((row_idx, prod_cd, share_name_norm))
+
+    if not product_ids_set:
+        return defaultdict(list), {}
+
+    product_ids = sorted(product_ids_set)
+
+    # 7) Payload call (unchanged)
+    payload = get_adl_fees_data(product_ids)
+    all_items = (payload.get(SUB_KEY) or []) + (payload.get(SIN_KEY) or [])
+
+    payload_index = {}
+    for it in all_items:
+        key = (str(it.get(PROD_CD_KEY) or "").strip(), _norm(it.get(SHA_NAME_KEY)))
+        payload_index[key] = it
+
+    # 8) Compare values + create CreData (unchanged)
+    cre_data_list_by_product_id = defaultdict(list)
+    mapping_entity_line_dict = {}
+
+    for row_idx, prod_cd, share_name_norm in rows_meta:
+        key = (prod_cd, share_name_norm)
+        item = payload_index.get(key)
+        if not item:
+            continue
+
+        adl_in_fee_id = item.get(ADL_IN_FEE_ID_LABEL)
+        adl_out_fee_id = item.get(ADL_OUT_FEE_ID_LABEL)
+        adl_in_fee_value_id = item.get(ADL_IN_FEE_VALUE_ID_LABEL)
+        adl_out_fee_value_id = item.get(ADL_OUT_FEE_VALUE_ID_LABEL)
+
+        current_in = _to_decimal_or_none(item.get(ADL_IN_FEE_KEY))
+        current_out = _to_decimal_or_none(item.get(ADL_OUT_FEE_KEY))
+
+        new_in_raw = _cell_value(ws, row_idx, adl_in_col_idx)
+        new_out_raw = _cell_value(ws, row_idx, adl_out_col_idx)
+
+        if isinstance(new_in_raw, str) and new_in_raw.strip().lower() == TO_DELETE_VALUE:
+            new_in_raw = EMPTY_VALUE
+        if isinstance(new_out_raw, str) and new_out_raw.strip().lower() == TO_DELETE_VALUE:
+            new_out_raw = EMPTY_VALUE
+
+        new_in = _to_decimal_or_none(new_in_raw)
+        new_out = _to_decimal_or_none(new_out_raw)
+
+        mapping_entity_line_dict[(prod_cd, share_name_norm)] = row_idx
+
+        if new_in is not None and new_in != current_in:
+            cre_data_in = CreData(
+                parent_entity_type=PARENT_ENTITY_TYPE,
+                parent_entity_id=adl_in_fee_id,
+                entity_type=ENTITY_TYPE,
+                entity_id=adl_in_fee_value_id,
+                old_value=str(current_in) if current_in is not None else None,
+                new_value=str(new_in),
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=True,
+                is_entity_from_plm=MODIFY_ACTION,
+                pivot_field_name=PIVOT_FIELD_NAME,
+                pivot_name=PIVOT_NAME,
+                identification_fields=IDENTIFICATION_FIELDS,
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[prod_cd].append(cre_data_in)
+
+        if new_out is not None and new_out != current_out:
+            cre_data_out = CreData(
+                parent_entity_type=PARENT_ENTITY_TYPE,
+                parent_entity_id=adl_out_fee_id,
+                entity_type=ENTITY_TYPE,
+                entity_id=adl_out_fee_value_id,
+                old_value=str(current_out) if current_out is not None else None,
+                new_value=str(new_out),
+                entity_action=MODIFY_ACTION,
+                task_id=task.id,
+                is_parent_entity_from_plm=True,
+                is_entity_from_plm=MODIFY_ACTION,
+                pivot_field_name=PIVOT_FIELD_NAME,
+                pivot_name=PIVOT_NAME,
+                identification_fields=IDENTIFICATION_FIELDS,
+                author=user["fullname"],
+            )
+            cre_data_list_by_product_id[prod_cd].append(cre_data_out)
+
+    return cre_data_list_by_product_id, mapping_entity_line_dict
