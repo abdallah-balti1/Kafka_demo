@@ -1,0 +1,89 @@
+Donc il te faut :
+2 méthodes Repository (toggle project / initiative)
+2 endpoints Resource (comme disable)
+Swagger yml (optionnel mais tu l’utilises déjà)
+S’assurer que to_json() renvoie les 2 champs (sinon frontend ne les verra pas)
+1) Repository: ajouter 2 fonctions de toggle
+Dans TeamRepository (là où tu as update_status), ajoute :
+Python
+Copier le code
+class TeamRepository:
+    @staticmethod
+    def update_status(team_id):
+        team = Team.query.get_or_404(team_id)
+        team.is_active = not bool(team.is_active)
+        db.session.add(team)
+        return team
+
+    @staticmethod
+    def update_project_user(team_id):
+        team = Team.query.get_or_404(team_id)
+        team.is_project_user = not bool(team.is_project_user)
+        db.session.add(team)
+        return team
+
+    @staticmethod
+    def update_initiative_user(team_id):
+        team = Team.query.get_or_404(team_id)
+        team.is_initiative_user = not bool(team.is_initiative_user)
+        db.session.add(team)
+        return team
+⚠️ Ne fais pas db.session.commit() ici si tu utilises déjà SessionCriticalActionManager pour commit/rollback (comme ton code).
+2) Resources: créer 2 routes comme “disable”
+Tu peux faire 2 classes (plus clair), par exemple :
+a) Toggle Project
+Python
+Copier le code
+class TeamProjectUserByIdResource(Resource):
+    @staticmethod
+    @required_authentication()
+    @authorized_roles([UserRoleEnum.ADMIN.value])
+    @swag_from("../../swagger/teams_by_id/project_user/POST.yml")
+    def post(user, team_id):
+        """Toggle project user flag"""
+        with SessionCriticalActionManager("Toggle project user", db.session, DEV_TEAM_EMAILS):
+            team = TeamRepository.update_project_user(team_id)
+        return (team.to_json(), 200)
+b) Toggle Initiative
+Python
+Copier le code
+class TeamInitiativeUserByIdResource(Resource):
+    @staticmethod
+    @required_authentication()
+    @authorized_roles([UserRoleEnum.ADMIN.value])
+    @swag_from("../../swagger/teams_by_id/initiative_user/POST.yml")
+    def post(user, team_id):
+        """Toggle initiative user flag"""
+        with SessionCriticalActionManager("Toggle initiative user", db.session, DEV_TEAM_EMAILS):
+            team = TeamRepository.update_initiative_user(team_id)
+        return (team.to_json(), 200)
+3) Routing: enregistrer les endpoints
+Dans ton fichier où tu ajoutes les routes (ex: api.add_resource(...)), ajoute :
+Python
+Copier le code
+api.add_resource(TeamProjectUserByIdResource, "/teams/<int:team_id>/project-user")
+api.add_resource(TeamInitiativeUserByIdResource, "/teams/<int:team_id>/initiative-user")
+✅ Tu auras donc :
+POST /teams/<team_id>/project-user
+POST /teams/<team_id>/initiative-user
+(Tu peux choisir d’autres paths, mais garde la même logique côté frontend.)
+4) Swagger (si tu veux garder la même structure)
+Crée 2 fichiers :
+swagger/teams_by_id/project_user/POST.yml
+swagger/teams_by_id/initiative_user/POST.yml
+Copie celui de disable/POST.yml et change juste le summary/description.
+5) Important: exposer dans la réponse JSON
+Vérifie ton team.to_json() / TeamSchema / serializer.
+Il faut inclure :
+Python
+Copier le code
+"is_project_user": self.is_project_user,
+"is_initiative_user": self.is_initiative_user,
+Sinon le frontend ne verra jamais les valeurs même si la DB est bien mise à jour.
+Test rapide (Postman / curl)
+Bash
+Copier le code
+POST /teams/5/project-user
+POST /teams/5/initiative-user
+Tu dois recevoir le team JSON avec les champs togglés.
+Si tu m’envoies le code de TeamRepository.update_status() + Team.to_json() (ou ton schema), je te renvoie le code exact adapté à ta structure (commit manager, naming, etc.).
