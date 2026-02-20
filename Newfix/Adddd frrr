@@ -1,0 +1,261 @@
+import Checkbox from 'components/Form/Checkbox';
+import { useEffect } from 'react';
+
+import { Icon } from '@component-studio/ui';
+import Table from 'components/Table';
+import TableHeader from 'components/Table/TableHeader';
+import { Field } from 'formik';
+import { defaultFilterMethod } from 'utils/table';
+
+import {
+  IS_ACTIVE_FLAG_WIDTH,
+  TEAM_FORM_DISPLAY_ORDER,
+  TEAM_FORM_EDIT,
+  TEAM_FORM_ID,
+  TEAM_FORM_NAME,
+} from '../../constants';
+import Style from './TeamsForm.style';
+
+export type MapDispatchToPropsType = {
+  fetchAllTeams: () => void;
+  setCurrentTeam: (currentTeam: number) => void;
+
+  // existing
+  updateTeamStatus: (team_id: number) => void;
+
+  // NEW: project + initiative toggles (implement like updateTeamStatus on backend)
+  updateTeamProjectUserStatus: (team_id: number) => void;
+  updateTeamInitiativeUserStatus: (team_id: number) => void;
+};
+
+export type MapStateToPropsType = {
+  teams: TeamFormType[];
+  currentTeam: number;
+  isLoading: boolean;
+};
+
+export type FormikPropsType = {
+  submitForm: () => void;
+  values: UserFormType;
+  errors: FormikErrorsType;
+  touched: FormikTouchedType;
+  isValid: boolean;
+  setFieldValue: (field: string, value: string) => void;
+  resetForm: () => void;
+};
+
+type PropsType = MapStateToPropsType & MapDispatchToPropsType & FormikPropsType;
+
+const TeamsForm = (props: PropsType) => {
+  const {
+    teams,
+    fetchAllTeams,
+    currentTeam,
+    isLoading,
+    submitForm,
+    isValid,
+    setCurrentTeam,
+    resetForm,
+
+    updateTeamStatus,
+    updateTeamProjectUserStatus,
+    updateTeamInitiativeUserStatus,
+  } = props;
+
+  const onSave = () => {
+    submitForm();
+  };
+
+  const refetchAllTeams = () => {
+    setTimeout(() => {
+      fetchAllTeams();
+    }, 800);
+  };
+
+  // existing isActive toggle
+  const toggleActive = (index: number) => {
+    const teamId = teams.filter((team) => teams.indexOf(team) === index)[0].id;
+    updateTeamStatus(teamId);
+    refetchAllTeams();
+  };
+
+  // NEW: project toggle
+  const toggleProject = (index: number) => {
+    const teamId = teams.filter((team) => teams.indexOf(team) === index)[0].id;
+    updateTeamProjectUserStatus(teamId);
+    refetchAllTeams();
+  };
+
+  // NEW: initiative toggle
+  const toggleInitiative = (index: number) => {
+    const teamId = teams.filter((team) => teams.indexOf(team) === index)[0].id;
+    updateTeamInitiativeUserStatus(teamId);
+    refetchAllTeams();
+  };
+
+  useEffect(() => {
+    fetchAllTeams();
+  }, [fetchAllTeams]);
+
+  const columns = [
+    {
+      Header: <TableHeader label="TEAMSFORM.ID" />,
+      accessor: 'id',
+      Cell: (row: any) => row.original.id,
+      width: TEAM_FORM_ID,
+    },
+    {
+      Header: <TableHeader label="TEAMSFORM.NAME" />,
+      accessor: 'name',
+      Cell: (row: any) => {
+        if (currentTeam === row.index) {
+          return <Field name={'name'} component={Style.Input} />;
+        }
+        return row.original.name;
+      },
+      width: TEAM_FORM_NAME,
+    },
+    {
+      Header: <TableHeader label="TEAMSFORM.DISPLAY_NAME" />,
+      accessor: 'displayName',
+      Cell: (row: any) => {
+        if (currentTeam === row.index) {
+          return <Field name={'displayName'} component={Style.Input} />;
+        }
+        return row.original.displayName;
+      },
+      width: TEAM_FORM_NAME,
+    },
+    {
+      Header: <TableHeader label="TEAMSFORM.DISPLAY_ORDER" />,
+      accessor: 'displayOrder',
+      Cell: (row: any) => {
+        if (currentTeam === row.index) {
+          return <Field name={'displayOrder'} component={Style.Input} />;
+        }
+        return row.original.displayOrder;
+      },
+      width: TEAM_FORM_DISPLAY_ORDER,
+    },
+
+    // edit column (unchanged)
+    {
+      Cell: (row: any) => {
+        if (currentTeam === row.index) {
+          return (
+            <Style.ButtonsContainer>
+              <Style.SaveButton onClick={onSave} disabled={!isValid}>
+                <Icon slug="checked-full" size={20} />
+              </Style.SaveButton>
+
+              <Style.CloseButton
+                onClick={() => {
+                  setCurrentTeam(-1);
+                  resetForm();
+                }}
+              >
+                <Icon slug="close" size={12} />
+              </Style.CloseButton>
+            </Style.ButtonsContainer>
+          );
+        }
+
+        return (
+          <Style.ButtonsContainer>
+            <Style.EditButton onClick={() => setCurrentTeam(row.index)} light>
+              <Icon slug="pen" size={20} />
+            </Style.EditButton>
+          </Style.ButtonsContainer>
+        );
+      },
+      filterable: false,
+      width: TEAM_FORM_EDIT,
+    },
+
+    // existing is_active column (unchanged behavior)
+    {
+      Header: <TableHeader label="TEAMSFORM.IS_ACTIVE" />,
+      accessor: 'isActive',
+      Cell: (row: any) => {
+        const checked =
+          row.original.isActive === true ||
+          row.original.is_active === true; // optional fallback if API returns snake_case
+        return (
+          <div>
+            <Field
+              component={Checkbox}
+              label=""
+              id="isActive"
+              checked={checked}
+              onChange={() => toggleActive(row.index)}
+            />
+          </div>
+        );
+      },
+      width: IS_ACTIVE_FLAG_WIDTH,
+      filterable: false,
+    },
+
+    // NEW: Project column
+    {
+      Header: <TableHeader label="TEAMSFORM.PROJECT" />,
+      accessor: 'isProjectUser',
+      Cell: (row: any) => {
+        const checked =
+          row.original.isProjectUser === true ||
+          row.original.is_project_user === true; // backend field name
+        return (
+          <div>
+            <Field
+              component={Checkbox}
+              label=""
+              id="isProjectUser"
+              checked={checked}
+              onChange={() => toggleProject(row.index)}
+            />
+          </div>
+        );
+      },
+      width: IS_ACTIVE_FLAG_WIDTH,
+      filterable: false,
+    },
+
+    // NEW: Initiative column
+    {
+      Header: <TableHeader label="TEAMSFORM.INITIATIVE" />,
+      accessor: 'isInitiativeUser',
+      Cell: (row: any) => {
+        const checked =
+          row.original.isInitiativeUser === true ||
+          row.original.is_initiative_user === true; // backend field name
+        return (
+          <div>
+            <Field
+              component={Checkbox}
+              label=""
+              id="isInitiativeUser"
+              checked={checked}
+              onChange={() => toggleInitiative(row.index)}
+            />
+          </div>
+        );
+      },
+      width: IS_ACTIVE_FLAG_WIDTH,
+      filterable: false,
+    },
+  ];
+
+  return (
+    <Table
+      filterable
+      data={teams}
+      columns={columns}
+      isLoading={isLoading}
+      pageSize={50}
+      isFilterOpen={false}
+      defaultFilterMethod={defaultFilterMethod}
+    />
+  );
+};
+
+export default TeamsForm;
