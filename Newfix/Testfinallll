@@ -1,0 +1,33 @@
+def test_toggle_initiative_user_route(self):
+    team_before = TeamRepository.get(self.team1.id)
+    before_value = team_before.is_initiative_user  # <= IMPORTANT
+
+    response = self.client.post(
+        f"{self.url}/{self.team1.id}/initiative-user",
+        content_type="application/json",
+    )
+    self.assertEqual(response.status_code, 200)
+
+    db.session.expire_all()  # <= force reload depuis DB
+    team_after = TeamRepository.get(self.team1.id)
+
+    self.assertNotEqual(before_value, team_after.is_initiative_user)
+
+
+
+
+
+def test_toggle_project_user_route(self):
+    team_before = TeamRepository.get(self.team1.id)
+    before_value = team_before.is_project_user
+
+    response = self.client.post(
+        f"{self.url}/{self.team1.id}/project-user",
+        content_type="application/json",
+    )
+    self.assertEqual(response.status_code, 200)
+
+    db.session.expire_all()
+    team_after = TeamRepository.get(self.team1.id)
+
+    self.assertNotEqual(before_value, team_after.is_project_user)
