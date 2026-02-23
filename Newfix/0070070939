@@ -1,0 +1,35 @@
+def test_toggle_initiative_user_route(self):
+    team_before = TeamRepository.get(self.team1.id)
+
+    response = self.client.patch(
+        f"{self.url}/{self.team1.id}/initiative-user",
+        content_type="application/json",
+    )
+
+    self.assertEqual(response.status_code, 200)
+
+    team_after = TeamRepository.get(self.team1.id)
+    self.assertNotEqual(team_before.is_initiative_user, team_after.is_initiative_user)
+
+
+
+def test_toggle_project_user_route(self):
+    team_before = TeamRepository.get(self.team1.id)
+
+    response = self.client.patch(
+        f"{self.url}/{self.team1.id}/project-user",
+        content_type="application/json",
+    )
+
+    self.assertEqual(response.status_code, 200)
+
+    team_after = TeamRepository.get(self.team1.id)
+    self.assertNotEqual(team_before.is_project_user, team_after.is_project_user)
+
+
+
+
+
+def test_get_all_teams_with_disabled(self):
+    response = self.client.get(f"{self.url}?show_all_teams=true")
+    self.assertEqual(response.status_code, 200)
