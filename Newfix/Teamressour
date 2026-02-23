@@ -1,0 +1,66 @@
+class TeamResource(Resource):
+
+    @staticmethod
+    @required_authentication()
+    @parse_params(
+        Argument("show_all_teams", type=str, required=False, location="args"),
+    )
+    def get(user, show_all_teams):
+        teams = TeamRepository.get_list()
+        if show_all_teams == "true":
+            return [team.to_json() for team in teams]
+        return [team.to_json() for team in teams if team.is_active]
+
+    # ---------------- POST ----------------
+
+    @staticmethod
+    @required_authentication()
+    @authorized_roles([UserRoleEnum.ADMIN.value])
+    @parse_params(
+        Argument("name", type=str, required=True, location="json"),
+        Argument("display_order", type=int, required=True, location="json"),
+        Argument("display_name", type=str, required=False, location="json"),
+
+        # ✅ NEW
+        Argument("is_initiative_user", type=bool, required=False, location="json", default=False),
+        Argument("is_project_user", type=bool, required=False, location="json", default=False),
+    )
+    def post(user, name, display_order, display_name, is_initiative_user, is_project_user):
+        with SessionCriticalActionManager("Add team", db.session, DEV_TEAM_EMAILS):
+            team = TeamRepository.add(
+                name,
+                display_order,
+                display_name,
+                is_initiative_user,
+                is_project_user,
+            )
+        return team.to_json()
+
+    # ---------------- PATCH ----------------
+
+    @staticmethod
+    @required_authentication()
+    @authorized_roles([UserRoleEnum.ADMIN.value])
+    @parse_params(
+        Argument("id", type=int, required=True, location="json"),
+        Argument("name", type=str, required=True, location="json"),
+        Argument("display_order", type=int, required=True, location="json"),
+        Argument("display_name", type=str, required=False, location="json"),
+
+        # ✅ NEW
+        Argument("is_initiative_user", type=bool, required=False, location="json"),
+        Argument("is_project_user", type=bool, required=False, location="json"),
+    )
+    def patch(user, id, name, display_order, display_name, is_initiative_user, is_project_user):
+
+        with SessionCriticalActionManager("Editing team", db.session, DEV_TEAM_EMAILS):
+            team = TeamRepository.update(
+                id,
+                name,
+                display_order,
+                display_name,
+                is_initiative_user,
+                is_project_user,
+            )
+
+        return team.to_json()
