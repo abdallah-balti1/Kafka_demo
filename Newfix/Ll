@@ -1,0 +1,25 @@
+def test_not_return_is_active_teams(self):
+    """After disabling one team, GET /teams must not return it."""
+
+    # 1) Disable team1
+    disable_resp = self.client.post(
+        f"{self.url}/{self.team1.id}/disable",
+        content_type="application/json",
+    )
+    self.assertEqual(disable_resp.status_code, 200)
+
+    disable_json = json.loads(disable_resp.get_data().decode())
+    self.assertIn("is_active", disable_json)
+    self.assertFalse(disable_json["is_active"])  # <-- if this fails, disable route is not working
+
+    # 2) GET /teams should not include disabled team
+    response = self.client.get(self.url)
+    self.assertEqual(response.status_code, 200)
+    response_json = json.loads(response.get_data().decode())
+
+    ids = {t["id"] for t in response_json}
+    self.assertNotIn(self.team1.id, ids)
+
+    for t in response_json:
+        self.assertTrue(t.get("is_active", True))
+        self._assert_team_has_new_flags(t)
