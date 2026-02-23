@@ -1,0 +1,216 @@
+import json
+import unittest
+
+from errors import EntityNotFound
+from helpers import init_database, insert_user
+from mock import patch
+
+from db import db
+from models import Team
+from repositories import TeamRepository
+from server import server
+
+
+class TestTeam(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = "plm/teams"
+        cls.patcher = patch(
+            "clients.oidc.validate_token",
+            return_value={"uid": "mySpecialUid"},
+        )
+        cls.patcher.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher.stop()
+
+    def setUp(self):
+        init_database()
+        insert_user()
+
+        # Team 1
+        team1 = Team(name="Fund Legal", display_order=1)
+        team1.save()
+
+        # Team 2
+        team2 = Team(name="Finance", display_order=2)
+        team2.save()
+
+    def tearDown(self):
+        db.session.remove()
+
+    # -------- helpers --------
+
+    def _assert_team_has_new_flags(self, team_json):
+        """Ensure new flags exist and are booleans (not missing / None)."""
+        self.assertIn("is_initiative_user", team_json)
+        self.assertIn("is_project_user", team_json)
+        self.assertIsInstance(team_json["is_initiative_user"], bool)
+        self.assertIsInstance(team_json["is_project_user"], bool)
+
+    # -------- tests --------
+
+    def test_get_list(self):
+        """The GET on '/teams' should return a list of teams"""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+        response_json = json.loads(response.get_data().decode())
+
+        # Your original expectation (kept as-is)
+        self.assertEqual(len(response_json), 3)
+        self.assertEqual(response_json[0]["name"], "Fund Legal")
+
+        # New fields must exist on each returned team
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    def test_post_get_by_ids(self):
+        """The POST on '/teams/get-by-ids' should return the list of teams for specified ids"""
+        response = self.client.post(
+            "plm/teams/get-by-ids",
+            data=json.dumps({"team_ids": [1, 2, 3]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response_json = json.loads(response.get_data().decode())
+        self.assertEqual(len(response_json), 3)
+
+        self.assertEqual(response_json[0]["id"], 1)
+        self.assertEqual(response_json[0]["name"], "Fund Legal")
+        self.assertEqual(response_json[1]["id"], 2)
+        self.assertEqual(response_json[1]["name"], "Fund Legal")
+        self.assertEqual(response_json[2]["id"], 3)
+        self.assertEqual(response_json[2]["name"], "Finance")
+
+        # New fields must exist on each returned team
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    def test_patch_team(self):
+        """The PATCH should return the edited team for a specific id"""
+        with self.assertRaises(EntityNotFound):
+            TeamRepository.update(123456, "name", 555, "popo")
+
+        response = self.client.patch(
+            self.url,
+            data=json.dumps(
+                {
+                    "id": 1,
+                    "name": "new_team_name",
+                    "display_order": 666,
+                    "display_name": "banana",
+                    # NEW: update the new flags too (covers new backend logic)
+                    "is_initiative_user": True,
+                    "is_project_user": True,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertEqual(response_json["id"], 1)
+        self.assertEqual(response_json["name"], "new_team_name")
+        self.assertEqual(response_json["display_order"], 666)
+        self.assertEqual(response_json["display_name"], "banana")
+
+        # NEW asserts
+        self._assert_team_has_new_flags(response_json)
+        self.assertTrue(response_json["is_initiative_user"])
+        self.assertTrue(response_json["is_project_user"])
+
+    def test_add_team(self):
+        """The POST should return the added team"""
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "name": "new_team_name",
+                    "display_order": 888,
+                    "display_name": "potato",
+                    # NEW: create with flags so creation path is covered
+                    "is_initiative_user": False,
+                    "is_project_user": True,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        # Your original checks (kept)
+        self.assertEqual(response_json["id"], 4)
+        self.assertEqual(response_json["name"], "new_team_name")
+        self.assertEqual(response_json["display_order"], 888)
+        self.assertEqual(response_json["display_name"], "potato")
+
+        # NEW asserts
+        self._assert_team_has_new_flags(response_json)
+        self.assertFalse(response_json["is_initiative_user"])
+        self.assertTrue(response_json["is_project_user"])
+
+    def test_disable_a_team(self):
+        """The POST should disable a team"""
+        response = self.client.post(
+            self.url + "/1/disable",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertIn("is_active", response_json)
+        self.assertFalse(response_json["is_active"])
+
+        # New fields should still exist in response
+        self._assert_team_has_new_flags(response_json)
+
+    def test_not_return_is_active_teams(self):
+        """The GET should not return disabled teams by default"""
+        self.client.post(
+            self.url + "/1/disable",
+            content_type="application/json",
+        )
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertEqual(len(response_json), 2)
+
+        # Ensure all returned teams are active
+        for t in response_json:
+            self.assertTrue(t["is_active"])
+            self._assert_team_has_new_flags(t)
+
+    def test_show_all_teams(self):
+        """The GET with show_all_teams flag should return all teams (including disabled)"""
+        # Disable one team
+        self.client.post(
+            self.url + "/1/disable",
+            content_type="application/json",
+        )
+
+        # With show_all_teams=true => should include disabled team
+        response = self.client.get(
+            self.url + "?show_all_teams=true",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        # Your original expectation kept
+        self.assertEqual(len(response_json), 3)
+
+        # Ensure at least one disabled is present
+        self.assertTrue(any(t.get("is_active") is False for t in response_json))
+
+        # New flags should exist too
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
