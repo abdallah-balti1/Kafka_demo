@@ -1,0 +1,71 @@
+def test_show_all_teams(self):
+    """GET /teams?show_all_teams=true should include inactive teams."""
+    response = self.client.get(
+        f"{self.url}?show_all_teams=true",
+        content_type="application/json",
+    )
+    self.assertEqual(response.status_code, 200)
+    response_json = json.loads(response.get_data().decode())
+
+    names = {t["name"] for t in response_json}
+
+    # Should include our inactive team now
+    self.assertIn("Disabled", names)
+
+    # Must include our active teams too
+    self.assertIn("Fund Legal", names)
+    self.assertIn("Finance", names)
+
+    # There must be at least one inactive team
+    self.assertTrue(any(t.get("is_active") is False for t in response_json))
+
+    for t in response_json:
+        self._assert_team_has_new_flags(t)
+
+
+
+
+
+def test_not_return_is_active_teams(self):
+    """After disabling one team, GET /teams must not return it."""
+    self.client.post(f"{self.url}/{self.team1.id}/disable", content_type="application/json")
+
+    response = self.client.get(self.url)
+    self.assertEqual(response.status_code, 200)
+    response_json = json.loads(response.get_data().decode())
+
+    names = {t["name"] for t in response_json}
+
+    # Disabled team must not appear
+    self.assertNotIn("Fund Legal", names)
+
+    # Finance should still appear
+    self.assertIn("Finance", names)
+
+    for t in response_json:
+        self.assertTrue(t.get("is_active", True))
+        self._assert_team_has_new_flags(t)
+
+
+
+
+
+def test_get_list(self):
+    """GET /teams should return only active teams."""
+    response = self.client.get(self.url)
+    self.assertEqual(response.status_code, 200)
+
+    response_json = json.loads(response.get_data().decode())
+
+    # Must contain our active teams
+    names = {t["name"] for t in response_json}
+    self.assertIn("Fund Legal", names)
+    self.assertIn("Finance", names)
+
+    # Must NOT contain our inactive team
+    self.assertNotIn("Disabled", names)
+
+    # Every returned team must be active
+    for t in response_json:
+        self.assertTrue(t.get("is_active", True))
+        self._assert_team_has_new_flags(t)
