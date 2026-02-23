@@ -1,0 +1,166 @@
+// @flow
+
+export const apiTeamFixture: ApiTeamType = {
+  id: 1,
+  name: 'Legal OTC',
+  display_name: 'Legal OTC display',
+  display_order: 3,
+  is_active: false,
+
+  // ✅ NEW fields from backend
+  is_initiative_user: false,
+  is_project_user: false,
+};
+
+export const apiTeamFixture2: ApiTeamType = {
+  id: 2,
+  name: 'Product Procurement and content marketing',
+  display_name: 'Product Procurement and content marketing display',
+  display_order: 2,
+  is_active: false,
+
+  // ✅ NEW fields from backend
+  is_initiative_user: false,
+  is_project_user: false,
+};
+
+export const apiTeamsFixture = [apiTeamFixture, apiTeamFixture2];
+
+export const teamFixture1: TeamType = {
+  id: 1,
+  name: 'Legal OTC',
+  displayName: 'Legal OTC display',
+  displayOrder: 3,
+  isActive: false,
+
+  // ✅ NEW fields in frontend/store (camelCase)
+  isInitiativeUser: false,
+  isProjectUser: false,
+};
+
+export const teamFixture2: TeamType = {
+  id: 2,
+  name: 'Product Procurement and content marketing',
+  displayName: 'Product Procurement and content marketing display',
+  displayOrder: 2,
+  isActive: false,
+
+  // ✅ NEW fields in frontend/store (camelCase)
+  isInitiativeUser: false,
+  isProjectUser: false,
+};
+
+const accountant1: PublicUserProfileType = {
+  bnpUid: '12345',
+  firstname: 'Bob',
+  lastname: 'Bobby',
+  id: 2,
+  country: 'France',
+  isManager: true,
+  isTeam: false,
+  roles: ['ADMIN'],
+  email: 'bob.bobby@bnpparibas.com',
+  gaCenter: 'myGaCenter',
+  teamProfileId: null,
+  isActive: true,
+  codeGaCenter: 'codeGaCenter',
+  teams: [
+    { displayName: 'BOBBY', displayOrder: 99, id: 123, name: 'bobby', isActive: false },
+  ],
+  teamIds: [123],
+};
+
+export const projectTeamFixture1 = {
+  ...teamFixture1,
+  accountant: accountant1,
+  accountant2: undefined,
+  accountant3: undefined,
+};
+
+export const teamFixture2WithAccounts = {
+  ...teamFixture2,
+  accountant: accountant1,
+};
+
+const accountant2: PublicUserProfileType = {
+  bnpUid: '34567',
+  firstname: 'Patrick',
+  lastname: 'Pat',
+  id: 3,
+  country: 'Italy',
+  isManager: false,
+  isTeam: false,
+  email: 'pat.patrick@bnpparibas.com',
+  gaCenter: 'myGaCenter',
+  roles: ['USER'],
+  teamProfileId: null,
+  isActive: true,
+  codeGaCenter: 'codeGaCenter',
+  teams: [],
+};
+
+export const projectTeamFixture2 = {
+  ...teamFixture2,
+  accountant: accountant2,
+  accountant2: undefined,
+  accountant3: undefined,
+};
+
+export const editionTaskTeamWithAccountantsFixture = {
+  teamId: 1,
+  accountantId: 2,
+  accountant2Id: 59,
+  accountant3Id: undefined,
+};
+
+const accountant3: PublicUserProfileType = {
+  bnpUid: '12345',
+  firstname: 'Bob',
+  lastname: 'Bobby',
+  id: 2,
+  country: 'France',
+  isManager: true,
+  isTeam: false,
+  roles: ['ADMIN'],
+  email: 'bob.bobby@bnpparibas.com',
+  gaCenter: 'myGaCenter',
+  teamProfileId: null,
+  isActive: false,
+  codeGaCenter: 'codeGaCenter',
+  teams: [
+    { displayName: 'BOBBY', displayOrder: 99, id: 123, name: 'bobby', isActive: false },
+  ],
+  teamIds: [123],
+};
+
+const accountant4: PublicUserProfileType = {
+  bnpUid: '34567',
+  firstname: 'Sarah',
+  lastname: 'Croche',
+  id: 59,
+  country: 'France',
+  isManager: true,
+  isTeam: false,
+  roles: ['ADMIN'],
+  email: 'sarah.croche@bnpparibas.com',
+  gaCenter: 'myGaCenter',
+  teamProfileId: null,
+  isActive: false,
+  codeGaCenter: 'codeGaCenter',
+  teams: [],
+};
+
+export const projectTeamWithAccountantsFixture = {
+  ...teamFixture1,
+  accountant: accountant3,
+  accountant2: accountant4,
+  accountant3: undefined,
+};
+
+export const teamsStateFixture = {
+  isLoading: false,
+  byId: {
+    '1': teamFixture1,
+    '2': teamFixture2,
+  },
+};
