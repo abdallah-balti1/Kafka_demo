@@ -1,0 +1,31 @@
+def test_repo_get_by_name_found(self):
+    # get_by_name uses like(), so "Fund" should match "Fund Legal"
+    team = TeamRepository.get_by_name("Fund")
+    self.assertEqual(team.id, self.team1.id)
+
+def test_repo_get_by_name_not_found(self):
+    with self.assertRaises(EntityNotFound):
+        TeamRepository.get_by_name("___does_not_exist___")
+
+def test_repo_get_not_found(self):
+    with self.assertRaises(EntityNotFound):
+        TeamRepository.get(999999999)
+
+def test_repo_update_noop_does_not_crash(self):
+    """
+    Covers the 'if name / if display_order / if display_name / if flags' branches
+    when nothing is provided.
+    """
+    team_before = TeamRepository.get(self.team1.id)
+
+    team_after = TeamRepository.update(
+        self.team1.id,
+        name=None,
+        display_order=None,
+        display_name=None,
+        is_project_user=None,
+        is_initiative_user=None,
+    )
+
+    self.assertEqual(team_after.id, team_before.id)
+    self.assertEqual(team_after.name, team_before.name)
