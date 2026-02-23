@@ -1,0 +1,31 @@
+def test_get_all_teams_with_disabled(self):
+    response = self.client.get(f"{self.url}?show_all_teams=true")
+    self.assertEqual(response.status_code, 200)
+
+
+
+
+def test_toggle_initiative_user_route(self):
+    response = self.client.patch(f"{self.url}/{self.team1.id}/initiative_user")
+    self.assertEqual(response.status_code, 200)
+
+
+
+def test_toggle_project_user_route(self):
+    response = self.client.patch(f"{self.url}/{self.team1.id}/project_user")
+    self.assertEqual(response.status_code, 200)
+
+
+
+def test_get_team_by_id(self):
+    response = self.client.get(f"{self.url}/{self.team1.id}")
+    self.assertEqual(response.status_code, 200)
+
+def test_get_team_by_id_not_found(self):
+    response = self.client.get(f"{self.url}/999999")
+    self.assertEqual(response.status_code, 404)
+
+
+
+
+
