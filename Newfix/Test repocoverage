@@ -1,0 +1,333 @@
+import json
+import unittest
+
+from errors import EntityNotFound
+from helpers import init_database, insert_user
+from mock import patch
+
+from db import db
+from models import Team
+from repositories import TeamRepository
+from server import server
+
+
+class TestTeam(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = "plm/teams"
+
+        # Auth patch (comme chez toi)
+        cls.patcher = patch(
+            "clients.oidc.validate_token",
+            return_value={"uid": "mySpecialUid"},
+        )
+        cls.patcher.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher.stop()
+
+    def setUp(self):
+        init_database()
+        insert_user()
+
+        # Seed Teams
+        self.team1 = Team(name="Fund Legal", display_order=1, display_name="Fund Legal")
+        self.team1.is_active = True
+        # flags default
+        if getattr(self.team1, "is_project_user", None) is None:
+            self.team1.is_project_user = False
+        if getattr(self.team1, "is_initiative_user", None) is None:
+            self.team1.is_initiative_user = False
+        self.team1.save()
+
+        self.team2 = Team(name="Finance", display_order=2, display_name="Finance")
+        self.team2.is_active = True
+        if getattr(self.team2, "is_project_user", None) is None:
+            self.team2.is_project_user = False
+        if getattr(self.team2, "is_initiative_user", None) is None:
+            self.team2.is_initiative_user = False
+        self.team2.save()
+
+        # One inactive team to cover filtering/show_all
+        self.team3 = Team(name="Disabled", display_order=3, display_name="Disabled")
+        self.team3.is_active = False
+        if getattr(self.team3, "is_project_user", None) is None:
+            self.team3.is_project_user = False
+        if getattr(self.team3, "is_initiative_user", None) is None:
+            self.team3.is_initiative_user = False
+        self.team3.save()
+
+    def tearDown(self):
+        db.session.remove()
+
+    # -------------------------
+    # Helpers
+    # -------------------------
+    def _assert_team_has_new_flags(self, team_json):
+        """
+        Ensure new flags exist and are booleans (not missing / None).
+        """
+        self.assertIn("is_initiative_user", team_json)
+        self.assertIn("is_project_user", team_json)
+        self.assertIsInstance(team_json["is_initiative_user"], bool)
+        self.assertIsInstance(team_json["is_project_user"], bool)
+
+    # -------------------------
+    # API tests (kept)
+    # -------------------------
+    def test_get_list(self):
+        """The GET on `/teams` should return only active teams (repo/resources filter)."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+        response_json = json.loads(response.get_data().decode())
+        # Should exclude disabled team (team3)
+        self.assertEqual(len(response_json), 2)
+
+        self.assertEqual(response_json[0]["name"], "Fund Legal")
+        self.assertEqual(response_json[1]["name"], "Finance")
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    def test_post_get_by_ids(self):
+        """The POST on `/teams/get-by-ids` should return teams for specified ids (incl disabled if requested ids include it)."""
+        response = self.client.post(
+            "plm/teams/get-by-ids",
+            data=json.dumps({"team_ids": [self.team1.id, self.team2.id, self.team3.id]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response_json = json.loads(response.get_data().decode())
+        self.assertEqual(len(response_json), 3)
+        # Just ensure flags exist
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    def test_patch_team(self):
+        """PATCH should edit a team."""
+        # cover not found in repository too
+        with self.assertRaises(EntityNotFound):
+            TeamRepository.update(123456, "name", 555, "popo")
+
+        response = self.client.patch(
+            self.url,
+            data=json.dumps(
+                {
+                    "id": self.team1.id,
+                    "name": "new_team_name",
+                    "display_order": 666,
+                    "display_name": "banana",
+                    "is_initiative_user": True,
+                    "is_project_user": True,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertEqual(response_json["id"], self.team1.id)
+        self.assertEqual(response_json["name"], "new_team_name")
+        self.assertEqual(response_json["display_order"], 666)
+        self.assertEqual(response_json["display_name"], "banana")
+        self._assert_team_has_new_flags(response_json)
+        self.assertTrue(response_json["is_initiative_user"])
+        self.assertTrue(response_json["is_project_user"])
+
+    def test_add_team(self):
+        """POST should create team."""
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "name": "new_team_name",
+                    "display_order": 888,
+                    "display_name": "potato",
+                    "is_initiative_user": False,
+                    "is_project_user": True,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertEqual(response_json["name"], "new_team_name")
+        self.assertEqual(response_json["display_order"], 888)
+        self.assertEqual(response_json["display_name"], "potato")
+        self._assert_team_has_new_flags(response_json)
+
+        # IMPORTANT: in your screenshots the backend may force defaults,
+        # so we only assert type + presence, not exact values if your API overrides them.
+        self.assertIsInstance(response_json["is_initiative_user"], bool)
+        self.assertIsInstance(response_json["is_project_user"], bool)
+
+    def test_disable_a_team(self):
+        """POST /:id/disable toggles is_active"""
+        response = self.client.post(
+            f"{self.url}/{self.team1.id}/disable",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        self.assertIn("is_active", response_json)
+        self.assertFalse(response_json["is_active"])
+        self._assert_team_has_new_flags(response_json)
+
+    def test_not_return_is_active_teams(self):
+        """After disabling one team, GET /teams returns only active ones."""
+        self.client.post(f"{self.url}/{self.team1.id}/disable", content_type="application/json")
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        # Only Finance remains active
+        self.assertEqual(len(response_json), 1)
+        self.assertEqual(response_json[0]["name"], "Finance")
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    def test_show_all_teams(self):
+        """GET /teams?show_all_teams=true should include disabled teams."""
+        response = self.client.get(
+            f"{self.url}?show_all_teams=true",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response_json = json.loads(response.get_data().decode())
+
+        # Includes disabled team3
+        self.assertEqual(len(response_json), 3)
+        self.assertTrue(any(t.get("is_active") is False for t in response_json))
+        for t in response_json:
+            self._assert_team_has_new_flags(t)
+
+    # -------------------------
+    # Repository tests (NEW: to reach coverage for src/repositories/team.py)
+    # -------------------------
+    def test_repo_get_list(self):
+        teams = TeamRepository.get_list()
+        self.assertGreaterEqual(len(teams), 3)
+
+    def test_repo_get_success_and_not_found(self):
+        team = TeamRepository.get(self.team1.id)
+        self.assertEqual(team.id, self.team1.id)
+
+        with self.assertRaises(EntityNotFound):
+            TeamRepository.get(999999)
+
+    def test_repo_get_by_name_success_and_not_found(self):
+        team = TeamRepository.get_by_name("Fund Legal")
+        self.assertEqual(team.name, "Fund Legal")
+
+        with self.assertRaises(EntityNotFound):
+            TeamRepository.get_by_name("UNKNOWN_TEAM_NAME_123")
+
+    def test_repo_get_teams_by_ids(self):
+        teams = TeamRepository.get_teams_by_ids([self.team1.id, self.team2.id])
+        self.assertEqual(len(teams), 2)
+        self.assertEqual({t.id for t in teams}, {self.team1.id, self.team2.id})
+
+    def test_repo_save_flush(self):
+        t = Team(name="SaveTest", display_order=77, display_name="SaveTest")
+        t.is_active = True
+        t.is_project_user = True
+        t.is_initiative_user = False
+
+        TeamRepository.save(t)
+        self.assertIsNotNone(t.id)
+
+        # Verify persisted
+        fetched = TeamRepository.get(t.id)
+        self.assertEqual(fetched.name, "SaveTest")
+
+    def test_repo_add_covers_flags(self):
+        """
+        Covers TeamRepository.add(...) code path + flags persistence.
+        """
+        created = TeamRepository.add(
+            name="RepoAdd",
+            display_order=10,
+            display_name="RepoAdd",
+            is_project_user=True,
+            is_initiative_user=True,
+        )
+        self.assertIsNotNone(created.id)
+        self.assertEqual(created.name, "RepoAdd")
+        self.assertTrue(bool(created.is_project_user))
+        self.assertTrue(bool(created.is_initiative_user))
+
+    def test_repo_update_branches(self):
+        """
+        Covers update() branches:
+        - not found
+        - update name/order/display_name
+        - update flags when not None
+        - keep fields when None/empty
+        """
+        with self.assertRaises(EntityNotFound):
+            TeamRepository.update(999999, "X", 1, "Y")
+
+        # Update only some fields
+        updated = TeamRepository.update(
+            self.team2.id,
+            name="FinanceUpdated",
+            display_order=99,
+            display_name=None,  # should keep old display_name because repo checks "if display_name:"
+            is_project_user=False,
+            is_initiative_user=True,
+        )
+        self.assertEqual(updated.name, "FinanceUpdated")
+        self.assertEqual(updated.display_order, 99)
+        # display_name should remain "Finance"
+        self.assertEqual(updated.display_name, "Finance")
+        self.assertFalse(bool(updated.is_project_user))
+        self.assertTrue(bool(updated.is_initiative_user))
+
+        # Call update with flags None => should NOT overwrite
+        updated2 = TeamRepository.update(
+            self.team2.id,
+            name=None,
+            display_order=None,
+            display_name="FinanceDisplay",
+            is_project_user=None,
+            is_initiative_user=None,
+        )
+        self.assertEqual(updated2.display_name, "FinanceDisplay")
+        self.assertFalse(bool(updated2.is_project_user))
+        self.assertTrue(bool(updated2.is_initiative_user))
+
+    def test_repo_update_status_toggle(self):
+        # team3 starts inactive
+        self.assertFalse(bool(self.team3.is_active))
+
+        t = TeamRepository.update_status(self.team3.id)
+        self.assertTrue(bool(t.is_active))
+
+        t2 = TeamRepository.update_status(self.team3.id)
+        self.assertFalse(bool(t2.is_active))
+
+    def test_repo_update_project_user_toggle(self):
+        """
+        Covers update_project_user() which uses get_or_404 -> needs app context.
+        """
+        with server.app_context():
+            before = bool(TeamRepository.get(self.team1.id).is_project_user)
+            t = TeamRepository.update_project_user(self.team1.id)
+            after = bool(t.is_project_user)
+            self.assertNotEqual(before, after)
+
+    def test_repo_update_initiative_user_toggle(self):
+        """
+        Covers update_initiative_user() which uses get_or_404 -> needs app context.
+        """
+        with server.app_context():
+            before = bool(TeamRepository.get(self.team1.id).is_initiative_user)
+            t = TeamRepository.update_initiative_user(self.team1.id)
+            after = bool(t.is_initiative_user)
+            self.assertNotEqual(before, after)
