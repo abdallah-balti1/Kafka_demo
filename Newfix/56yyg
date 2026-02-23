@@ -1,0 +1,201 @@
+Step 1 — Add Redux constants (2 new action types)
+In the same constants file where you have UPDATE_TEAM_STATUS_REQUEST:
+TypeScript
+Copier le code
+export const UPDATE_TEAM_PROJECT_USER_STATUS_REQUEST =
+  'REQUEST.UPDATE_TEAM_PROJECT_USER_STATUS';
+
+export const UPDATE_TEAM_INITIATIVE_USER_STATUS_REQUEST =
+  'REQUEST.UPDATE_TEAM_INITIATIVE_USER_STATUS';
+Step 2 — Add action creators
+In the same actions file where you have updateTeamStatus(team_id):
+TypeScript
+Copier le code
+export const updateTeamProjectUserStatus = (team_id: number) => ({
+  type: UPDATE_TEAM_PROJECT_USER_STATUS_REQUEST,
+  team_id,
+});
+
+export const updateTeamInitiativeUserStatus = (team_id: number) => ({
+  type: UPDATE_TEAM_INITIATIVE_USER_STATUS_REQUEST,
+  team_id,
+});
+(If you’re using strict TS action types, create types like you did for UpdateTeamStatusActionType.)
+Step 3 — Add API functions (like updateTeamStatus)
+Find the file that calls the backend for updateTeamStatus (often api.ts, teams.api.ts, services/teams.ts).
+If you have something like:
+TypeScript
+Copier le code
+export const updateTeamStatus = (team_id: number) =>
+  client.post(`/teams/${team_id}/disable`);
+Add:
+TypeScript
+Copier le code
+export const updateTeamProjectUserStatus = (team_id: number) =>
+  client.post(`/teams/${team_id}/project-user`);
+
+export const updateTeamInitiativeUserStatus = (team_id: number) =>
+  client.post(`/teams/${team_id}/initiative-user`);
+✅ Make sure you include the same API prefix (/api etc.) that your working calls use.
+Step 4 — Add saga watchers + workers
+Find the saga where UPDATE_TEAM_STATUS_REQUEST is handled.
+You probably have something like:
+TypeScript
+Copier le code
+yield takeEvery(UPDATE_TEAM_STATUS_REQUEST, updateTeamStatusWorker);
+Add two more:
+TypeScript
+Copier le code
+yield takeEvery(
+  UPDATE_TEAM_PROJECT_USER_STATUS_REQUEST,
+  updateTeamProjectUserStatusWorker
+);
+
+yield takeEvery(
+  UPDATE_TEAM_INITIATIVE_USER_STATUS_REQUEST,
+  updateTeamInitiativeUserStatusWorker
+);
+Workers:
+TypeScript
+Copier le code
+function* updateTeamProjectUserStatusWorker(action: any) {
+  try {
+    yield call(api.updateTeamProjectUserStatus, action.team_id);
+    // either refetch here OR refetch in the component (your component already does)
+    // yield put(fetchAllTeams());
+  } catch (e) {
+    yield put(updateTeamError(e));
+  }
+}
+
+function* updateTeamInitiativeUserStatusWorker(action: any) {
+  try {
+    yield call(api.updateTeamInitiativeUserStatus, action.team_id);
+    // yield put(fetchAllTeams());
+  } catch (e) {
+    yield put(updateTeamError(e));
+  }
+}
+✅ If your updateTeamStatusWorker already triggers fetchAllTeams() after success, do the same here and you can remove the component timeout later.
+Step 5 — Wire them into mapDispatchToProps
+Where updateTeamStatus is already mapped:
+TypeScript
+Copier le code
+const mapDispatchToProps = {
+  fetchAllTeams,
+  setCurrentTeam,
+  updateTeamStatus,
+};
+Add:
+TypeScript
+Copier le code
+const mapDispatchToProps = {
+  fetchAllTeams,
+  setCurrentTeam,
+  updateTeamStatus,
+  updateTeamProjectUserStatus,
+  updateTeamInitiativeUserStatus,
+};
+Step 6 — Update TeamsForm.tsx (UI columns)
+You already saw my full file earlier, but the key is:
+a) Add 2 handler functions
+TypeScript
+Copier le code
+const toggleProject = (index: number) => {
+  const teamId = teams[index].id;
+  updateTeamProjectUserStatus(teamId);
+  refetchAllTeams();
+};
+
+const toggleInitiative = (index: number) => {
+  const teamId = teams[index].id;
+  updateTeamInitiativeUserStatus(teamId);
+  refetchAllTeams();
+};
+b) Add 2 columns like is_active
+TypeScript
+Copier le code
+{
+  Header: <TableHeader label="TEAMSFORM.PROJECT" />,
+  accessor: 'is_project_user',
+  Cell: (row: any) => (
+    <Field
+      component={Checkbox}
+      label=""
+      id="isProjectUser"
+      checked={row.original.is_project_user === true}
+      onChange={() => toggleProject(row.index)}
+    />
+  ),
+  width: IS_ACTIVE_FLAG_WIDTH,
+  filterable: false,
+},
+{
+  Header: <TableHeader label="TEAMSFORM.INITIATIVE" />,
+  accessor: 'is_initiative_user',
+  Cell: (row: any) => (
+    <Field
+      component={Checkbox}
+      label=""
+      id="isInitiativeUser"
+      checked={row.original.is_initiative_user === true}
+      onChange={() => toggleInitiative(row.index)}
+    />
+  ),
+  width: IS_ACTIVE_FLAG_WIDTH,
+  filterable: false,
+},
+✅ Important: use the real field name returned by backend (is_project_user, is_initiative_user).
+Step 7 — Verify end-to-end
+Open Teams page
+Toggle Project checkbox
+In DevTools → Network: confirm request sent to
+/teams/{id}/project-user
+After refetch, the team list response must show updated value.
+If request is sent but UI doesn’t change → response doesn’t include the fields OR reducer is not storing them.
+Step 8 — (If UI still doesn’t update) check reducer
+If your reducer maps team objects and maybe strips fields, ensure it keeps:
+is_project_user
+is_initiative_user
+Sometimes reducers do pick() or map to a type missing fields.
+If you paste (or screenshot) these 3 frontend files, I can give you the exact full updated code (copy/paste):
+teams.constants.ts (where UPDATE_TEAM_STATUS_REQUEST is)
+teams.actions.ts (where updateTeamStatus is)
+teams.saga.ts or equivalent (where updateTeamStatus worker 
+
+
+
+
+export function* updateTeamProjectUserStatusTypeSaga(action) {
+  try {
+    yield authenticatedCall(updateTeamProjectUserStatus, action.team_id);
+    // optional (recommended): refresh teams immediately after toggle
+    yield call(fetchTeamsSaga, fetchTeams());
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+  }
+}
+
+export function* updateTeamInitiativeUserStatusTypeSaga(action) {
+  try {
+    yield authenticatedCall(updateTeamInitiativeUserStatus, action.team_id);
+    // optional (recommended): refresh teams immediately after toggle
+    yield call(fetchTeamsSaga, fetchTeams());
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+  }
+}
+
+
+
+
+
+yield takeEvery(
+  UPDATE_TEAM_PROJECT_USER_STATUS_REQUEST,
+  updateTeamProjectUserStatusTypeSaga
+);
+
+yield takeEvery(
+  UPDATE_TEAM_INITIATIVE_USER_STATUS_REQUEST,
+  updateTeamInitiativeUserStatusTypeSaga
+);
