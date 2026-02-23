@@ -1,0 +1,25 @@
+def update(id, name, display_order, display_name, is_initiative_user=None, is_project_user=None):
+    team = Team.get(id)
+
+    team.name = name
+    team.display_order = display_order
+    team.display_name = display_name
+
+    if is_initiative_user is not None:
+        team.is_initiative_user = is_initiative_user
+
+    if is_project_user is not None:
+        team.is_project_user = is_project_user
+
+
+
+
+
+def add(name, display_order, display_name, is_initiative_user=False, is_project_user=False):
+    team = Team(
+        name=name,
+        display_order=display_order,
+        display_name=display_name,
+        is_initiative_user=is_initiative_user,
+        is_project_user=is_project_user,
+    )
