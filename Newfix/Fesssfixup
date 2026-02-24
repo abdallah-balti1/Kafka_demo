@@ -1,0 +1,57 @@
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.utils import get_column_letter
+
+def create_data_validation(ws, adl_fees_data):
+    """
+    Add numeric >= 0 validation to the 2 editable ADL columns.
+    Accepts blank OR a real number, with decimal separator '.' OR ','.
+
+    IMPORTANT:
+    - In OOXML (xlsx), formulas must use comma separators, NOT locale ';'.
+      Excel will localize display automatically.
+    """
+
+    # Make sure we always produce a valid range
+    n_rows = len(adl_fees_data) if adl_fees_data else 1
+    end_row = DATA_START_ROW + n_rows - 1
+
+    col_in = get_column_letter(NEW_ADL_IN_COLUMN)
+    col_out = get_column_letter(NEW_ADL_OUT_COLUMN)
+
+    def make_formula(anchor_cell: str) -> str:
+        # Try parsing as decimal with '.' then with ',' using NUMBERVALUE
+        # Allow blank, otherwise must parse and be >= 0.
+        # NOTE: commas are required as argument separators in the stored xlsx formula.
+        return (
+            f'OR('
+            f'{anchor_cell}="",'
+            f'IFERROR(NUMBERVALUE({anchor_cell},".",",")>=0,'
+            f'IFERROR(NUMBERVALUE({anchor_cell},",",".")>=0,FALSE))'
+            f')'
+        )
+
+    # --- Validation for IN column ---
+    anchor_in = f"{col_in}{DATA_START_ROW}"
+    dv_in = DataValidation(
+        type="custom",
+        formula1=make_formula(anchor_in),
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle=DATA_VALIDATION_ERROR_TITLE,
+        error=DATA_VALIDATION_ERROR_MESSAGE,
+    )
+    ws.add_data_validation(dv_in)
+    dv_in.add(f"{col_in}{DATA_START_ROW}:{col_in}{end_row}")
+
+    # --- Validation for OUT column ---
+    anchor_out = f"{col_out}{DATA_START_ROW}"
+    dv_out = DataValidation(
+        type="custom",
+        formula1=make_formula(anchor_out),
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle=DATA_VALIDATION_ERROR_TITLE,
+        error=DATA_VALIDATION_ERROR_MESSAGE,
+    )
+    ws.add_data_validation(dv_out)
+    dv_out.add(f"{col_out}{DATA_START_ROW}:{col_out}{end_row}")
