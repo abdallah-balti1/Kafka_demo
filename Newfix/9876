@@ -1,0 +1,41 @@
+const onSubmit = async (values: any, { setSubmitting }: any) => {
+  try {
+    setSaveSuccess(false);
+
+    const normalizedValues = {
+      ...values,
+      regulatoryStatus: values.regulatoryStatus?.value ?? null,
+      legalStructure: values.legalStructure?.value ?? null,
+      currency: values.currency?.value ?? null,
+      leadWalletManagerName: values.leadWalletManagerName?.value ?? null,
+      leadWalletManagerTeam: values.leadWalletManagerTeam?.value ?? null,
+      conflictOfInterest: values.conflictOfInterest?.value ?? null,
+      navFrequency: values.navFrequency?.value ?? null,
+      hedging: values.hedging?.value ?? null,
+      productTypeData: values.productTypeData?.value ?? null,
+      legalFormData: values.legalFormData?.value ?? null,
+      cosmosIdData: values.cosmosIdData?.value ?? null,
+      nav: values.nav?.value ?? null,
+      regulatoryAuthority: values.regulatoryAuthority?.value ?? null,
+
+      // ✅ important: si date vide => null
+      implementationDate: values.implementationDate || null,
+    };
+
+    const newInitiative = modelizeInitiativeDataToApi(normalizedValues);
+
+    await createInitiativeDataRequest({
+      newInitiative,
+      token,
+    });
+
+    // ✅ message succès
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+
+    // ✅ surtout PAS de redirect
+    // props.history.push('/initiative-pipeline'); ❌ enlever
+  } finally {
+    setSubmitting(false);
+  }
+};
