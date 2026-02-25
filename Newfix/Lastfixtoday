@@ -1,0 +1,87 @@
+Je vois exactement le problème ✅
+Dans ton backend, Postgres reçoit la string "None" pour un champ date :
+invalid input syntax for type date: "None"
+Donc ce n’est pas None (Python) / null (JSON), c’est bien le texte "None" → Postgres n’arrive pas à le convertir en date.
+✅ Fix “pro” (Backend) : convertir "None" / "" → None
+Le plus safe (et rapide) est de normaliser dans le repository avant save() / flush().
+🔧 À ajouter dans src/repositories/initiative_data.py (dans la classe InitiativeDataRepository)
+Python
+Copier le code
+from datetime import date, datetime
+
+class InitiativeDataRepository:
+    """The repository for the initiative"""
+
+    @staticmethod
+    def _empty_to_none(value):
+        # Convert "None", "", "null", None -> None
+        if value is None:
+            return None
+        if isinstance(value, str):
+            v = value.strip()
+            if v == "" or v.lower() in {"none", "null", "undefined"}:
+                return None
+        return value
+
+    @staticmethod
+    def _date_or_none(value):
+        value = InitiativeDataRepository._empty_to_none(value)
+        if value is None:
+            return None
+
+        # If already a python date/datetime
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+
+        # If it's a string: accept ISO formats
+        if isinstance(value, str):
+            v = value.strip()
+            # common cases: "2026-02-25" or "2026-02-25T00:00:00.000Z"
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+            except Exception:
+                # If format is weird, let it crash clearly
+                raise ValueError(f"Invalid date format for implementation_date: {value}")
+
+        return value
+✅ Ensuite applique-le dans create() et modify()
+1) Dans create(...) : remplace
+Python
+Copier le code
+implementation_date=implementation_date,
+par
+Python
+Copier le code
+implementation_date=InitiativeDataRepository._date_or_none(implementation_date),
+2) Dans modify(id, **kwargs) : avant le setattr, ajoute :
+Python
+Copier le code
+# Normalize dates coming from API
+if "implementation_date" in kwargs:
+    kwargs["implementation_date"] = InitiativeDataRepository._date_or_none(kwargs["implementation_date"])
+Et aussi (recommandé) dans la boucle :
+Python
+Copier le code
+for field, value in kwargs.items():
+    if field not in not_allowed:
+        value = InitiativeDataRepository._empty_to_none(value)
+        if value is not None or field in {"implementation_date"}:
+            setattr(initiative, field, value)
+(le point important : on transforme "None" en None)
+✅ Fix Frontend (pour éviter d’envoyer "None")
+Dans ton onSubmit / normalizeValues, assure-toi que la date vide devient null :
+JavaScript
+Copier le code
+implementationDate: values.implementationDate ? values.implementationDate : null
+⚠️ Ne mets jamais "None" côté frontend. C’est ça qui casse Postgres.
+Pour être sûr : pourquoi ça arrive ?
+Ton Formik / modelize envoie probablement "None" (string) parce que :
+tu affiches None dans l’UI
+ou ton DatePickerFormik remonte "None" comme valeur
+Dis-moi juste un truc (pour te donner le patch exact au bon endroit)
+Tu fais ton update via quelle fonction backend ?
+InitiativeDataRepository.modify(...) ?
+ou un service/controller avant ?
+Si tu m’envoies le bout du modify() actuel (10–30 lignes), je te le réécris complet prêt à coller.
