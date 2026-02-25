@@ -1,0 +1,117 @@
+Problème 1 — “Save ne fait rien” quand implementationDate est vide
+1) Ton bouton est (souvent) désactivé à cause de ça
+Dans ton code on voit :
+JSX
+Copier le code
+<Button type="submit" disabled={!createLoading}>
+C’est inversé.
+👉 Ça veut dire désactivé quand ça NE charge PAS (= la majorité du temps).
+Donc tu as l’impression de cliquer “et rien ne se passe”.
+✅ Corrige par :
+JSX
+Copier le code
+<Button type="submit" disabled={createLoading}>
+ou mieux (avec Formik) :
+JSX
+Copier le code
+<Button type="submit" disabled={createLoading || isSubmitting}>
+Pour avoir isSubmitting, il faut le récupérer dans le render Formik (je te montre juste après).
+2) Ton implementationDate peut être “Invalid Date” (truthy) quand tu effaces
+Ton code actuel :
+JavaScript
+Copier le code
+implementationDate: values.implementationDate ? values.implementationDate : null,
+Si le DatePicker renvoie un objet date invalide, c’est truthy, donc tu l’envoies quand même ⇒ backend plante / request échoue ⇒ “rien”.
+✅ Fais une normalisation solide :
+JavaScript
+Copier le code
+const toDateOrNull = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10); // YYYY-MM-DD
+};
+Et dans normalizedValues :
+JavaScript
+Copier le code
+implementationDate: toDateOrNull(values.implementationDate),
+✅ Problème 2 — Tu dois refresh pour voir les changements
+Là c’est parce que :
+soit ton store redux n’est pas mis à jour après PATCH,
+soit tu ne refetch pas les données après succès.
+✅ Solution “pro” simple : écouter lastCreated (ou la réponse success) + refetch.
+Tu as déjà lastCreated dans tes props (on l’a vu dans ton type Props).
+✅ Implémentation recommandée
+Dans le composant (en haut, داخل function) :
+JavaScript
+Copier le code
+const [saveSuccess, setSaveSuccess] = useState(false);
+
+useEffect(() => {
+  if (lastCreated && !createLoading && !createError) {
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+
+    // IMPORTANT : refetch pour rafraîchir l’écran
+    // (nom exact à adapter selon ton projet)
+    fetchInitiativeDataRequest?.(initiativeId, token);
+  }
+}, [lastCreated, createLoading, createError]);
+Dans Formik render, récupère isSubmitting :
+JSX
+Copier le code
+<Formik initialValues={initialValues} onSubmit={onSubmit} enableReinitialize>
+  {({ errors, touched, isSubmitting }) => (
+    <Form>
+      ...
+      <Button type="submit" disabled={createLoading || isSubmitting}>
+        Save
+      </Button>
+    </Form>
+  )}
+</Formik>
+Dans ton onSubmit, corrige aussi le succès (tu mets false après le await) : Actuellement tu fais :
+JavaScript
+Copier le code
+setSaveSuccess(false);
+...
+await createInitiativeDataRequest(...)
+setSaveSuccess(false);
+👉 donc ton message ne peut jamais apparaître.
+✅ Fais juste :
+setSaveSuccess(false) au début
+ne mets plus rien après (le useEffect basé sur lastCreated gère le succès)
+Exemple clean :
+JavaScript
+Copier le code
+const onSubmit = async (values, { setSubmitting }) => {
+  try {
+    setSaveSuccess(false);
+
+    const normalizedValues = {
+      ...values,
+      regulatoryStatus: values.regulatoryStatus?.value ?? null,
+      ...
+      implementationDate: toDateOrNull(values.implementationDate),
+    };
+
+    const newInitiative = modelizeInitiativeDataToApi(normalizedValues);
+
+    createInitiativeDataRequest({ newInitiative, token });
+  } finally {
+    setSubmitting(false);
+  }
+};
+Note: si createInitiativeDataRequest est une action redux (saga), le await ne sert à rien. C’est pour ça que le “success state” doit venir de lastCreated/createError.
+✅ Backend — pourquoi tu vois 200 mais rien n’est sauvegardé ?
+Dans tes captures backend, tu fais db.session.flush() dans modify… mais pas de commit.
+flush = envoie au DB driver, mais sans commit la transaction peut être rollback à la fin de request.
+✅ Fix rapide (qui marche) : dans modify :
+Python
+Copier le code
+db.session.flush()
+db.session.commit()
+return initiative
+✅ “Best practice” (propre) :
+commit dans la couche “resource/service” (après modify) pour centraliser la transaction,
+repository reste “pur”.
+Mais vu ton code actuel, le plus simple est : commit dans create + modify.
