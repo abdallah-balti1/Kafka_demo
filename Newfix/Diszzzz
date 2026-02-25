@@ -1,0 +1,45 @@
+Parfait ✅ (la redirection est réglée).
+Si tu ne vois pas le message “Saved successfully”, c’est généralement parce que tu ne changes jamais un state au moment où la requête réussit (tu fais juste le dispatch), ou bien ton state est reset direct.
+Voici la façon la plus simple et “pro” : déclencher le message quand ton Redux passe en success (lastCreated ou un flag createSuccess), via un useEffect.
+✅ Solution recommandée (avec lastCreated)
+En haut de ton composant (dans InitiativeDataForm), ajoute :
+JavaScript
+Copier le code
+const [saveSuccess, setSaveSuccess] = useState(false);
+
+useEffect(() => {
+  // succès: on a un lastCreated et pas d'erreur
+  if (lastCreated && !createLoading && !createError) {
+    setSaveSuccess(true);
+
+    const timer = setTimeout(() => setSaveSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  }
+}, [lastCreated, createLoading, createError]);
+Dans ton onSubmit, avant de dispatch :
+JavaScript
+Copier le code
+const onSubmit = (values, { setSubmitting }) => {
+  setSaveSuccess(false); // reset message à chaque clic
+  createInitiativeDataRequest({
+    newInitiative: modelizeInitiativeDataToApi(values),
+    token,
+  });
+  setSubmitting(false);
+};
+Et dans ton JSX (juste au-dessus du <Form> ou en haut du contenu) :
+JSX
+Copier le code
+{saveSuccess && (
+  <div style={{ marginBottom: 12, padding: 10, borderRadius: 6 }}>
+    <strong>Saved successfully ✅</strong>
+  </div>
+)}
+🔥 Important
+Si lastCreated ne change pas (ex: tu modifies toujours le même objet en store), le useEffect ne se déclenchera pas.
+Dans ce cas, utilise plutôt un flag Redux createSuccess (ou createStatus: "success").
+Mais si tu me dis ce que tu as exactement dans ton store (lastCreated, createLoading, createError, etc.), je te donne la version parfaite.
+Dis-moi juste :
+Tu as quoi comme variables Redux disponibles dans ce composant ?
+lastCreated existe bien ?
+ou tu as un createSuccess / status ?
