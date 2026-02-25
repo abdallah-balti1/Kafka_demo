@@ -1,0 +1,72 @@
+Got it. The “Invalid Date” comes from rendering a date formatter (<FormattedDate />) with a value that isn’t a valid Date (often null, "", "None", or an invalid string). The clean/pro way is: validate first, then render either the formatted date or a placeholder like —.
+✅ Recommended UX
+Use an em dash — (looks more pro than ---).
+Optionally add a tooltip “Not set”.
+✅ Fix in your component (simple + solid)
+Replace this part:
+JSX
+Copier le code
+{initiative?.committeeDate ? (
+  <FormattedDate
+    value={initiative.committeeDate}
+    month="short"
+    year="numeric"
+    day="2-digit"
+  />
+) : (
+  <p>---</p>
+)}
+with:
+JSX
+Copier le code
+const committeeDateValue = initiative?.committeeDate;
+const committeeDate = committeeDateValue ? new Date(committeeDateValue) : null;
+const hasValidCommitteeDate =
+  committeeDate instanceof Date && !Number.isNaN(committeeDate.getTime());
+and in JSX:
+JSX
+Copier le code
+{hasValidCommitteeDate ? (
+  <FormattedDate
+    value={committeeDate}
+    month="short"
+    year="numeric"
+    day="2-digit"
+  />
+) : (
+  <span aria-label="Not set">—</span>
+)}
+✅ This prevents “Invalid Date” even if committeeDate is "None" or a bad string.
+🔥 Even cleaner (reusable helper)
+Add a small helper:
+JSX
+Copier le code
+const safeDate = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+Then:
+JSX
+Copier le code
+const committeeDate = safeDate(initiative?.committeeDate);
+Render:
+JSX
+Copier le code
+{committeeDate ? (
+  <FormattedDate value={committeeDate} month="short" year="numeric" day="2-digit" />
+) : (
+  <span aria-label="Not set">—</span>
+)}
+Optional (designer touch)
+If you use styled-components, you can make the placeholder look intentional:
+JSX
+Copier le code
+const Placeholder = styled.span`
+  color: rgba(0, 0, 0, 0.45);
+`;
+Then:
+JSX
+Copier le code
+<Placeholder>—</Placeholder>
+If you show me what initiative.committeeDate looks like when it breaks (null? empty string? “None”?), I can tailor the safest parsing to your backend format (ISO, timestamp, etc.).
