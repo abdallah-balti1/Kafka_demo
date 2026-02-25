@@ -1,0 +1,67 @@
+from datetime import date, datetime
+
+class InitiativeDataRepository:
+    """The repository for the initiative"""
+
+    @staticmethod
+    def _empty_to_none(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            v = value.strip()
+            if v == "" or v.lower() in {"none", "null", "undefined"}:
+                return None
+        return value
+
+    @staticmethod
+    def _date_or_none(value):
+        value = InitiativeDataRepository._empty_to_none(value)
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+
+        if isinstance(value, str):
+            v = value.strip()
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+            except Exception:
+                raise ValueError(f"Invalid date format for implementation_date: {value}")
+
+        return value
+
+    @staticmethod
+    def modify(id, **kwargs):
+        initiative = db.session.scalars(
+            select(InitiativeData).where(InitiativeData.id_initiative == id)
+        ).first()
+
+        if initiative is None:
+            raise EntityNotFound("initiative", id)
+
+        not_allowed = {"id"}  # keep as you had
+
+        # 1) normalize all incoming values (""/"None" -> None)
+        for k in list(kwargs.keys()):
+            kwargs[k] = InitiativeDataRepository._empty_to_none(kwargs[k])
+
+        # 2) normalize implementation_date (None or real date)
+        if "implementation_date" in kwargs:
+            kwargs["implementation_date"] = InitiativeDataRepository._date_or_none(
+                kwargs["implementation_date"]
+            )
+
+        # 3) apply updates (IMPORTANT: allow None to be saved)
+        for field, value in kwargs.items():
+            if field in not_allowed:
+                continue
+            # only set attributes that exist on the model (avoid silent bugs)
+            if not hasattr(initiative, field):
+                continue
+            setattr(initiative, field, value)
+
+        db.session.flush()
+        return initiative
