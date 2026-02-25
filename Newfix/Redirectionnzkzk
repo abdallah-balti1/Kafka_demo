@@ -1,0 +1,64 @@
+Solution rapide (sans toucher au saga) : succès local + pas de redirection
+1) Dans ton composant, ajoute un state succès
+En haut du fichier (dans InitiativeDataForm), ajoute :
+JavaScript
+Copier le code
+const [saveSuccess, setSaveSuccess] = useState(false);
+2) Modifie onSubmit pour :
+reset le succès
+envoyer la requête
+afficher succès quand ça se passe bien
+⚠️ Comme ton action est async, tu as 2 cas :
+Cas A — ton createInitiativeDataRequest retourne une Promise (rare mais possible)
+JavaScript
+Copier le code
+const onSubmit = async (values, { setSubmitting }) => {
+  setSaveSuccess(false);
+
+  try {
+    await createInitiativeDataRequest(modelizeInitiativeDataToApi(values));
+    setSaveSuccess(true);
+  } finally {
+    setSubmitting(false);
+  }
+};
+Cas B — (le plus fréquent) redux/saga ne retourne rien
+Alors on détecte le succès via lastCreated (ou un flag “createSuccess” si tu l’as)
+Ajoute ce useEffect :
+JavaScript
+Copier le code
+useEffect(() => {
+  if (lastCreated && !createLoading && !createError) {
+    setSaveSuccess(true);
+    const t = setTimeout(() => setSaveSuccess(false), 3000);
+    return () => clearTimeout(t);
+  }
+}, [lastCreated, createLoading, createError]);
+Et ton onSubmit devient :
+JavaScript
+Copier le code
+const onSubmit = (values) => {
+  setSaveSuccess(false);
+  createInitiativeDataRequest(modelizeInitiativeDataToApi(values));
+};
+✅ 3) Affiche le message succès dans ton Formik
+Juste sous <Form> (au début) :
+JSX
+Copier le code
+{saveSuccess ? (
+  <div style={{ marginBottom: 12, padding: 10, borderRadius: 6, background: "#E9F7EF" }}>
+    <strong>Saved successfully ✅</strong>
+  </div>
+) : null}
+Et ton createError tu le gardes pareil.
+⚠️ Très important : enableReinitialize peut te “casser” le comportement
+Tu as enableReinitialize sur Formik.
+Ça peut provoquer des resets quand initialValues change (ex: après save, redux refresh -> initialValues change -> reset).
+👉 Si tu n’en as pas absolument besoin, enlève-le.
+Sinon, assure-toi que initialValues ne change pas après succès (ou useMemo pour stabiliser).
+✅ Si ça redirige encore : c’est dans onSubmit / saga
+Pour que je te dise EXACTEMENT la ligne à supprimer, il me manque juste :
+le code de ta fonction onSubmit (celle passée à Formik)
+ou le code du saga/thunk derrière createInitiativeDataRequest
+Copie-colle moi const onSubmit = ... (10-30 lignes).
+Je te renvoie la version finale corrigée (sans redirect + toast succès).
