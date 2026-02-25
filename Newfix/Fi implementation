@@ -1,0 +1,65 @@
+Tu as rendu implementation_date optionnel côté front, donc maintenant tu envoies "" (string vide) ou null… et côté backend ça tente de le mettre tel quel dans un champ Date/DateTime ⇒ SQLAlchemy/DB n’aime pas "".
+✅ Fix pro : normaliser les valeurs “vides” en None avant de créer/modifier (et ne pas setter le champ si la valeur est vide).
+1) Fix rapide côté backend (le meilleur endroit)
+Dans InitiativeDataRepository.create(...) et modify(...), convertis "" / "   " / null en None.
+Ajoute un helper en haut du fichier (initiative_data.py)
+Python
+Copier le code
+def _empty_to_none(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return value
+Dans create(...) (au moment d’affecter)
+Remplace :
+Python
+Copier le code
+implementation_date=implementation_date,
+par :
+Python
+Copier le code
+implementation_date=_empty_to_none(implementation_date),
+2) Fix dans modify(...) (super important)
+Ton modify fait actuellement :
+Python
+Copier le code
+for field, value in kwargs.items():
+    if field not in not_allowed and value is not None:
+        setattr(initiative, field, value)
+👉 Problème : si value == "" tu vas setter "" dans un champ date.
+✅ Remplace par ça :
+Python
+Copier le code
+for field, value in kwargs.items():
+    if field in not_allowed:
+        continue
+
+    value = _empty_to_none(value)
+
+    # si c'est vide => on ignore (ou on met None si tu veux vraiment effacer)
+    if value is None:
+        continue
+
+    setattr(initiative, field, value)
+Si tu veux autoriser “effacer la date”
+Au lieu de continue, tu fais :
+Python
+Copier le code
+if value is None and field == "implementation_date":
+    setattr(initiative, field, None)
+    continue
+3) (Optionnel) Fix côté front aussi (plus propre)
+Quand tu construis le payload :
+si implementationDate est vide → n’envoie pas le champ ou envoie null (pas "")
+Ex:
+JavaScript
+Copier le code
+const payload = {
+  ...data,
+  implementation_date: implementationDate?.trim() ? implementationDate : null,
+};
+Ce que je te conseille (ordre)
+✅ Fix backend _empty_to_none (résout tous les clients, pas juste le front)
+Optionnel : fix front pour ne pas envoyer ""
+Si tu m’envoies le bout de create(...) et modify(...) exact (ou un copier-coller), je te renvoie la version finale prête à coller sans toucher au reste.
