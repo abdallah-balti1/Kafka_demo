@@ -1,14 +1,39 @@
-# DV targets NEW ADL columns starting from DATA_START_ROW
-dvs = ws.data_validations.dataValidation
-self.assertGreaterEqual(len(dvs), 1)
+def test_create_specific_fees_template_workbook_empty_data(self):
+    """
+    Coverage booster:
+    - empty input should not crash
+    - headers stay present
+    - data validation is still created for the 2 editable columns
+    """
+    wb = create_specific_fees_template_workbook([])
+    ws: Worksheet = wb[SHEET_NAME]
 
-sqrefs = [str(dv.sqref) for dv in dvs]
-sqref_all = " ".join(sqrefs)
+    # headers always present
+    for col_idx, header in enumerate(HEADERS, start=1):
+        self.assertEqual(ws.cell(row=3, column=col_idx).value, header)
 
-new_in_letter = get_column_letter(NEW_ADL_IN_COLUMN)    # should be "O"
-new_out_letter = get_column_letter(NEW_ADL_OUT_COLUMN)  # should be "P"
+    # no data rows
+    self.assertLess(ws.max_row, DATA_START_ROW)
 
-# Since we add 2 DataValidations (one per editable column), we validate coverage across all DV ranges
-self.assertTrue(any(new_in_letter in s for s in sqrefs))
-self.assertTrue(any(new_out_letter in s for s in sqrefs))
-self.assertIn(str(DATA_START_ROW), sqref_all)
+    # DataValidation: should exist even with empty data
+    dvs = ws.data_validations.dataValidation
+    self.assertIsNotNone(dvs)
+    self.assertGreaterEqual(len(dvs), 2)
+
+    col_in = get_column_letter(NEW_ADL_IN_COLUMN)
+    col_out = get_column_letter(NEW_ADL_OUT_COLUMN)
+
+    sqrefs = [str(dv.sqref) for dv in dvs]
+    self.assertTrue(any(col_in in s for s in sqrefs))
+    self.assertTrue(any(col_out in s for s in sqrefs))
+
+    # Formula is present and uses the expected functions
+    for dv in dvs[:2]:
+        self.assertEqual(dv.type, "custom")
+        self.assertTrue(dv.allowBlank)
+        self.assertTrue(dv.showErrorMessage)
+        self.assertIsNotNone(dv.formula1)
+        self.assertIn("SUBSTITUTE", dv.formula1)
+        self.assertIn("VALUE", dv.formula1)
+
+    wb.close()
