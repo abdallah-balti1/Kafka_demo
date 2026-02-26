@@ -1,22 +1,39 @@
 def test_create_specific_fees_template_workbook_empty_data(self):
-    """
-    Coverage booster:
-    - empty input should not crash
-    - headers stay present
-    - data validation is still created for the 2 editable columns
-    """
     wb = create_specific_fees_template_workbook([])
     ws: Worksheet = wb[SHEET_NAME]
 
-    # headers always present
+    # Headers always present
     for col_idx, header in enumerate(HEADERS, start=1):
         self.assertEqual(ws.cell(row=3, column=col_idx).value, header)
 
-    # no data rows
+    # No data rows
     self.assertLess(ws.max_row, DATA_START_ROW)
 
-    # DataValidation: should exist even with empty data
-    dvs = ws.data_validations.dataValidation
+    wb.close()
+
+    # Coverage booster: run once with 1 row to execute create_data_validation()
+    one_row = [{
+        "umb_name_lbl": "Umbrella 1",
+        "sbf_name": "Product 1",
+        "prod_cd_valu": "P1",
+        "prod_cd_mffa": None,
+        "sbf_stat_lbl": "Active",
+        "sha_cd": "SHA_1",
+        "sha_name": "Share 1",
+        "isin_cd": "ISIN1",
+        "sha_stat_lbl": "Active",
+        "max_adl_in_fee": 10,
+        "max_adl_out_fee": 10,
+        "adl_in_fee": 5,
+        "adl_out_fee": 5,
+        "nav_valuation_date": "2023-10-01",
+        "prod_cd": "TECH_123",
+    }]
+
+    wb2 = create_specific_fees_template_workbook(one_row)
+    ws2: Worksheet = wb2[SHEET_NAME]
+
+    dvs = ws2.data_validations.dataValidation
     self.assertIsNotNone(dvs)
     self.assertGreaterEqual(len(dvs), 2)
 
@@ -27,7 +44,7 @@ def test_create_specific_fees_template_workbook_empty_data(self):
     self.assertTrue(any(col_in in s for s in sqrefs))
     self.assertTrue(any(col_out in s for s in sqrefs))
 
-    # Formula is present and uses the expected functions
+    # Make sure the new formula path is exercised
     for dv in dvs[:2]:
         self.assertEqual(dv.type, "custom")
         self.assertTrue(dv.allowBlank)
@@ -36,4 +53,4 @@ def test_create_specific_fees_template_workbook_empty_data(self):
         self.assertIn("SUBSTITUTE", dv.formula1)
         self.assertIn("VALUE", dv.formula1)
 
-    wb.close()
+    wb2.close()
