@@ -1,0 +1,14 @@
+# DV targets NEW ADL columns starting from DATA_START_ROW
+dvs = ws.data_validations.dataValidation
+self.assertGreaterEqual(len(dvs), 1)
+
+sqrefs = [str(dv.sqref) for dv in dvs]
+sqref_all = " ".join(sqrefs)
+
+new_in_letter = get_column_letter(NEW_ADL_IN_COLUMN)    # should be "O"
+new_out_letter = get_column_letter(NEW_ADL_OUT_COLUMN)  # should be "P"
+
+# Since we add 2 DataValidations (one per editable column), we validate coverage across all DV ranges
+self.assertTrue(any(new_in_letter in s for s in sqrefs))
+self.assertTrue(any(new_out_letter in s for s in sqrefs))
+self.assertIn(str(DATA_START_ROW), sqref_all)
