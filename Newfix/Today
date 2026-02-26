@@ -17,3 +17,7 @@ touch utils/test/context_managers/__init__.py
 
 
 python -c "import test; import sys; print('test module:', getattr(test,'__file__',test)); print('sys.path[0:5]=',sys.path[0:5])"
+
+
+
+PYTHONPATH=src:. pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-missing
