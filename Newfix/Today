@@ -4,3 +4,16 @@ pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-mi
 
 
 PYTHONPATH=. pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-missing
+
+
+PYTHONPATH=./utils:./src pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-missing
+
+PYTHONPATH=./utils pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-missing
+
+touch utils/test/__init__.py
+touch utils/test/clients/__init__.py
+touch utils/test/context_managers/__init__.py
+# add more __init__.py for any subfolder you import as test.<subpkg>
+
+
+python -c "import test; import sys; print('test module:', getattr(test,'__file__',test)); print('sys.path[0:5]=',sys.path[0:5])"
