@@ -1,17 +1,1 @@
-from util.mass_update.specific_fees_template import create_data_validation
-
-# coverage booster: call DV directly so new lines are executed
-wb2 = openpyxl.Workbook()
-ws2 = wb2.active
-ws2.title = SHEET_NAME
-
-# minimal sheet setup so DV can be attached
-# (no need to build full template for coverage)
-create_data_validation(ws2, [])  # hits n_rows/max(...,1) branch
-create_data_validation(ws2, [{}])  # hits non-empty branch too
-
-dvs = ws2.data_validations.dataValidation
-assert dvs is not None
-assert len(dvs) >= 2
-
-wb2.close()
+git cherry-pick a1b2c3d^..i7j8k9l
