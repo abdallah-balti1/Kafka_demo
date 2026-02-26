@@ -1,1 +1,3 @@
 git cherry-pick a1b2c3d^..i7j8k9l
+
+pytest --cov=src/util/mass_update/specific_fees_template.py --cov-report=term-missing
