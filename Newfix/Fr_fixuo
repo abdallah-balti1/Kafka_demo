@@ -1,1 +1,494 @@
+/* eslint-disable react/prop-types */
+import React, { useEffect, useState } from 'react';
+import { Field } from 'formik';
+import { FormattedMessage, type IntlShape } from 'react-intl';
 
+import { useFetchManagementCompanyLabels } from 'redux/entities/massUpdateTemplates/hooks.js';
+import { validateMandatory } from 'utils/formValidation';
+
+import { legalFD, legalSFF, regulatoryS, yesNoOptions, exampleForNow } from './utils';
+
+import { default as CommonStyle } from './common.style';
+import ToggleEditionModeButtons from './ToggleEditionModeButtons';
+
+type Props = {
+  // from wrap
+  intl: IntlShape,
+  initiativeId: string,
+  token: string,
+
+  // redux (via selectors)
+  initiativeData: any,
+  isLoading: boolean,
+  initiativeDataNotFound: boolean,
+  initiativeDataError: any,
+
+  // redux actions
+  getInitiativeData: (initiativeId: string) => any,
+
+  // formik / edition
+  isEditing: boolean,
+  setIsEditing: (v: boolean) => void,
+  resetForm: () => void,
+  submitForm: () => void,
+
+  // products (kept for compatibility with container/wrap even if not used here)
+  products?: any,
+  fetchProducts?: () => void,
+};
+
+const Section = ({ title, children }: any) => (
+  <div style={{ marginBottom: 24 }}>
+    <div style={{ fontSize: 19 }}>
+      <div style={{ marginLeft: 30 }}>
+        <div style={{ marginRight: 30 }}>
+          <h3 style={{ margin: '20px 0' }}>{title}</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>{children}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const SubSection = ({ title, children }: any) => (
+  <div style={{ gridColumn: '1 / -1', marginTop: 8 }}>
+    <div style={{ marginLeft: 30 }}>
+      <div style={{ marginRight: 30 }}>
+        <h4 style={{ margin: '12px 0 8px 0', opacity: 0.85 }}>{title}</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>{children}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const FieldWrap = ({ children }: any) => <div style={{ minWidth: 0 }}>{children}</div>;
+
+const Label = ({ id }: { id: string }) => (
+  <div
+    style={{
+      fontSize: 16,
+      letterSpacing: 0.6,
+      opacity: 0.7,
+      marginBottom: 6,
+    }}
+  >
+    <FormattedMessage id={id} />
+  </div>
+);
+
+const Value = ({ children }: any) => {
+  if (children === true) return <div style={{ fontSize: 14 }}>Yes</div>;
+  if (children === false) return <div style={{ fontSize: 14 }}>No</div>;
+
+  const display = children === null || children === undefined || children === '' ? '-' : String(children);
+  return <div style={{ fontSize: 14, wordBreak: 'break-word' }}>{display}</div>;
+};
+
+const pick = (obj: any, camelKey: string, snakeKey: string) => {
+  if (!obj) return undefined;
+  const camel = obj[camelKey];
+  if (camel !== undefined && camel !== null && camel !== '') return camel;
+  return obj[snakeKey];
+};
+
+const DisplayField = ({
+  labelId,
+  camelKey,
+  snakeKey,
+  data,
+}: {
+  labelId: string,
+  camelKey: string,
+  snakeKey: string,
+  data: any,
+}) => (
+  <FieldWrap>
+    <Label id={labelId} />
+    <Value>{pick(data, camelKey, snakeKey)}</Value>
+  </FieldWrap>
+);
+
+export default function InitiativeDataCard(props: Props) {
+  const {
+    initiativeId,
+    initiativeData,
+    isLoading,
+    initiativeDataNotFound,
+    initiativeDataError,
+    getInitiativeData,
+    isEditing,
+    setIsEditing,
+    resetForm,
+    submitForm,
+    intl,
+    token,
+    fetchProducts,
+  } = props;
+
+  // kept for compatibility if other parts rely on it
+  useEffect(() => {
+    if (fetchProducts) fetchProducts();
+  }, [fetchProducts]);
+
+  const [managementCompanies, setManagementCompanies] = useState([]);
+  const { value: mgmtCompLabels } = useFetchManagementCompanyLabels(token, true, null) || {};
+
+  useEffect(() => {
+    if (mgmtCompLabels) {
+      const uniqueMgmtComps = [...new Set(mgmtCompLabels)].sort();
+      setManagementCompanies(uniqueMgmtComps.map((comp) => ({ value: comp, label: comp })));
+    }
+  }, [mgmtCompLabels]);
+
+  useEffect(() => {
+    if (initiativeId) getInitiativeData(String(initiativeId));
+  }, [initiativeId, getInitiativeData]);
+
+  if (!initiativeId) return <div>Missing initiativeId</div>;
+  if (isLoading) return <div>Loading…</div>;
+  if (initiativeDataError) return <div>Error loading initiative data</div>;
+  if (initiativeDataNotFound) return <div>Initiative data not found</div>;
+  if (!initiativeData) return <div />;
+
+  return (
+    <div>
+      <CommonStyle.Container>
+        <CommonStyle.HeaderContainer>
+          <ToggleEditionModeButtons
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            resetForm={resetForm}
+            onSave={submitForm}
+          />
+        </CommonStyle.HeaderContainer>
+
+        {/* PRODUCT (single section; Legal & compliance removed) */}
+        <Section
+          title={<FormattedMessage id="INITIATIVE_DATA.SECTION.PRODUCT" defaultMessage="Product" />}
+        >
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.DESCRIPTION" defaultMessage="Description" />}
+          >
+            {/* Product name */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="productNameData"
+                  component={CommonStyle.Input}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.PRODUCT_NAME' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.PRODUCT_NAME"
+                  camelKey="productNameData"
+                  snakeKey="product_name_data"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+
+            {/* Implementation date */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="implementationDate"
+                  component={CommonStyle.DatePicker}
+                  validate={validateMandatory}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.IMPLEMENTATION_DATE' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.IMPLEMENTATION_DATE"
+                  camelKey="implementationDate"
+                  snakeKey="implementation_date"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.MANAGEMENT_TEAM" defaultMessage="Management team" />}
+          >
+            {/* Portfolio manager team */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="leadWalletManagerTeam"
+                  component={CommonStyle.Dropdown}
+                  options={exampleForNow}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.PORTFOLIO_MANAGER_TEAM' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.PORTFOLIO_MANAGER_TEAM"
+                  camelKey="leadWalletManagerTeam"
+                  snakeKey="lead_wallet_manager_team"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+
+            {/* Management company */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="managementCompany"
+                  component={CommonStyle.Dropdown}
+                  options={managementCompanies}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.MANAGEMENT_COMPANY' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.MANAGEMENT_COMPANY"
+                  camelKey="managementCompany"
+                  snakeKey="management_company"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.STRUCTURE" defaultMessage="Structure" />}
+          >
+            {/* Legal form */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="legalForm"
+                  component={CommonStyle.Dropdown}
+                  options={[legalFD, legalSFF]}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.LEGAL_FORM' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.LEGAL_FORM"
+                  camelKey="legalForm"
+                  snakeKey="legal_form"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+
+            {/* Management company (already above) - keep grid consistent with 2 columns */}
+            <div />
+
+            {/* Shareclass offer (single long text) - backend provides it now */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="shareclassOffer"
+                  component={CommonStyle.Input}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.SHARECLASS_OFFER' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.SHARECLASS_OFFER"
+                  camelKey="shareclassOffer"
+                  snakeKey="shareclass_offer"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+
+            {/* Regulatory status */}
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="regulatoryStatus"
+                  component={CommonStyle.Dropdown}
+                  options={regulatoryS}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.REGULATORY_STATUS' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.REGULATORY_STATUS"
+                  camelKey="regulatoryStatus"
+                  snakeKey="regulatory_status"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.BENCHMARK" defaultMessage="Benchmark" />}
+          >
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="benchmark"
+                  component={CommonStyle.Input}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.BENCHMARK' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.BENCHMARK"
+                  camelKey="benchmark"
+                  snakeKey="benchmark"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.PORTFOLIO_COMPOSITION" defaultMessage="Portfolio composition" />}
+          >
+            <CommonStyle.Label>
+              {isEditing ? (
+                <Field
+                  name="instrumentsDetails"
+                  component={CommonStyle.Input}
+                  label={intl.formatMessage({ id: 'INITIATIVE_DATA.INSTRUMENTS_DETAILS' })}
+                />
+              ) : (
+                <DisplayField
+                  labelId="INITIATIVE_DATA.INSTRUMENTS_DETAILS"
+                  camelKey="instrumentsDetails"
+                  snakeKey="instruments_details"
+                  data={initiativeData}
+                />
+              )}
+            </CommonStyle.Label>
+          </SubSection>
+        </Section>
+
+        {/* BUSINESS CASE */}
+        <Section
+          title={
+            <FormattedMessage
+              id="INITIATIVE_DATA.SECTION.BUSINESS_CASE"
+              defaultMessage="Business Case"
+            />
+          }
+        >
+          {/* AUM expected (KEEP) */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="aumExpected"
+                component={CommonStyle.Input}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.AUM_EXPECTED' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.AUM_EXPECTED"
+                camelKey="aumExpected"
+                snakeKey="aum_expected"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+
+          {/* Comments (KEEP here as business comments) */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="commentsBusiness"
+                component={CommonStyle.Input}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.COMMENTS' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.COMMENTS"
+                camelKey="commentsBusiness"
+                snakeKey="comments_business"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+        </Section>
+
+        {/* CLIENT */}
+        <Section
+          title={<FormattedMessage id="INITIATIVE_DATA.SECTION.CLIENT" defaultMessage="Client" />}
+        >
+          {/* Salesforce ID opportunity */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="salesforceIdOpportunity"
+                component={CommonStyle.Input}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.SALESFORCE_ID_OPPORTUNITY' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.SALESFORCE_ID_OPPORTUNITY"
+                camelKey="salesforceIdOpportunity"
+                snakeKey="salesforce_id_opportunity"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+
+          {/* Client name */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="clientName"
+                component={CommonStyle.Input}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.CLIENT_NAME' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.CLIENT_NAME"
+                camelKey="clientName"
+                snakeKey="client_name"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+
+          {/* Existing holdings with BNP/AXA */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="existingHoldings"
+                component={CommonStyle.Dropdown}
+                options={yesNoOptions}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.EXISTING_HOLDINGS' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.EXISTING_HOLDINGS"
+                camelKey="existingHoldings"
+                snakeKey="existing_holdings"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+        </Section>
+
+        {/* OPERATIONS */}
+        <Section
+          title={
+            <FormattedMessage id="INITIATIVE_DATA.SECTION.OPERATIONS" defaultMessage="Operations" />
+          }
+        >
+          {/* Standard service Y/N */}
+          <CommonStyle.Label>
+            {isEditing ? (
+              <Field
+                name="standardService"
+                component={CommonStyle.Dropdown}
+                options={yesNoOptions}
+                label={intl.formatMessage({ id: 'INITIATIVE_DATA.STANDARD_SERVICE' })}
+              />
+            ) : (
+              <DisplayField
+                labelId="INITIATIVE_DATA.STANDARD_SERVICE"
+                camelKey="standardService"
+                snakeKey="standard_service"
+                data={initiativeData}
+              />
+            )}
+          </CommonStyle.Label>
+
+          <div />
+        </Section>
+      </CommonStyle.Container>
+    </div>
+  );
+}
