@@ -1,0 +1,20 @@
+const Section = ({ title, children }: any) => (
+  <div style={{ marginBottom: 36 }}>
+    <div style={{ marginLeft: 30, marginRight: 30 }}>
+      <h2
+        style={{
+          margin: '28px 0 20px 0',
+          fontSize: 24,          // 🔥 plus grand
+          fontWeight: 700,       // plus bold
+          letterSpacing: 0.4,
+        }}
+      >
+        {title}
+      </h2>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+);
