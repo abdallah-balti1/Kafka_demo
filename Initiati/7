@@ -1,0 +1,9 @@
+const LongTextProps = {
+  textarea: true,
+  rows: 4,
+  style: {
+    resize: 'vertical',
+    minHeight: 110,
+    lineHeight: '20px',
+  },
+};
