@@ -1,0 +1,13 @@
+const Section = ({ title, children }) => (
+  <div style={{ marginBottom: 40 }}>
+    <div style={{ marginLeft: 30, marginRight: 30 }}>
+      <CommonStyle.SectionTitle>
+        {title}
+      </CommonStyle.SectionTitle>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+);
