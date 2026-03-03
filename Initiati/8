@@ -1,0 +1,6 @@
+const LONG_TEXT_HEIGHT = NumberGrid(54); // comme dans votre projet
+
+const longTextProps = {
+  height: LONG_TEXT_HEIGHT,
+  disableResize: false, // mets true si tu veux bloquer le resize
+};
