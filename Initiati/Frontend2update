@@ -1,0 +1,600 @@
+/* eslint-disable react/prop-types */
+import React, { useEffect, useMemo, useState } from 'react';
+import { Field } from 'formik';
+import { FormattedMessage, type IntlShape } from 'react-intl';
+
+import { getCosmosId } from 'pages/InitiativePipelineCreation/components/InitiativePipelineCharacteristicsSection/utils';
+import { useFetchManagementCompanyLabels } from 'redux/entities/massUpdateTemplates/hooks.js';
+import { useFetchSponsorCountries } from 'redux/entities/initiativesPipeline/hooks.js';
+import { validateMandatory } from 'utils/formValidation';
+
+import {
+  clientTypeOptions,
+  legalFD,
+  legalSFF,
+  regulatoryS,
+  yesNoOptions,
+  exampleForNow,
+} from './utils';
+
+import { default as CommonStyle } from './common.style';
+import ToggleEditionModeButtons from './ToggleEditionModeButtons';
+
+type Props = {
+  intl: IntlShape,
+  initiativeId: string,
+  token: string,
+
+  initiativeData: any,
+  isLoading: boolean,
+  initiativeDataNotFound: boolean,
+  initiativeDataError: any,
+
+  getInitiativeData: (initiativeId: string) => any,
+
+  isEditing: boolean,
+  setIsEditing: (v: boolean) => void,
+  resetForm: () => void,
+  submitForm: () => void,
+
+  products?: any,
+  fetchProducts?: () => void,
+};
+
+const Section = ({ title, children }: any) => (
+  <div style={{ marginBottom: 28 }}>
+    <div style={{ marginLeft: 30, marginRight: 30 }}>
+      <h3 style={{ margin: '18px 0 14px 0', fontSize: 18, fontWeight: 600 }}>{title}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+    </div>
+  </div>
+);
+
+const SubSection = ({ title, children }: any) => (
+  <div style={{ padding: '14px 16px', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
+    <div style={{ marginBottom: 10, fontSize: 14, fontWeight: 600, opacity: 0.85 }}>{title}</div>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        columnGap: 22,
+        rowGap: 16,
+        alignItems: 'start',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+const FieldWrap = ({ children }: any) => <div style={{ minWidth: 0 }}>{children}</div>;
+
+const Label = ({ id }: { id: string }) => (
+  <div
+    style={{
+      fontSize: 13,
+      letterSpacing: 0.2,
+      opacity: 0.75,
+      marginBottom: 6,
+      fontWeight: 600,
+    }}
+  >
+    <FormattedMessage id={id} />
+  </div>
+);
+
+const formatAnyValue = (v: any) => {
+  if (v === null || v === undefined || v === '') return '-';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+
+  // Common dropdown shapes: {label, value}
+  if (typeof v === 'object') {
+    if (Array.isArray(v)) return v.map(formatAnyValue).join(', ');
+    if (v.label !== undefined && v.label !== null && v.label !== '') return String(v.label);
+    if (v.value !== undefined && v.value !== null && v.value !== '') return String(v.value);
+    try {
+      return JSON.stringify(v);
+    } catch (e) {
+      return String(v);
+    }
+  }
+
+  return String(v);
+};
+
+const Value = ({ children }: any) => (
+  <div style={{ fontSize: 14, lineHeight: '18px', wordBreak: 'break-word' }}>
+    {formatAnyValue(children)}
+  </div>
+);
+
+const pick = (obj: any, camelKey: string, snakeKey: string) => {
+  if (!obj) return undefined;
+  const camel = obj[camelKey];
+  if (camel !== undefined && camel !== null && camel !== '') return camel;
+  return obj[snakeKey];
+};
+
+const DisplayField = ({
+  labelId,
+  camelKey,
+  snakeKey,
+  data,
+}: {
+  labelId: string,
+  camelKey: string,
+  snakeKey: string,
+  data: any,
+}) => (
+  <FieldWrap>
+    <Label id={labelId} />
+    <Value>{pick(data, camelKey, snakeKey)}</Value>
+  </FieldWrap>
+);
+
+// "Long text" helper: still uses CommonStyle.Input, but passes multiline hints (ignored if not supported).
+const LongTextProps = { multiline: true, rows: 4 };
+
+const SmartField = ({
+  isEditing,
+  intl,
+  name,
+  labelId,
+  component,
+  options,
+  validate,
+  displayCamelKey,
+  displaySnakeKey,
+  data,
+  fieldProps,
+}: any) => (
+  <FieldWrap>
+    {isEditing ? (
+      <Field
+        name={name}
+        component={component}
+        options={options}
+        validate={validate}
+        label={intl.formatMessage({ id: labelId })}
+        {...(fieldProps || {})}
+      />
+    ) : (
+      <DisplayField
+        labelId={labelId}
+        camelKey={displayCamelKey || name}
+        snakeKey={displaySnakeKey || name}
+        data={data}
+      />
+    )}
+  </FieldWrap>
+);
+
+export default function InitiativeDataCard(props: Props) {
+  const {
+    initiativeId,
+    initiativeData,
+    isLoading,
+    initiativeDataNotFound,
+    initiativeDataError,
+    getInitiativeData,
+    isEditing,
+    setIsEditing,
+    resetForm,
+    submitForm,
+    intl,
+    token,
+    products,
+    fetchProducts,
+  } = props;
+
+  // Fetch products (used for COSMOS ID dropdown)
+  useEffect(() => {
+    if (fetchProducts) fetchProducts();
+  }, [fetchProducts]);
+
+  const cosmosIdOptions = useMemo(() => getCosmosId(products), [products]);
+
+  // Sponsor countries -> country of domiciliation dropdown
+  const [sponsorCountries, setSponsorCountries] = useState([]);
+  const { value: sponsor_countries } = useFetchSponsorCountries(token, true, null) || {};
+
+  useEffect(() => {
+    if (sponsor_countries) {
+      const uniqueCountries = [...new Set(sponsor_countries)].sort();
+      setSponsorCountries(uniqueCountries.map((country) => ({ value: country, label: country })));
+    }
+  }, [sponsor_countries]);
+
+  // Management companies dropdown
+  const [managementCompanies, setManagementCompanies] = useState([]);
+  const { value: mgmtCompLabels } = useFetchManagementCompanyLabels(token, true, null) || {};
+
+  useEffect(() => {
+    if (mgmtCompLabels) {
+      const unique = [...new Set(mgmtCompLabels)].sort();
+      setManagementCompanies(unique.map((comp) => ({ value: comp, label: comp })));
+    }
+  }, [mgmtCompLabels]);
+
+  useEffect(() => {
+    if (initiativeId) getInitiativeData(String(initiativeId));
+  }, [initiativeId, getInitiativeData]);
+
+  if (!initiativeId) return <div>Missing initiativeId</div>;
+  if (isLoading) return <div>Loading…</div>;
+  if (initiativeDataError) return <div>Error loading initiative data</div>;
+  if (initiativeDataNotFound) return <div>Initiative data not found</div>;
+  if (!initiativeData) return <div />;
+
+  return (
+    <div>
+      <CommonStyle.Container>
+        <CommonStyle.HeaderContainer>
+          <ToggleEditionModeButtons
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            resetForm={resetForm}
+            onSave={submitForm}
+          />
+        </CommonStyle.HeaderContainer>
+
+        {/* PRODUCT */}
+        <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.PRODUCT" defaultMessage="Product" />}>
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.DESCRIPTION" defaultMessage="Description" />}
+          >
+            {/* Product name (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="productNameData"
+              labelId="INITIATIVE_DATA.PRODUCT_NAME"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="product_name_data"
+            />
+
+            {/* Implementation date (Date) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="implementationDate"
+              labelId="INITIATIVE_DATA.IMPLEMENTATION_DATE"
+              component={CommonStyle.DatePicker}
+              validate={validateMandatory}
+              data={initiativeData}
+              displaySnakeKey="implementation_date"
+            />
+
+            {/* COSMOS ID (ID) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="cosmosIdData"
+              labelId="INITIATIVE_DATA.COSMOS_ID"
+              component={CommonStyle.Dropdown}
+              options={cosmosIdOptions}
+              data={initiativeData}
+              displaySnakeKey="cosmos_id_data"
+            />
+            <div />
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.MANAGEMENT_TEAM" defaultMessage="Management team" />}
+          >
+            {/* Portfolio manager team (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="leadWalletManagerTeam"
+              labelId="INITIATIVE_DATA.PORTFOLIO_MANAGER_TEAM"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="lead_wallet_manager_team"
+            />
+
+            {/* Portfolio manager name (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="leadWalletManagerName"
+              labelId="INITIATIVE_DATA.PORTFOLIO_MANAGER_NAME"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="lead_wallet_manager_name"
+            />
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.STRUCTURE" defaultMessage="Structure" />}
+          >
+            {/* Legal form (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="legalForm"
+              labelId="INITIATIVE_DATA.LEGAL_FORM"
+              component={CommonStyle.Dropdown}
+              options={[legalFD, legalSFF]}
+              data={initiativeData}
+              displaySnakeKey="legal_form"
+            />
+
+            {/* Management company (Drop down) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="managementCompany"
+              labelId="INITIATIVE_DATA.MANAGEMENT_COMPANY"
+              component={CommonStyle.Dropdown}
+              options={managementCompanies}
+              data={initiativeData}
+              displaySnakeKey="management_company"
+            />
+
+            {/* Legal structure for funds (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="legalStructureForFunds"
+              labelId="INITIATIVE_DATA.LEGAL_STRUCTURE_FOR_FUNDS"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="legal_structure_for_funds"
+            />
+
+            {/* Investment management delegation (Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="investmentManagementDelegation"
+              labelId="INITIATIVE_DATA.INVESTMENT_MANAGEMENT_DELEGATION"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="investment_management_delegation"
+            />
+
+            {/* Shareclass offer (Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="shareclassOffer"
+              labelId="INITIATIVE_DATA.SHARECLASS_OFFER"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="shareclass_offer"
+            />
+
+            {/* Regulatory status (Drop down) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="regulatoryStatus"
+              labelId="INITIATIVE_DATA.REGULATORY_STATUS"
+              component={CommonStyle.Dropdown}
+              options={regulatoryS}
+              data={initiativeData}
+              displaySnakeKey="regulatory_status"
+            />
+
+            {/* Country of domiciliation (Drop down) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="countryOfDomiciliation"
+              labelId="INITIATIVE_DATA.COUNTRY_OF_DOMICILIATION"
+              component={CommonStyle.Dropdown}
+              options={sponsorCountries}
+              data={initiativeData}
+              displaySnakeKey="country_of_domiciliation"
+            />
+
+            {/* Additional license needed (NEW TYPE = Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="additionalLicenceNeeded"
+              labelId="INITIATIVE_DATA.ADDITIONAL_LICENCE_NEEDED"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="additional_licence_needed"
+            />
+
+            {/* Investment strategy & guidelines (Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="investmentStrategyGuidelines"
+              labelId="INITIATIVE_DATA.INVESTMENT_STRATEGY_GUIDELINES"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="investment_strategy_guidelines"
+            />
+
+            {/* Fees description (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="feesDesc"
+              labelId="INITIATIVE_DATA.FEES_DESC"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="fees_desc"
+            />
+          </SubSection>
+
+          <SubSection
+            title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.BENCHMARK" defaultMessage="Benchmark" />}
+          >
+            {/* Benchmark (NEW TYPE = Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="benchmark"
+              labelId="INITIATIVE_DATA.BENCHMARK"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="benchmark"
+            />
+            <div />
+          </SubSection>
+
+          <SubSection
+            title={
+              <FormattedMessage
+                id="INITIATIVE_DATA.SUBSECTION.PORTFOLIO_COMPOSITION"
+                defaultMessage="Portfolio composition"
+              />
+            }
+          >
+            {/* Instruments details (NEW TYPE = Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="instrumentsDetails"
+              labelId="INITIATIVE_DATA.INSTRUMENTS_DETAILS"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="instruments_details"
+            />
+            <div />
+          </SubSection>
+        </Section>
+
+        {/* BUSINESS CASE */}
+        <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.BUSINESS_CASE" defaultMessage="Business Case" />}>
+          <SubSection title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.BUSINESS" defaultMessage="Business" />}>
+            {/* AUM expected (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="aumExpected"
+              labelId="INITIATIVE_DATA.AUM_EXPECTED"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="aum_expected"
+            />
+
+            {/* Comments (NEW TYPE = Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="commentsBusiness"
+              labelId="INITIATIVE_DATA.COMMENTS"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="comments_business"
+            />
+          </SubSection>
+        </Section>
+
+        {/* CLIENT */}
+        <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.CLIENT" defaultMessage="Client" />}>
+          <SubSection title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.CLIENT" defaultMessage="Client" />}>
+            {/* Salesforce ID opportunity (ID) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="salesforceIdOpportunity"
+              labelId="INITIATIVE_DATA.SALESFORCE_ID_OPPORTUNITY"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="salesforce_id_opportunity"
+            />
+
+            {/* Client name (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="clientName"
+              labelId="INITIATIVE_DATA.CLIENT_NAME"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="client_name"
+            />
+
+            {/* Client description (Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="clientDescription"
+              labelId="INITIATIVE_DATA.CLIENT_DESCRIPTION"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="client_description"
+            />
+
+            {/* Client type (NEW TYPE = Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="clientType"
+              labelId="INITIATIVE_DATA.CLIENT_TYPE"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="client_type"
+            />
+
+            {/* Existing holdings with BNP/AXA (NEW TYPE = Text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="existingHoldings"
+              labelId="INITIATIVE_DATA.EXISTING_HOLDINGS"
+              component={CommonStyle.Input}
+              data={initiativeData}
+              displaySnakeKey="existing_holdings"
+            />
+
+            {/* Comment (RFP stage, deadline and future steps) (Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="rfp"
+              labelId="INITIATIVE_DATA.RFP"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="rfp"
+            />
+          </SubSection>
+        </Section>
+
+        {/* OPERATIONS */}
+        <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.OPERATIONS" defaultMessage="Operations" />}>
+          <SubSection title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.OPERATIONS" defaultMessage="Operations" />}>
+            {/* Standard service Y/N (Flag) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="standardService"
+              labelId="INITIATIVE_DATA.STANDARD_SERVICE"
+              component={CommonStyle.Dropdown}
+              options={yesNoOptions}
+              data={initiativeData}
+              displaySnakeKey="standard_service"
+            />
+
+            {/* Specific service description (NEW TYPE = Long text) */}
+            <SmartField
+              isEditing={isEditing}
+              intl={intl}
+              name="specificServiceDesc"
+              labelId="INITIATIVE_DATA.SPECIFIC_SERVICE_DESC"
+              component={CommonStyle.Input}
+              fieldProps={LongTextProps}
+              data={initiativeData}
+              displaySnakeKey="specific_service_desc"
+            />
+          </SubSection>
+        </Section>
+      </CommonStyle.Container>
+    </div>
+  );
+}
