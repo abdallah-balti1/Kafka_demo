@@ -1,0 +1,90 @@
+import { takeLatest, call, put } from 'redux-saga/effects';
+import authenticatedCall from 'redux/utils/authenticatedCall';
+import { handleAPIExceptions } from 'utils/api';
+import { createInitiativeDataApi, getInitiativesData, patchInitiativesData } from './api';
+
+import {
+  createInitiativeDataSuccess,
+  createInitiativeDataFailure,
+  getInitiativeDataSuccess,
+  getInitiativeDataNotFound,
+  getInitiativeDataFailure,
+  patchInitiativeDataSuccess,
+  patchInitiativeDataFailure,
+  getInitiativeData,
+} from './actions';
+import { modelizeInitiativeDataToApi, modelizeInitiativeDataFromApi } from './modelize';
+import {
+  CREATE_INITIATIVE_DATA_REQUEST,
+  GET_INITIATIVE_DATA_REQUEST,
+  PATCH_INITIATIVE_DATA_REQUEST,
+} from './constants';
+
+export function* createInitiativeDataSaga(action) {
+  try {
+    const { newInitiative, token } = action.payload;
+    const created = yield call(createInitiativeDataApi, newInitiative, token);
+    yield put(createInitiativeDataSuccess(created));
+  } catch (e) {
+    const errPayload = e?.response?.data || { message: e.message || 'Create failed' };
+    yield put(createInitiativeDataFailure(errPayload));
+  }
+}
+
+export function* getInitiativeDataSaga(action): Saga<> {
+  try {
+    const initiativeId = action.payload?.initiativeId;
+
+    const response = yield authenticatedCall(getInitiativesData, initiativeId);
+
+    const initiative = modelizeInitiativeDataFromApi(response.data);
+
+    yield put(getInitiativeDataSuccess(initiative));
+  } catch (error) {
+    const status = error?.response?.status;
+
+    if (status === 404) {
+      yield put(getInitiativeDataNotFound());
+      return;
+    }
+    yield call(handleAPIExceptions, error);
+    yield put(getInitiativeDataFailure(error));
+  }
+}
+
+export function* patchInitiativeDataSaga(action: any): any {
+  try {
+    const initiativeId = action.payload?.initiativeId;
+    const values = action.payload?.values ?? {};
+
+    // Pre-resolve dropdown objects to their raw values before modelizing
+    // (same as onSubmit normalization in the form)
+    const normalizedValues = {
+      ...values,
+      legalFormData: values.legalFormData?.value ?? values.legalFormData ?? null,
+      managementCompanyData: values.managementCompanyData?.value ?? values.managementCompanyData ?? null,
+      legalStructure: values.legalStructure?.value ?? values.legalStructure ?? null,
+      investmentManagementDelegated: values.investmentManagementDelegated?.value ?? values.investmentManagementDelegated ?? null,
+      standardService: values.standardService?.value ?? values.standardService ?? null,
+      regulatoryStatus: values.regulatoryStatus?.value ?? values.regulatoryStatus ?? null,
+      countryOfDomiciliation: values.countryOfDomiciliation?.value ?? values.countryOfDomiciliation ?? null,
+      cosmosIdData: values.cosmosIdData?.value ?? values.cosmosIdData ?? null,
+    };
+
+    const payload = modelizeInitiativeDataToApi({ ...normalizedValues, initiativeId });
+    const response = yield authenticatedCall(patchInitiativesData, initiativeId, payload);
+    const initiative = modelizeInitiativeDataFromApi(response.data);
+    yield put(patchInitiativeDataSuccess(initiative));
+    // Refetch fresh data after successful patch so the card updates automatically
+    yield put(getInitiativeData(initiativeId));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(patchInitiativeDataFailure(error));
+  }
+}
+
+export default function* sagas() {
+  yield takeLatest(CREATE_INITIATIVE_DATA_REQUEST, createInitiativeDataSaga);
+  yield takeLatest(GET_INITIATIVE_DATA_REQUEST, getInitiativeDataSaga);
+  yield takeLatest(PATCH_INITIATIVE_DATA_REQUEST, patchInitiativeDataSaga);
+}
