@@ -1,0 +1,80 @@
+// @flow
+import { withFormik } from 'formik';
+import { injectIntl } from 'react-intl';
+import { connect } from 'react-redux';
+import { compose } from 'redux';
+import { withRouter } from 'react-router-dom';
+
+// actions (GET affichage)
+import { fetchProducts } from 'redux/entities/products/actions';
+import { selectAllProducts } from 'redux/entities/products/selectors';
+import {
+  getInitiativeData,
+  patchInitiativeData,
+  setIsInitiativeDataEditing,
+} from 'redux/pages/InitiativePipelineCardTab/actions';
+
+// selectors (affichage)
+import {
+  selectInitiative,
+  selectInitiativeError,
+  selectInitiativeLoading,
+  selectInitiativeNotFound,
+  selectInitiativeView,
+  selectIsInitiativeDataEditing,
+} from 'redux/pages/InitiativePipelineCardTab/selectors';
+
+import { getInitialValuesFromInitiativeData } from './utils';
+
+import InitiativeDataCard from './InitiativeDataCard';
+
+const selectToken = state =>
+  state?.auth?.token || state?.user?.token || state?.session?.token || state?.login?.token || null;
+
+const mapStateToProps = state => ({
+  isLoading: selectInitiativeLoading(state),
+  initiativeData: selectInitiative(state),
+  initiativeDataNotFound: selectInitiativeNotFound(state),
+  initiativeDataError: selectInitiativeError(state),
+  initiativeView: selectInitiativeView(state),
+  isEditing: selectIsInitiativeDataEditing(state),
+  products: selectAllProducts(state),
+  token: selectToken(state),
+});
+
+const mapDispatchToProps = dispatch => ({
+  getInitiativeData: initiativeId => dispatch(getInitiativeData(initiativeId)),
+  patchInitiativeData: (initiativeId, values) =>
+    dispatch(patchInitiativeData(initiativeId, values)),
+  setIsEditing: isEditing => dispatch(setIsInitiativeDataEditing(isEditing)),
+  fetchProducts: ({
+    productType: string,
+    umbrellaId: ?string,
+    searchByUmbrella: boolean,
+  }: Dispatch<FetchProductsActionType>) => dispatch(fetchProducts()),
+});
+
+export default compose(
+  withRouter,
+  connect(
+    mapStateToProps,
+    mapDispatchToProps,
+  ),
+
+  withFormik({
+    enableReinitialize: true,
+    mapPropsToValues: props => getInitialValuesFromInitiativeData(props.initiativeData),
+
+    handleSubmit: async (
+      values,
+      { props: { setIsEditing, initiativeData, patchInitiativeData, getInitiativeData, history } },
+    ) => {
+      const initiativeId = String(values.idInitiative);
+      setIsEditing(false);
+      await patchInitiativeData(initiativeId, values);
+      // Auto-refresh the card with updated data instead of full page reload
+      getInitiativeData(initiativeId);
+    },
+  }),
+  injectIntl,
+)(InitiativeDataCard);
