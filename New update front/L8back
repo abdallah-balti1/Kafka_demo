@@ -1,0 +1,69 @@
+from flasgger.utils import swag_from
+from flask_restful import Resource
+from flask_restful.reqparse import Argument
+
+from config import DEV_TEAM_EMAILS
+from db import db
+from decorators import parse_params
+from repositories import InitiativeDataRepository
+from util.required_plm_authentication import authorized_plm_roles
+from utils.src.context_managers.session_critical_action_manager import SessionCriticalActionManager
+
+
+class InitiativesIdDataResource(Resource):
+    """Verbs relative to an Initiative data"""
+
+    @staticmethod
+    @swag_from("../../swagger/initiatives_data/GET.yml")
+    @authorized_plm_roles(
+        ["INITIATIVE_OWNER", "INITIATIVE_COORDINATOR", "INITIATIVE_OBSERVER", "INITIATIVE_OVERSIGHT", "ADMIN"]
+    )
+    def get(id_initiative, user):
+        obj = InitiativeDataRepository.get_initiative_id(id_initiative)
+        return obj.to_json(), 200
+
+    @staticmethod
+    @authorized_plm_roles(["INITIATIVE_OWNER", "INITIATIVE_COORDINATOR", "INITIATIVE_OVERSIGHT", "ADMIN"])
+    @parse_params(
+        Argument("id_initiative", type=str, location="json"),
+        Argument("salesforce_id_opportunity", type=str, location="json"),
+        Argument("client_description", type=str, location="json"),
+        Argument("client_name", type=str, location="json"),
+        Argument("client_type", type=str, location="json"),
+        # FIX: existing_holdings is stored as String(100) in DB — keep as str, not bool
+        Argument("existing_holdings", type=str, location="json"),
+        Argument("rfp", type=str, location="json"),
+        Argument("implementation_date", type=str, location="json"),
+        Argument("cosmos_id_data", type=str, location="json"),
+        Argument("name_data", type=str, location="json"),
+        Argument("lead_wallet_manager_name", type=str, location="json"),
+        Argument("lead_wallet_manager_team", type=str, location="json"),
+        Argument("shareclass_name", type=str, location="json"),
+        # FIX: benchmark is a text field — keep as str
+        Argument("benchmark", type=str, location="json"),
+        Argument("instruments_details", type=str, location="json"),
+        Argument("investment_strategy_guidelines", type=str, location="json"),
+        # FIX: additional_licence_needed is stored as String(100) — keep as str, not bool
+        Argument("additional_licence_needed", type=str, location="json"),
+        Argument("product_name_data", type=str, location="json"),
+        Argument("legal_form_data", type=str, location="json"),
+        Argument("legal_structure", type=str, location="json"),
+        Argument("regulatory_status", type=str, location="json"),
+        Argument("country_of_domiciliation", type=str, location="json"),
+        Argument("management_company_data", type=str, location="json"),
+        Argument("investment_management", type=str, location="json"),
+        Argument("investment_management_delegated", type=str, location="json"),
+        # standard_service is a real Boolean in the model
+        Argument("standard_service", type=bool, location="json"),
+        Argument("specific_service_desc", type=str, location="json"),
+        Argument("aum_expected", type=str, location="json"),
+        Argument("fees_desc", type=str, location="json"),
+        Argument("comments_buisness", type=str, location="json"),
+    )
+    @swag_from("../../swagger/initiative_data/patch.yml")
+    def patch(id_initiative, user, **kwargs):
+        with SessionCriticalActionManager("patch initiative data", db.session, DEV_TEAM_EMAILS):
+            if "-" not in id_initiative:
+                id_initiative = id_initiative.upper()
+            initiative = InitiativeDataRepository.modify(id_initiative, **kwargs)
+            return [initiative.to_json()]
