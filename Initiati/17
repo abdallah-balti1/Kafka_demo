@@ -1,0 +1,674 @@
+import Button from 'components/Button';
+import DatePicker from 'components/Form/DatePickerFormik';
+import Dropdown from 'components/Form/Dropdown';
+import Input from 'components/Form/Input';
+import { ErrorMessage, Field, Form, Formik } from 'formik';
+import { useEffect, useMemo, useState } from 'react';
+import type { IntlShape } from 'react-intl';
+import { FormattedMessage } from 'react-intl';
+import { getCosmosId } from 'pages/InitiativePipelineCreation/components/InitiativePipelineCharacteristicsSection/utils';
+import { useFetchManagementCompanyLabels } from 'redux/entities/massUpdateTemplates/hooks.js';
+import { useFetchSponsorCountries } from 'redux/entities/initiativesPipeline/hooks.js';
+
+import { modelizeInitiativeDataToApi } from 'redux/pages/InitiativePipelineCardTab/modelize';
+
+import { TabContainer } from 'styles';
+import { hasError, validateMandatory } from 'utils/formValidation';
+import {
+  clientTypeOptions,
+  yesNoOptions,
+  currencyOptions,
+  exampleForNow,
+  legalFD,
+  legalSFF,
+  navFrequencyOptions,
+  navOptions,
+  productTypeOption,
+  regulatoryS,
+  regulatoryAuthorityOptions,
+} from '../InitiativeDataCard/utils';
+import Style from '../InitiativePipelineCardTab/common.style.js';
+
+type Props = {
+  intl: IntlShape,
+  initiativeId: string,
+  token: string,
+  isTaskFormOpen?: boolean,
+
+  // redux
+  createLoading?: boolean,
+  createError?: any,
+  lastCreated?: any,
+  createInitiativeDataRequest: (payload: any) => mixed,
+
+  products?: any,
+  fetchProducts?: () => void,
+  productType?: any,
+  cosmosId?: any,
+  nameInitiative?: any,
+  managementCompany?: any,
+  legalForm?: any,
+};
+
+// ─── Layout helpers ──────────────────────────────────────────────────────────
+
+const Section = ({ title, children }: any) => (
+  <div style={{ marginBottom: 28 }}>
+    <div style={{ marginLeft: 30, marginRight: 30 }}>
+      <h3 style={{ margin: '18px 0 14px 0', fontSize: 18, fontWeight: 600 }}>{title}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+    </div>
+  </div>
+);
+
+const SubSection = ({ title, children }: any) => (
+  <div style={{ padding: '14px 16px', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
+    <div style={{ marginBottom: 10, fontSize: 14, fontWeight: 600, opacity: 0.85 }}>{title}</div>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        columnGap: 22,
+        rowGap: 16,
+        alignItems: 'start',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+const FieldWrap = ({ children }: any) => <div style={{ minWidth: 0 }}>{children}</div>;
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function InitiativeDataForm(props: Props) {
+  const {
+    intl,
+    initiativeId,
+    token,
+    createInitiativeDataRequest,
+    createLoading,
+    createError,
+    products,
+    productType,
+    cosmosId,
+    lastCreated,
+    nameInitiative,
+    managementCompany,
+    legalForm,
+    fetchProducts,
+  } = props;
+
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (lastCreated && !createLoading && !createError) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    }
+  }, [lastCreated, createLoading, createError]);
+
+  // ── Sponsor countries ──────────────────────────────────────────────────────
+  const [sponsorCountries, setSponsorCountries] = useState([]);
+  const { value: sponsor_countries } = useFetchSponsorCountries(token, true, null) || {};
+
+  useEffect(() => {
+    if (sponsor_countries) {
+      const uniqueCountries = [...new Set(sponsor_countries)].sort();
+      setSponsorCountries(uniqueCountries.map((country) => ({ value: country, label: country })));
+    }
+  }, [sponsor_countries]);
+
+  // ── Management companies ───────────────────────────────────────────────────
+  const [managementCompanies, setManagementCompanies] = useState([]);
+  const { value: mgmtCompLabels } = useFetchManagementCompanyLabels(token, true, null) || {};
+
+  useEffect(() => {
+    if (mgmtCompLabels) {
+      const uniqueMgmtComps = [...new Set(mgmtCompLabels)].sort();
+      setManagementCompanies(uniqueMgmtComps.map((comp) => ({ value: comp, label: comp })));
+    }
+  }, [mgmtCompLabels]);
+
+  // ── Products / COSMOS ID ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (fetchProducts) fetchProducts();
+  }, [fetchProducts]);
+
+  const cosmosIdOptions = useMemo(() => getCosmosId(products), [products]);
+
+  // ── Initial values ─────────────────────────────────────────────────────────
+  const initialValues = {
+    initiativeId,
+
+    // ── PRODUCT / Description ──────────────────────────────────────────────
+    productNameData: nameInitiative,   // → product_name_data
+    nameData: nameInitiative,          // → name_data
+    implementationDate: '',            // → implementation_date
+    cosmosIdData: cosmosId,            // → cosmos_id_data (pickValue)
+
+    // ── PRODUCT / Management team ──────────────────────────────────────────
+    leadWalletManagerTeam: '',         // → lead_wallet_manager_team (pickValue)
+    leadWalletManagerName: '',         // → lead_wallet_manager_name (pickValue)
+
+    // ── PRODUCT / Structure ────────────────────────────────────────────────
+    legalFormData: legalForm,          // → legal_form_data (pickValue)
+    managementCompanyData: managementCompany, // → management_company_data
+    legalStructure: '',                // → legal_structure (pickValue)
+    investmentManagementDelegated: '', // → investment_management_delegated
+    investmentManagement: '',          // → investment_management
+    shareclassName: '',                // → shareclass_name
+    regulatoryStatus: '',              // → regulatory_status (pickValue)
+    countryOfDomiciliation: '',        // → country_of_domiciliation (pickValue)
+    additionalLicenceNeeded: '',       // → additional_licence_needed (pickBool)
+    investmentStrategyGuidelines: '',  // → investment_strategy_guidelines
+    feesDesc: '',                      // → fees_desc
+
+    // ── PRODUCT / Benchmark ────────────────────────────────────────────────
+    benchmark: '',                     // → benchmark (pickBool)
+
+    // ── PRODUCT / Portfolio composition ───────────────────────────────────
+    instrumentsDetails: '',            // → instruments_details
+
+    // ── BUSINESS CASE ─────────────────────────────────────────────────────
+    aumExpected: '',                   // → aum_expected
+    commentsBusiness: '',              // → comments_buisness
+
+    // ── CLIENT ────────────────────────────────────────────────────────────
+    salesforceIdOpportunity: '',       // → salesforce_id_opportunity
+    clientName: '',                    // → client_name
+    clientDescription: '',             // → client_description
+    clientType: '',                    // → client_type (pickValue)
+    existingHoldings: '',              // → existing_holdings (pickBool)
+    rfp: '',                           // → rfp
+
+    // ── OPERATIONS ────────────────────────────────────────────────────────
+    standardService: yesNoOptions.find((o) => o.value === false), // → standard_service (pickBool)
+    specificServiceDesc: '',           // → specific_service_desc
+  };
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const validate = (values: any) => {
+    const errors: any = {};
+    return errors;
+  };
+
+  // ── Date helper ────────────────────────────────────────────────────────────
+  const toDateOrNull = (v: any) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  };
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+  const onSubmit = async (values: any, { setSubmitting }: any) => {
+    try {
+      setSaveSuccess(false);
+
+      const normalizedValues = {
+        ...values,
+        // pickValue is handled inside modelize — just pass raw dropdown objects as-is
+        // except for fields modelize does NOT pickValue on (plain string fields)
+        implementationDate: values.implementationDate ? toDateOrNull(values.implementationDate) : null,
+      };
+
+      const newInitiative = modelizeInitiativeDataToApi(normalizedValues);
+
+      await createInitiativeDataRequest({
+        newInitiative,
+        token,
+      });
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <Style.Container>
+      <div>
+        <TabContainer>
+          <Formik initialValues={initialValues} onSubmit={onSubmit} validate={validate} enableReinitialize>
+            {({ errors, touched, isSubmitting }) => (
+              <Form>
+                {saveSuccess && (
+                  <div style={{ marginBottom: 12, padding: 10, borderRadius: 6 }}>
+                    <strong>
+                      Saved successfully ✅
+                    </strong>
+                  </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════
+                    SECTION: PRODUCT
+                ══════════════════════════════════════════════════════════ */}
+                <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.PRODUCT" defaultMessage="Product" />}>
+
+                  {/* ── Sub-section: Description ── */}
+                  <SubSection
+                    title={
+                      <FormattedMessage id="INITIATIVE_DATA.SUBSECTION.DESCRIPTION" defaultMessage="Description" />
+                    }
+                  >
+                    {/* Product name (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="productNameData"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.PRODUCT_NAME_DATA' })}
+                        hasError={hasError(errors, touched, 'productNameData')}
+                      />
+                      <ErrorMessage name="productNameData" component="div" />
+                    </FieldWrap>
+
+                    {/* Implementation date (Date) */}
+                    <FieldWrap>
+                      <Field
+                        name="implementationDate"
+                        component={DatePicker}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.IMPLEMENTATION_DATE' })}
+                        hasError={hasError(errors, touched, 'implementationDate')}
+                      />
+                      <ErrorMessage name="implementationDate" component="div" />
+                    </FieldWrap>
+
+                    {/* COSMOS ID (ID / Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="cosmosIdData"
+                        component={Dropdown}
+                        options={cosmosIdOptions}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.COSMOS_ID' })}
+                        hasError={hasError(errors, touched, 'cosmosIdData')}
+                      />
+                      <ErrorMessage name="cosmosIdData" component="div" />
+                    </FieldWrap>
+
+                    <div />
+                  </SubSection>
+
+                  {/* ── Sub-section: Management team ── */}
+                  <SubSection
+                    title={
+                      <FormattedMessage
+                        id="INITIATIVE_DATA.SUBSECTION.MANAGEMENT_TEAM"
+                        defaultMessage="Management team"
+                      />
+                    }
+                  >
+                    {/* Portfolio manager team (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="leadWalletManagerTeam"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.PORTFOLIO_MANAGER_TEAM' })}
+                        hasError={hasError(errors, touched, 'leadWalletManagerTeam')}
+                      />
+                      <ErrorMessage name="leadWalletManagerTeam" component="div" />
+                    </FieldWrap>
+
+                    {/* Portfolio manager name (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="leadWalletManagerName"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.PORTFOLIO_MANAGER_NAME' })}
+                        hasError={hasError(errors, touched, 'leadWalletManagerName')}
+                      />
+                      <ErrorMessage name="leadWalletManagerName" component="div" />
+                    </FieldWrap>
+                  </SubSection>
+
+                  {/* ── Sub-section: Structure ── */}
+                  <SubSection
+                    title={
+                      <FormattedMessage id="INITIATIVE_DATA.SUBSECTION.STRUCTURE" defaultMessage="Structure" />
+                    }
+                  >
+                    {/* Legal form (Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="legalFormData"
+                        component={Dropdown}
+                        options={[legalFD, legalSFF]}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.LEGAL_FORM' })}
+                        hasError={hasError(errors, touched, 'legalFormData')}
+                      />
+                      <ErrorMessage name="legalFormData" component="div" />
+                    </FieldWrap>
+
+                    {/* Management company (Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="managementCompanyData"
+                        component={Dropdown}
+                        options={managementCompanies}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.MANAGEMENT_COMPANY' })}
+                        hasError={hasError(errors, touched, 'managementCompanyData')}
+                      />
+                      <ErrorMessage name="managementCompanyData" component="div" />
+                    </FieldWrap>
+
+                    {/* Legal structure for funds (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="legalStructure"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.LEGAL_STRUCTURE_FOR_FUNDS' })}
+                        hasError={hasError(errors, touched, 'legalStructure')}
+                      />
+                      <ErrorMessage name="legalStructure" component="div" />
+                    </FieldWrap>
+
+                    {/* Investment management delegation (Long text) */}
+                    <FieldWrap>
+                      <Field
+                        name="investmentManagementDelegated"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.INVESTMENT_MANAGEMENT_DELEGATION' })}
+                        hasError={hasError(errors, touched, 'investmentManagementDelegated')}
+                      />
+                      <ErrorMessage name="investmentManagementDelegated" component="div" />
+                    </FieldWrap>
+
+                    {/* Shareclass offer (name, currency...) (Long text) */}
+                    <FieldWrap>
+                      <Field
+                        name="shareclassName"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.SHARECLASS_OFFER' })}
+                        hasError={hasError(errors, touched, 'shareclassName')}
+                      />
+                      <ErrorMessage name="shareclassName" component="div" />
+                    </FieldWrap>
+
+                    {/* Regulatory status (Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="regulatoryStatus"
+                        component={Dropdown}
+                        options={regulatoryS}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.REGULATORY_STATUS' })}
+                        hasError={hasError(errors, touched, 'regulatoryStatus')}
+                      />
+                      <ErrorMessage name="regulatoryStatus" component="div" />
+                    </FieldWrap>
+
+                    {/* Country of domiciliation (Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="countryOfDomiciliation"
+                        component={Dropdown}
+                        options={sponsorCountries}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.COUNTRY_OF_DOMICILIATION' })}
+                        hasError={hasError(errors, touched, 'countryOfDomiciliation')}
+                      />
+                      <ErrorMessage name="countryOfDomiciliation" component="div" />
+                    </FieldWrap>
+
+                    {/* Additional license needed (Text — was Flag) */}
+                    <FieldWrap>
+                      <Field
+                        name="additionalLicenceNeeded"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.ADDITIONAL_LICENCE_NEEDED' })}
+                        hasError={hasError(errors, touched, 'additionalLicenceNeeded')}
+                      />
+                      <ErrorMessage name="additionalLicenceNeeded" component="div" />
+                    </FieldWrap>
+
+                    {/* Investment strategy & guidelines (Long text) */}
+                    <FieldWrap>
+                      <Field
+                        name="investmentStrategyGuidelines"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.INVESTMENT_STRATEGY_GUIDELINES' })}
+                        hasError={hasError(errors, touched, 'investmentStrategyGuidelines')}
+                      />
+                      <ErrorMessage name="investmentStrategyGuidelines" component="div" />
+                    </FieldWrap>
+
+                    {/* Fees description (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="feesDesc"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.FEES_DESC' })}
+                        hasError={hasError(errors, touched, 'feesDesc')}
+                      />
+                      <ErrorMessage name="feesDesc" component="div" />
+                    </FieldWrap>
+                  </SubSection>
+
+                  {/* ── Sub-section: Benchmark ── */}
+                  <SubSection
+                    title={
+                      <FormattedMessage id="INITIATIVE_DATA.SUBSECTION.BENCHMARK" defaultMessage="Benchmark" />
+                    }
+                  >
+                    {/* Benchmark (Text — was Flag) */}
+                    <FieldWrap>
+                      <Field
+                        name="benchmark"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.BENCHMARK' })}
+                        hasError={hasError(errors, touched, 'benchmark')}
+                      />
+                      <ErrorMessage name="benchmark" component="div" />
+                    </FieldWrap>
+
+                    <div />
+                  </SubSection>
+
+                  {/* ── Sub-section: Portfolio composition ── */}
+                  <SubSection
+                    title={
+                      <FormattedMessage
+                        id="INITIATIVE_DATA.SUBSECTION.PORTFOLIO_COMPOSITION"
+                        defaultMessage="Portfolio composition"
+                      />
+                    }
+                  >
+                    {/* Instruments details (Long text — was Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="instrumentsDetails"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.INSTRUMENTS_DETAILS' })}
+                        hasError={hasError(errors, touched, 'instrumentsDetails')}
+                      />
+                      <ErrorMessage name="instrumentsDetails" component="div" />
+                    </FieldWrap>
+
+                    <div />
+                  </SubSection>
+                </Section>
+
+                {/* ══════════════════════════════════════════════════════════
+                    SECTION: BUSINESS CASE
+                ══════════════════════════════════════════════════════════ */}
+                <Section
+                  title={
+                    <FormattedMessage id="INITIATIVE_DATA.SECTION.BUSINESS_CASE" defaultMessage="Business Case" />
+                  }
+                >
+                  <SubSection
+                    title={
+                      <FormattedMessage id="INITIATIVE_DATA.SUBSECTION.BUSINESS" defaultMessage="Business" />
+                    }
+                  >
+                    {/* AUM expected (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="aumExpected"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.AUM_EXPECTED' })}
+                        hasError={hasError(errors, touched, 'aumExpected')}
+                      />
+                      <ErrorMessage name="aumExpected" component="div" />
+                    </FieldWrap>
+
+                    {/* Comments (Long text — was Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="commentsBusiness"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.COMMENTS_BUSINESS' })}
+                        hasError={hasError(errors, touched, 'commentsBusiness')}
+                      />
+                      <ErrorMessage name="commentsBusiness" component="div" />
+                    </FieldWrap>
+                  </SubSection>
+                </Section>
+
+                {/* ══════════════════════════════════════════════════════════
+                    SECTION: CLIENT
+                ══════════════════════════════════════════════════════════ */}
+                <Section title={<FormattedMessage id="INITIATIVE_DATA.SECTION.CLIENT" defaultMessage="Client" />}>
+                  <SubSection
+                    title={<FormattedMessage id="INITIATIVE_DATA.SUBSECTION.CLIENT" defaultMessage="Client" />}
+                  >
+                    {/* Salesforce ID opportunity (ID) */}
+                    <FieldWrap>
+                      <Field
+                        name="salesforceIdOpportunity"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.SALESFORCE_ID_OPPORTUNITY' })}
+                        hasError={hasError(errors, touched, 'salesforceIdOpportunity')}
+                      />
+                      <ErrorMessage name="salesforceIdOpportunity" component="div" />
+                    </FieldWrap>
+
+                    {/* Client name (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="clientName"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.CLIENT_NAME' })}
+                        hasError={hasError(errors, touched, 'clientName')}
+                      />
+                      <ErrorMessage name="clientName" component="div" />
+                    </FieldWrap>
+
+                    {/* Client description (Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="clientDescription"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.CLIENT_DESCRIPTION' })}
+                        hasError={hasError(errors, touched, 'clientDescription')}
+                      />
+                      <ErrorMessage name="clientDescription" component="div" />
+                    </FieldWrap>
+
+                    {/* Client type (Text — was Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="clientType"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.CLIENT_TYPE' })}
+                        hasError={hasError(errors, touched, 'clientType')}
+                      />
+                      <ErrorMessage name="clientType" component="div" />
+                    </FieldWrap>
+
+                    {/* Existing holdings with BNP/AXA (Text — was Flag) */}
+                    <FieldWrap>
+                      <Field
+                        name="existingHoldings"
+                        component={Input}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.EXISTING_HOLDINGS' })}
+                        hasError={hasError(errors, touched, 'existingHoldings')}
+                      />
+                      <ErrorMessage name="existingHoldings" component="div" />
+                    </FieldWrap>
+
+                    {/* Comment — RFP stage, deadline and future steps (Long text — was Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="rfp"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.RFP' })}
+                        hasError={hasError(errors, touched, 'rfp')}
+                      />
+                      <ErrorMessage name="rfp" component="div" />
+                    </FieldWrap>
+                  </SubSection>
+                </Section>
+
+                {/* ══════════════════════════════════════════════════════════
+                    SECTION: OPERATIONS
+                ══════════════════════════════════════════════════════════ */}
+                <Section
+                  title={<FormattedMessage id="INITIATIVE_DATA.SECTION.OPERATIONS" defaultMessage="Operations" />}
+                >
+                  <SubSection
+                    title={
+                      <FormattedMessage id="INITIATIVE_DATA.SUBSECTION.OPERATIONS" defaultMessage="Operations" />
+                    }
+                  >
+                    {/* Standard service Y/N (Flag / Dropdown) */}
+                    <FieldWrap>
+                      <Field
+                        name="standardService"
+                        component={Dropdown}
+                        options={yesNoOptions}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.STANDARD_SERVICE' })}
+                        hasError={hasError(errors, touched, 'standardService')}
+                      />
+                      <ErrorMessage name="standardService" component="div" />
+                    </FieldWrap>
+
+                    {/* Specific service description (Long text — was Text) */}
+                    <FieldWrap>
+                      <Field
+                        name="specificServiceDesc"
+                        component={Input}
+                        multiline
+                        rows={4}
+                        label={intl.formatMessage({ id: 'INITIATIVE_DATA.SPECIFIC_SERVICE_DESC' })}
+                        hasError={hasError(errors, touched, 'specificServiceDesc')}
+                      />
+                      <ErrorMessage name="specificServiceDesc" component="div" />
+                    </FieldWrap>
+                  </SubSection>
+                </Section>
+
+                {/* ── Error banner ── */}
+                {createError ? (
+                  <div style={{ marginBottom: 12 }}>
+                    <strong>
+                      <FormattedMessage id="FORM.SUBMIT_ERROR" defaultMessage="Submit error" />
+                    </strong>{' '}
+                    {typeof createError === 'string' ? createError : JSON.stringify(createError)}
+                  </div>
+                ) : null}
+
+                {/* ── Submit button ── */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 30px' }}>
+                  <Button type="submit" disabled={isSubmitting || createLoading} isLoading={isSubmitting || createLoading}>
+                    <FormattedMessage id="INITIATIVE_DATA.SAVE" defaultMessage="Save" />
+                  </Button>
+                </div>
+              </Form>
+            )}
+          </Formik>
+        </TabContainer>
+      </div>
+    </Style.Container>
+  );
+}
