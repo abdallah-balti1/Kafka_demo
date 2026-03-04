@@ -1,0 +1,107 @@
+// @flow
+import { modelizeTeam } from 'redux/entities/teams/modelize';
+
+export const modelizeMilestonesTargetDatesForApi = (
+  targetDates: ProjectTimelineValuesType,
+): ProjectTimelineValuesType => {
+  const formattedTargetDates = {};
+  Object.keys(targetDates).forEach(
+    milestoneId => (formattedTargetDates[milestoneId] = targetDates[milestoneId] || null),
+  );
+  return formattedTargetDates;
+};
+
+export const modelizeKeyQuestionsImpact = (
+  apiKeyQuestionsImpact: ApiKeyQuestionsImpactType,
+): KeyQuestionsImpactType => ({
+  addedTeams: apiKeyQuestionsImpact.added_teams.map(modelizeTeam),
+  removedTeams: apiKeyQuestionsImpact.removed_teams.map(modelizeTeam),
+});
+
+const pickValue = v => {
+  // dropdown react-select: {value,label}
+  if (v && typeof v === 'object' && 'value' in v) return v.value;
+  // si on a gardé une string directement
+  if (v === '') return null;
+  return v ?? null;
+};
+
+const pickBool = v => {
+  const raw = pickValue(v);
+  if (raw === true || raw === false) return raw;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return null; // ou false si ton API exige un bool non-null
+};
+
+export const modelizeInitiativeDataToApi = (values: any) => ({
+  ...values,
+  salesforce_id_opportunity: values.salesforceIdOpportunity,
+  client_description: values.clientDescription,
+  client_name: values.clientName,
+  client_type: pickValue(values.clientType) ?? '',
+  // FIX: existing_holdings is now a free-text field, not a boolean
+  existing_holdings: values.existingHoldings ?? null,
+  rfp: values.rfp,
+  implementation_date: values.implementationDate,
+  cosmos_id_data: pickValue(values.cosmosIdData) ?? '',
+  name_data: values.nameData,
+  lead_wallet_manager_name: pickValue(values.leadWalletManagerName) ?? '',
+  lead_wallet_manager_team: pickValue(values.leadWalletManagerTeam) ?? '',
+  shareclass_name: values.shareclassName,
+  // FIX: benchmark is now a free-text field, not a boolean
+  benchmark: values.benchmark ?? null,
+  instruments_details: values.instrumentsDetails,
+  investment_strategy_guidelines: values.investmentStrategyGuidelines,
+  // FIX: additional_licence_needed is now a free-text field, not a boolean
+  additional_licence_needed: values.additionalLicenceNeeded ?? null,
+  product_name_data: values.productNameData,
+  legal_form_data: pickValue(values.legalFormData) ?? '',
+  legal_structure: pickValue(values.legalStructure) ?? '',
+  regulatory_status: pickValue(values.regulatoryStatus) ?? '',
+  country_of_domiciliation: pickValue(values.countryOfDomiciliation) ?? '',
+  management_company_data: values.managementCompanyData,
+  investment_management: values.investmentManagement,
+  investment_management_delegated: values.investmentManagementDelegated,
+  standard_service: pickBool(values.standardService) ?? '',
+  specific_service_desc: values.specificServiceDesc,
+  aum_expected: values.aumExpected,
+  fees_desc: values.feesDesc,
+  comments_buisness: values.commentsBusiness,
+
+  // souvent requis côté backend pour rattacher à l'initiative
+  id_initiative: values.initiativeId,
+});
+
+export const modelizeInitiativeDataFromApi = (data = {}) => ({
+  salesforceIdOpportunity: data.salesforce_id_opportunity ?? '',
+  clientDescription: data.client_description ?? '',
+  clientName: data.client_name ?? '',
+  clientType: data.client_type ?? '',
+  existingHoldings: data.existing_holdings ?? '',
+  rfp: data.rfp ?? '',
+  implementationDate: data.implementation_date ?? '',
+  cosmosIdData: data.cosmos_id_data ?? '',
+  nameData: data.name_data ?? '',
+  leadWalletManagerName: data.lead_wallet_manager_name ?? '',
+  leadWalletManagerTeam: data.lead_wallet_manager_team ?? '',
+  shareclassName: data.shareclass_name ?? '',
+  benchmark: data.benchmark ?? false,
+  instrumentsDetails: data.instruments_details ?? '',
+  investmentStrategyGuidelines: data.investment_strategy_guidelines ?? '',
+  additionalLicenceNeeded: data.additional_licence_needed ?? false,
+  productNameData: data.product_name_data ?? '',
+  legalFormData: data.legal_form_data ?? '',
+  legalStructure: data.legal_structure ?? '',
+  regulatoryStatus: data.regulatory_status ?? '',
+  countryOfDomiciliation: data.country_of_domiciliation ?? '',
+  managementCompanyData: data.management_company_data ?? '',
+  investmentManagement: data.investment_management ?? '',
+  investmentManagementDelegated: data.investment_management_delegated ?? '',
+  standardService: data.standard_service ?? false,
+  specificServiceDesc: data.specific_service_desc ?? '',
+  aumExpected: data.aum_expected ?? '',
+  feesDesc: data.fees_desc ?? '',
+  commentsBusiness: data.comments_buisness ?? '',
+  idInitiative: data.id_initiative ?? '',
+});
