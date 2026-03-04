@@ -1,0 +1,198 @@
+// @flow
+//import { INITIATIVE_PIPELINE_SPONSOR_COUNTRY } from 'constants/initiativePipeline';
+
+// ─── Options (declared first so getInitialValuesFromInitiativeData can use them) ──
+
+export const yesNoOptions = [{ value: true, label: 'Yes' }, { value: false, label: 'No' }];
+
+export const legalFD = [
+  { value: 'Fund', label: 'Fund' },
+  { value: 'Mandate', label: 'Mandate' },
+  { value: 'Segregated', label: 'Segregated' },
+  { value: 'Advisory', label: 'Advisory' },
+  { value: 'Execution', label: 'Execution' },
+  { value: 'Other', label: 'Other' },
+];
+
+export const legalSFF = [
+  { value: 'FCP', label: 'FCP' },
+  { value: 'SICAV', label: 'SICAV' },
+  { value: 'OEIC', label: 'OEIC' },
+  { value: 'SpezialFond', label: 'SpezialFond' },
+  { value: 'Other', label: 'Other' },
+];
+
+export const regulatoryS = [
+  { value: 'UCITS', label: 'UCITS' },
+  { value: 'AIF', label: 'AIF' },
+  { value: 'Other', label: 'Other' },
+];
+
+export const navOptions = [
+  { value: 'Official NAV', label: 'Official NAV' },
+  { value: 'Shadow NAV', label: 'Shadow NAV' },
+];
+
+export const currencyOptions = [
+  { value: 'EUR', label: 'EUR' },
+  { value: 'USD', label: 'USD' },
+  { value: 'GBP', label: 'GBP' },
+];
+
+export const exampleForNow = [
+  { value: 'Example1', label: 'Example1' },
+  { value: 'Example2', label: 'Example2' },
+];
+
+export const clientTypeOptions = [
+  { value: 'BANK', label: 'Bank' },
+  { value: 'INSURANCE', label: 'Insurance' },
+  { value: 'ASSET MANAGER', label: 'Asset manager' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const navFrequencyOptions = [
+  { value: 'DAILY', label: 'Daily' },
+  { value: 'WEEKLY', label: 'Weekly' },
+  { value: 'MONTHLY', label: 'Monthly' },
+  { value: 'QUARTERLY', label: 'Quarterly' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const productTypeOption = [
+  { value: 'Subfund', label: 'Subfund' },
+  { value: 'Single', label: 'Single' },
+  { value: 'Mandate', label: 'Mandate' },
+  { value: 'Umbrella', label: 'Umbrella' },
+];
+
+const raw = [
+  'Financial Market Authority',
+  'Financial Services Agency',
+  'Australian Securities and Investment Commission',
+  'Capital Market Authority',
+  'Swedish Financial Supervisory Authority (Finansinspektionen)',
+  'Commission de Surveillance du Secteur Financier',
+  'Financial Services and Markets Authority',
+  'Danish FSA',
+  'Guernsey Financial Services Commission',
+  'Finnish Financial Supervision Authority',
+  'Financial Supervisory Authority of Norway',
+  'Securities and Exchange Board of India',
+  'Securities and Futures Commission',
+  'The Stock Market National Committee',
+  'Comisión Nacional del Mercado de Valores',
+  'Capital Markets Board',
+  'Monetary Authority of Singapore',
+  'Securities and Exchanges Commission',
+  'Comissão de Valores Imobiliários',
+  'Central Bank of the Russian Federation',
+  'Comisión Nacional Bancaria y de Valores',
+  'Commissione Nazionale per le Società e la Borsa',
+  'Financial Conduct Authority',
+  'Autorité fédérale de surveillance des marchés financiers',
+  'Hungarian Financial Supervisory Authority',
+  'Central Bank of Ireland',
+  'Commodity Futures Trading Regulatory Agency',
+  'British Columbia Securities Commission',
+  'Autorité des marchés financiers',
+  'Commission de Contrôle des Activités Financières',
+  'Bundesbank and German Federal Financial Supervisory Authority',
+  'Comisión Nacional de Seguros y Fianzas',
+  'Dubai Financial Service Authority',
+  'Central Bank of Bahrain',
+  'Autoriteit Financiële Markten',
+  'Israel Securities Authority',
+  'Financial Services Commission',
+  'Cayman Islands Monetary Authority',
+  'Capital Markets Board of Turkey',
+  'Asset Management Association of China',
+  'Commission de Surveillance du Secteur Financier',
+  'Irish Financial Services Regulatory Authority',
+  'Financial Conduct Authority',
+  'Comisión Nacional del Mercado de Valores',
+  'Financial Services and Markets Authority',
+  'Autorité des marchés financiers',
+  'Autoriteit Financiële Markten',
+  'Cayman Islands Monetary Authority',
+  'Securities and Exchange Board of India',
+  'Oberaufsichtskommission Berufliche Vorsorge OAK BV',
+  'CMVM - Comissao do Mercado de Valores Mobiliarios',
+  'Bermuda Monetary Authority',
+  'China Banking Regulatory Commission',
+  '*Rahoitustarkastus',
+  'Jersey Financial Services Commission',
+  'Commission Bancaire et Financière et des Assurances',
+];
+
+export const regulatoryAuthorityOptions = raw.map(v => ({ value: v, label: v }));
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const asOption = (options, raw) => {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const rawStr = String(raw);
+  return options?.find(o => String(o.value) === rawStr) || null;
+};
+
+const asYesNoOption = (yesNoOpts, rawBool) => {
+  if (rawBool === true)
+    return yesNoOpts.find(o => o.value === true) || { value: true, label: 'Yes' };
+  if (rawBool === false)
+    return yesNoOpts.find(o => o.value === false) || { value: false, label: 'No' };
+  return null;
+};
+
+// ─── getInitialValuesFromInitiativeData ───────────────────────────────────────
+// Maps modelizeInitiativeDataFromApi output → Formik field names used in InitiativeDataCard
+
+export const getInitialValuesFromInitiativeData = initiativeData => ({
+  // ── CLIENT ──────────────────────────────────────────────────────────────────
+  salesforceIdOpportunity: initiativeData?.salesforceIdOpportunity || '',
+  clientDescription:       initiativeData?.clientDescription || '',
+  clientName:              initiativeData?.clientName || '',
+  clientType:              initiativeData?.clientType || '',
+  existingHoldings:        initiativeData?.existingHoldings || '',
+  rfp:                     initiativeData?.rfp || '',
+
+  // ── PRODUCT / Description ───────────────────────────────────────────────────
+  productNameData:    initiativeData?.productNameData || '',
+  implementationDate: initiativeData?.implementationDate || '',
+  cosmosIdData:       initiativeData?.cosmosIdData || '',
+  nameData:           initiativeData?.nameData || '',
+
+  // ── PRODUCT / Management team ───────────────────────────────────────────────
+  leadWalletManagerName: initiativeData?.leadWalletManagerName || '',
+  leadWalletManagerTeam: initiativeData?.leadWalletManagerTeam || '',
+
+  // ── PRODUCT / Structure ─────────────────────────────────────────────────────
+  // Field names must match exactly the SmartField name= in InitiativeDataCard.js
+  legalForm:                      asOption([...legalFD, ...legalSFF], initiativeData?.legalFormData) || '',
+  managementCompany:              initiativeData?.managementCompanyData || '',
+  legalStructureForFunds:         initiativeData?.legalStructure || '',
+  investmentManagementDelegation: initiativeData?.investmentManagementDelegated || '',
+  shareclassOffer:                initiativeData?.shareclassName || '',
+  regulatoryStatus:               asOption(regulatoryS, initiativeData?.regulatoryStatus) || '',
+  countryOfDomiciliation:         initiativeData?.countryOfDomiciliation || '',
+  additionalLicenceNeeded:        initiativeData?.additionalLicenceNeeded || '',
+  investmentStrategyGuidelines:   initiativeData?.investmentStrategyGuidelines || '',
+  feesDesc:                       initiativeData?.feesDesc || '',
+  investmentManagement:           initiativeData?.investmentManagement || '',
+
+  // ── PRODUCT / Benchmark ─────────────────────────────────────────────────────
+  benchmark: initiativeData?.benchmark || '',
+
+  // ── PRODUCT / Portfolio composition ─────────────────────────────────────────
+  instrumentsDetails: initiativeData?.instrumentsDetails || '',
+
+  // ── OPERATIONS ──────────────────────────────────────────────────────────────
+  standardService:     asYesNoOption(yesNoOptions, initiativeData?.standardService) ?? '',
+  specificServiceDesc: initiativeData?.specificServiceDesc || '',
+
+  // ── BUSINESS CASE ───────────────────────────────────────────────────────────
+  aumExpected:      initiativeData?.aumExpected || '',
+  commentsBusiness: initiativeData?.commentsBusiness || '',
+
+  // ── ID (required for patch) ─────────────────────────────────────────────────
+  idInitiative: initiativeData?.idInitiative || '',
+});
