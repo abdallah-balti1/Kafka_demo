@@ -1,0 +1,128 @@
+import { takeLatest, call, put } from 'redux-saga/effects';
+import authenticatedCall from 'redux/utils/authenticatedCall';
+import { handleAPIExceptions } from 'utils/api';
+import { createInitiativeDataApi, getInitiativesData, patchInitiativesData } from './api';
+
+import {
+  createInitiativeDataSuccess,
+  createInitiativeDataFailure,
+  getInitiativeDataSuccess,
+  getInitiativeDataNotFound,
+  getInitiativeDataFailure,
+  patchInitiativeDataSuccess,
+  patchInitiativeDataFailure,
+  getInitiativeData,
+} from './actions';
+import { modelizeInitiativeDataToApi, modelizeInitiativeDataFromApi } from './modelize';
+import {
+  CREATE_INITIATIVE_DATA_REQUEST,
+  GET_INITIATIVE_DATA_REQUEST,
+  PATCH_INITIATIVE_DATA_REQUEST,
+} from './constants';
+
+export function* createInitiativeDataSaga(action) {
+  try {
+    const { newInitiative, token } = action.payload;
+    const created = yield call(createInitiativeDataApi, newInitiative, token);
+    yield put(createInitiativeDataSuccess(created));
+  } catch (e) {
+    const errPayload = e?.response?.data || { message: e.message || 'Create failed' };
+    yield put(createInitiativeDataFailure(errPayload));
+  }
+}
+
+export function* getInitiativeDataSaga(action): Saga<> {
+  try {
+    const initiativeId = action.payload?.initiativeId;
+
+    const response = yield authenticatedCall(getInitiativesData, initiativeId);
+
+    const initiative = modelizeInitiativeDataFromApi(response.data);
+
+    yield put(getInitiativeDataSuccess(initiative));
+  } catch (error) {
+    const status = error?.response?.status;
+
+    if (status === 404) {
+      yield put(getInitiativeDataNotFound());
+      return;
+    }
+    yield call(handleAPIExceptions, error);
+    yield put(getInitiativeDataFailure(error));
+  }
+}
+
+export function* patchInitiativeDataSaga(action: any): any {
+  try {
+    const initiativeId = action.payload?.initiativeId;
+    const rawValues = action.payload?.values ?? {};
+
+    // Build a clean object with only the field names modelizeInitiativeDataToApi expects
+    // Do NOT spread rawValues — it contains Formik camelCase fields that pollute the payload
+    const values = {
+      // IDs
+      initiativeId:                  rawValues.idInitiative || initiativeId,
+
+      // CLIENT
+      salesforceIdOpportunity:       rawValues.salesforceIdOpportunity ?? null,
+      clientDescription:             rawValues.clientDescription ?? null,
+      clientName:                    rawValues.clientName ?? null,
+      clientType:                    rawValues.clientType ?? null,
+      existingHoldings:              rawValues.existingHoldings ?? null,
+      rfp:                           rawValues.rfp ?? null,
+
+      // PRODUCT / Description
+      productNameData:               rawValues.productNameData ?? null,
+      nameData:                      rawValues.nameData ?? null,
+      implementationDate:            rawValues.implementationDate ?? null,
+      cosmosIdData:                  rawValues.cosmosIdData?.value ?? rawValues.cosmosIdData ?? null,
+
+      // PRODUCT / Management team
+      leadWalletManagerName:         rawValues.leadWalletManagerName ?? null,
+      leadWalletManagerTeam:         rawValues.leadWalletManagerTeam ?? null,
+
+      // PRODUCT / Structure — map InitiativeDataCard Formik names → modelize names
+      legalFormData:                 rawValues.legalForm?.value ?? rawValues.legalForm ?? null,
+      managementCompanyData:         rawValues.managementCompany?.value ?? rawValues.managementCompany ?? null,
+      legalStructure:                rawValues.legalStructureForFunds?.value ?? rawValues.legalStructureForFunds ?? null,
+      investmentManagementDelegated: rawValues.investmentManagementDelegation?.value ?? rawValues.investmentManagementDelegation ?? null,
+      investmentManagement:          rawValues.investmentManagement ?? null,
+      shareclassName:                rawValues.shareclassOffer?.value ?? rawValues.shareclassOffer ?? null,
+      regulatoryStatus:              rawValues.regulatoryStatus?.value ?? rawValues.regulatoryStatus ?? null,
+      countryOfDomiciliation:        rawValues.countryOfDomiciliation?.value ?? rawValues.countryOfDomiciliation ?? null,
+      additionalLicenceNeeded:       rawValues.additionalLicenceNeeded ?? null,
+      investmentStrategyGuidelines:  rawValues.investmentStrategyGuidelines ?? null,
+      feesDesc:                      rawValues.feesDesc ?? null,
+
+      // PRODUCT / Benchmark
+      benchmark:                     rawValues.benchmark ?? null,
+
+      // PRODUCT / Portfolio composition
+      instrumentsDetails:            rawValues.instrumentsDetails ?? null,
+
+      // OPERATIONS
+      standardService:               rawValues.standardService?.value ?? rawValues.standardService ?? null,
+      specificServiceDesc:           rawValues.specificServiceDesc ?? null,
+
+      // BUSINESS CASE
+      aumExpected:                   rawValues.aumExpected ?? null,
+      commentsBusiness:              rawValues.commentsBusiness ?? null,
+    };
+
+    const payload = modelizeInitiativeDataToApi({ ...values, initiativeId });
+    const response = yield authenticatedCall(patchInitiativesData, initiativeId, payload);
+    const initiative = modelizeInitiativeDataFromApi(response.data);
+    yield put(patchInitiativeDataSuccess(initiative));
+    // Refetch fresh data after successful patch so the card updates automatically
+    yield put(getInitiativeData(initiativeId));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(patchInitiativeDataFailure(error));
+  }
+}
+
+export default function* sagas() {
+  yield takeLatest(CREATE_INITIATIVE_DATA_REQUEST, createInitiativeDataSaga);
+  yield takeLatest(GET_INITIATIVE_DATA_REQUEST, getInitiativeDataSaga);
+  yield takeLatest(PATCH_INITIATIVE_DATA_REQUEST, patchInitiativeDataSaga);
+}
