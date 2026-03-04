@@ -1,0 +1,45 @@
+// @flow
+import { connect } from 'react-redux';
+import { injectIntl } from 'react-intl';
+import { compose } from 'redux';
+import { withRouter } from 'react-router';
+import { fetchProducts } from 'redux/entities/products/actions';
+
+import {
+  createInitiativeDataRequest,
+  getInitiativeDataRequest,
+} from 'redux/pages/InitiativePipelineCardTab/actions';
+import {
+  selectCreateLoading,
+  selectCreateError,
+  selectLastCreated,
+} from 'redux/pages/InitiativePipelineCardTab/selectors';
+import { selectAllProducts } from 'redux/entities/products/selectors';
+import InitiativeDataForm from './InitiativeDataForm';
+
+const selectToken = state =>
+  state?.auth?.token || state?.user?.token || state?.session?.token || state?.login?.token || null;
+
+const mapStateToProps = state => ({
+  token: selectToken(state),
+  createLoading: selectCreateLoading(state),
+  createError: selectCreateError(state),
+  lastCreated: selectLastCreated(state),
+  products: selectAllProducts(state),
+});
+
+const mapDispatchToProps = dispatch => ({
+  createInitiativeDataRequest: payload => dispatch(createInitiativeDataRequest(payload)),
+  // ← This triggers a re-fetch of InitiativeDataCard after form submit
+  getInitiativeData: (initiativeId: string) => dispatch(getInitiativeDataRequest(initiativeId)),
+  fetchProducts: () => dispatch(fetchProducts()),
+});
+
+export default compose(
+  injectIntl,
+  withRouter,
+  connect(
+    mapStateToProps,
+    mapDispatchToProps,
+  ),
+)(InitiativeDataForm);
