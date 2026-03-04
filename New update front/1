@@ -1,0 +1,106 @@
+// @flow
+import styled from 'styled-components';
+
+import DatePickerFormik from 'components/Form/DatePickerFormik';
+import DropdownComponent from 'components/Form/Dropdown';
+import FieldErrorMessage from 'components/Form/FieldErrorMessage';
+import InputComponent from 'components/Form/Input';
+import { BNPColors, Column, Grid, Row, typography } from 'styles';
+
+export default {
+  // ── Page wrapper ────────────────────────────────────────────────────────────
+  Container: styled.div`
+    background-color: white;
+    padding: ${Grid(5)};
+    width: 100%;
+  `,
+
+  // ── Top header bar (success banner, etc.) ───────────────────────────────────
+  HeaderContainer: styled.h3`
+    ${typography.h3}
+    margin-bottom: ${Grid(2)};
+    display: flex;
+    justify-content: space-between;
+  `,
+
+  // ── Section title (h2 with bottom border) ───────────────────────────────────
+  SectionTitle: styled.h2`
+    ${typography.h2};
+    margin-top: ${Grid(5)};
+    margin-bottom: ${Grid(3)};
+    font-size: ${Grid(9)};
+    padding-bottom: ${Grid(1)};
+    border-bottom: 1px solid ${BNPColors.grey[200]};
+  `,
+
+  // ── SubSection card ──────────────────────────────────────────────────────────
+  SubSectionCard: styled.div`
+    padding: ${Grid(3)} ${Grid(4)};
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: ${Grid(2.5)};
+    margin-bottom: ${Grid(3)};
+  `,
+
+  SubSectionTitle: styled.div`
+    margin-bottom: ${Grid(2.5)};
+    font-size: ${Grid(3.5)};
+    font-weight: 600;
+    opacity: 0.85;
+  `,
+
+  // ── Two-column field grid inside a SubSection ────────────────────────────────
+  FieldGrid: styled.div`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: ${Grid(5.5)};
+    row-gap: ${Grid(4)};
+    align-items: start;
+  `,
+
+  // ── Individual field wrapper ─────────────────────────────────────────────────
+  FieldWrap: styled.div`
+    min-width: 0;
+  `,
+
+  // ── Success / error banners ──────────────────────────────────────────────────
+  SuccessBanner: styled.div`
+    margin-bottom: ${Grid(3)};
+    padding: ${Grid(2.5)};
+    border-radius: ${Grid(1.5)};
+    background-color: ${BNPColors.grey[100]};
+    color: ${BNPColors.warmGrey};
+    font-weight: 600;
+  `,
+
+  ErrorBanner: styled.div`
+    margin-bottom: ${Grid(3)};
+    padding: ${Grid(2.5)};
+    border-radius: ${Grid(1.5)};
+    color: ${BNPColors.warmGrey};
+  `,
+
+  // ── Submit button row ────────────────────────────────────────────────────────
+  FooterRow: styled(Row)`
+    margin-right: ${Grid(7.5)};
+    justify-content: flex-end;
+    gap: ${Grid(3)};
+  `,
+
+  // ── Form components (width: 100% as in common.style) ────────────────────────
+  Dropdown: styled(DropdownComponent)`
+    width: 100%;
+  `,
+
+  DatePicker: styled(DatePickerFormik)`
+    flex: 1;
+    width: 50;
+  `,
+
+  Input: styled(InputComponent)`
+    width: 100%;
+  `,
+
+  FieldErrorMessage: styled(FieldErrorMessage)`
+    margin-top: ${Grid(1)};
+  `,
+};
