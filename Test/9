@@ -1,0 +1,143 @@
+import uuid
+
+from db import db
+from models import Initiative, InitiativeData
+
+
+def init_database():
+    # reset the database before each test class
+    try:
+        delete_all_data()
+    except Exception:
+        db.create_all()
+
+
+def delete_all_data():
+    # truncate all tables in the right order
+    reset_table(InitiativeData)
+    reset_table(Initiative)
+    db.session.commit()
+
+
+def reset_table(model):
+    # truncate if it's a mapped model, otherwise delete
+    from sqlalchemy.sql.expression import text, delete as sql_delete
+
+    if hasattr(model, "__table__"):
+        tablename = model.__tablename__
+        db.session.execute(
+            text(f"TRUNCATE TABLE {tablename} RESTART IDENTITY CASCADE")
+        )
+    else:
+        db.session.execute(sql_delete(model))
+
+
+def insert_initiative(
+    name="Test Initiative",
+    summary="A test summary",
+    product_type="EQUITY",
+    initiative_type="INTERNAL",
+    sponsor="Sponsor SA",
+    sponsor_country="FR",
+    asset_class="EQUITY",
+    management_company="Flowr",
+    committee_date=None,
+    distribution_channel="DIRECT",
+    governance_required="NO",
+    legal_form="FCP",
+    initiative_owner="owner@flowr.com",
+    cosmos_id=42,
+):
+    # insert an initiative with default values, override as needed
+    initiative = Initiative(
+        name=name,
+        summary=summary,
+        product_type=product_type,
+        initiative_type=initiative_type,
+        sponsor=sponsor,
+        sponsor_country=sponsor_country,
+        asset_class=asset_class,
+        management_company=management_company,
+        committee_date=committee_date,
+        distribution_channel=distribution_channel,
+        governance_required=governance_required,
+        legal_form=legal_form,
+        initiative_owner=initiative_owner,
+        cosmos_id=cosmos_id,
+    )
+    db.session.add(initiative)
+    db.session.commit()
+    db.session.refresh(initiative)
+    return initiative
+
+
+def insert_initiative_data(
+    id_initiative=None,
+    salesforce_id_opportunity="SF-001",
+    client_description="A description",
+    client_name="Test Client",
+    client_type="INSTITUTIONAL",
+    existing_holdings=False,
+    rfp=False,
+    implementation_date=None,
+    cosmos_id_data="COS-001",
+    name_data="Data Name",
+    lead_wallet_manager_name="Manager A",
+    lead_wallet_manager_team="Team A",
+    shareclass_name="Share A",
+    benchmark="BM-001",
+    instruments_details=None,
+    investment_strategy_guidelines=None,
+    additional_licence_needed=False,
+    product_name_data=None,
+    legal_form_data=None,
+    legal_structure=None,
+    regulatory_status=None,
+    country_of_domiciliation=None,
+    management_company_data=None,
+    investment_management=None,
+    investment_management_delegated=None,
+    standard_service=True,
+    specific_service_desc=None,
+    aum_expected="100M",
+    fees_desc="0.5%",
+    comments_buisness=None,
+):
+    # insert initiative data with default values, override as needed
+    initiative_data = InitiativeData(
+        id=str(uuid.uuid4()),
+        id_initiative=id_initiative,
+        salesforce_id_opportunity=salesforce_id_opportunity,
+        client_description=client_description,
+        client_name=client_name,
+        client_type=client_type,
+        existing_holdings=existing_holdings,
+        rfp=rfp,
+        implementation_date=implementation_date,
+        cosmos_id_data=cosmos_id_data,
+        name_data=name_data,
+        lead_wallet_manager_name=lead_wallet_manager_name,
+        lead_wallet_manager_team=lead_wallet_manager_team,
+        shareclass_name=shareclass_name,
+        benchmark=benchmark,
+        instruments_details=instruments_details,
+        investment_strategy_guidelines=investment_strategy_guidelines,
+        additional_licence_needed=additional_licence_needed,
+        product_name_data=product_name_data,
+        legal_form_data=legal_form_data,
+        legal_structure=legal_structure,
+        regulatory_status=regulatory_status,
+        country_of_domiciliation=country_of_domiciliation,
+        management_company_data=management_company_data,
+        investment_management=investment_management,
+        investment_management_delegated=investment_management_delegated,
+        standard_service=standard_service,
+        specific_service_desc=specific_service_desc,
+        aum_expected=aum_expected,
+        fees_desc=fees_desc,
+        comments_buisness=comments_buisness,
+    )
+    db.session.add(initiative_data)
+    db.session.commit()
+    db.session.refresh(initiative_data)
+    return initiative_data
