@@ -1,0 +1,71 @@
+"""
+test/helpers.py
+Helpers partagés pour tous les tests du projet FLOWR-INITIATIVE-PIPELINE.
+"""
+
+from db import db
+from models import Initiative
+
+
+def init_database():
+    try:
+        delete_all_data()
+    except Exception:
+        db.create_all()
+
+
+def delete_all_data():
+    reset_table(Initiative)
+    db.session.commit()
+
+
+def reset_table(model):
+    from sqlalchemy.sql.expression import text, delete as sql_delete
+    if hasattr(model, "__table__"):
+        tablename = model.__tablename__
+        db.session.execute(
+            text(f"TRUNCATE TABLE {tablename} RESTART IDENTITY CASCADE")
+        )
+    else:
+        db.session.execute(sql_delete(model))
+
+
+def insert_initiative(
+    name="Test Initiative",
+    summary="A test summary",
+    product_type="EQUITY",
+    initiative_type="INTERNAL",
+    sponsor="Sponsor SA",
+    sponsor_country="FR",
+    asset_class="EQUITY",
+    management_company="Flowr",
+    committee_date=None,
+    distribution_channel="DIRECT",
+    governance_required="NO",
+    legal_form="FCP",
+    initiative_owner="owner@flowr.com",
+    cosmos_id=42,
+):
+    """
+    Crée une Initiative avec tous les arguments positionnels requis par __init__.
+    """
+    initiative = Initiative(
+        name=name,
+        summary=summary,
+        product_type=product_type,
+        initiative_type=initiative_type,
+        sponsor=sponsor,
+        sponsor_country=sponsor_country,
+        asset_class=asset_class,
+        management_company=management_company,
+        committee_date=committee_date,
+        distribution_channel=distribution_channel,
+        governance_required=governance_required,
+        legal_form=legal_form,
+        initiative_owner=initiative_owner,
+        cosmos_id=cosmos_id,
+    )
+    db.session.add(initiative)
+    db.session.commit()
+    db.session.refresh(initiative)
+    return initiative
