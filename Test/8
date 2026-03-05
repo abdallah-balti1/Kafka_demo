@@ -1,0 +1,376 @@
+import json
+import unittest
+from unittest.mock import patch, MagicMock
+
+from config import APPLICATION_ROOT
+from helpers import init_database, insert_initiative, insert_initiative_data
+from server import server
+
+BASE_URL = f"{APPLICATION_ROOT}/initiatives-data"
+BASE_URL_BY_ID = f"{APPLICATION_ROOT}/initiatives"
+
+PATCH_ME = "util.required_plm_authentication._me"
+PATCH_PARSE = "decorators.parse_params"
+PATCH_CM_ENTER = (
+    "utils.src.context_managers.session_critical_action_manager"
+    ".SessionCriticalActionManager.__enter__"
+)
+PATCH_CM_EXIT = (
+    "utils.src.context_managers.session_critical_action_manager"
+    ".SessionCriticalActionManager.__exit__"
+)
+
+
+def json_headers():
+    return {"Content-Type": "application/json"}
+
+
+def auth_header():
+    return {"Authorization": "Bearer test-token"}
+
+
+def make_fake_me_response():
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "uid": "owner@flowr.com",
+        "roles": [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "INITIATIVE_OBSERVER",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_ASSESSOR",
+            "ADMIN",
+        ],
+    }
+    return fake_response
+
+
+class TestGetInitiativeData(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = BASE_URL
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Fund A")
+        cls.data_1 = insert_initiative_data(
+            id_initiative=cls.initiative.id,
+            client_name="Client Alpha",
+        )
+        cls.data_2 = insert_initiative_data(
+            id_initiative=cls.initiative.id,
+            client_name="Client Beta",
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+
+    def _get_list(self):
+        response = self.client.get(self.url, headers=auth_header())
+        return response, json.loads(response.data)
+
+    def test_get_initiative_data_returns_200(self):
+        # check that the endpoint is reachable
+        response, _ = self._get_list()
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_initiative_data_returns_list(self):
+        # check that the response is a list
+        _, data = self._get_list()
+        self.assertIsInstance(data, list)
+
+    def test_get_initiative_data_returns_seeded_count(self):
+        # check that all seeded initiative data are returned
+        _, data = self._get_list()
+        self.assertEqual(len(data), 2)
+
+    def test_get_initiative_data_contains_expected_fields(self):
+        # check that each item has the required fields
+        _, data = self._get_list()
+        first = data[0]
+        for field in [
+            "id", "id_initiative", "client_name", "client_type",
+            "salesforce_id_opportunity", "aum_expected", "fees_desc",
+        ]:
+            self.assertIn(field, first)
+
+    def test_get_initiative_data_client_alpha_present(self):
+        # check that Client Alpha is in the response
+        _, data = self._get_list()
+        self.assertIn("Client Alpha", [d["client_name"] for d in data])
+
+    def test_get_initiative_data_client_beta_present(self):
+        # check that Client Beta is in the response
+        _, data = self._get_list()
+        self.assertIn("Client Beta", [d["client_name"] for d in data])
+
+
+class TestGetInitiativeDataById(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Fund B")
+        cls.initiative_data = insert_initiative_data(
+            id_initiative=cls.initiative.id,
+            client_name="Targeted Client",
+            aum_expected="500M",
+        )
+        cls.url = f"{BASE_URL_BY_ID}/{cls.initiative.id}/data"
+        cls.unknown_url = f"{BASE_URL_BY_ID}/UNKNOWN-999/data"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+
+    def test_get_by_initiative_id_returns_200(self):
+        # check that fetching data by initiative id returns 200
+        response = self.client.get(self.url, headers=auth_header())
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_by_initiative_id_correct_client_name(self):
+        # check that the returned data has the correct client name
+        response = self.client.get(self.url, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertEqual(data["client_name"], "Targeted Client")
+
+    def test_get_by_initiative_id_correct_aum(self):
+        # check that aum_expected is correctly returned
+        response = self.client.get(self.url, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertEqual(data["aum_expected"], "500M")
+
+    def test_get_by_initiative_id_unknown_returns_404(self):
+        # check that a non-existent initiative id returns 404
+        response = self.client.get(self.unknown_url, headers=auth_header())
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_by_initiative_id_contains_id_initiative(self):
+        # check that id_initiative in response matches the requested one
+        response = self.client.get(self.url, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertEqual(data["id_initiative"], self.__class__.initiative.id)
+
+
+class TestPostInitiativeData(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = BASE_URL
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        cls.patcher_cm_enter = patch(PATCH_CM_ENTER, return_value=None)
+        cls.patcher_cm_enter.start()
+
+        cls.patcher_cm_exit = patch(PATCH_CM_EXIT, return_value=False)
+        cls.patcher_cm_exit.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Fund C")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+        cls.patcher_cm_enter.stop()
+        cls.patcher_cm_exit.stop()
+
+    def _valid_payload(self, **overrides):
+        base = {
+            "id_initiative": self.__class__.initiative.id,
+            "salesforce_id_opportunity": "SF-001",
+            "client_description": "A description",
+            "client_name": "New Client",
+            "client_type": "INSTITUTIONAL",
+            "existing_holdings": False,
+            "rfp": False,
+            "implementation_date": "2024-06-01",
+            "cosmos_id_data": "COS-001",
+            "name_data": "Data Name",
+            "lead_wallet_manager_name": "Manager A",
+            "lead_wallet_manager_team": "Team A",
+            "shareclass_name": "Share A",
+            "benchmark": "BM-001",
+            "instruments_details": "Details",
+            "investment_strategy_guidelines": "Guidelines",
+            "additional_licence_needed": False,
+            "product_name_data": "Product A",
+            "legal_form_data": "FCP",
+            "legal_structure": "SICAV",
+            "regulatory_status": "UCITS",
+            "country_of_domiciliation": "LU",
+            "management_company_data": "Flowr",
+            "investment_management": "IM Corp",
+            "investment_management_delegated": "IMD Corp",
+            "standard_service": True,
+            "specific_service_desc": "Specific desc",
+            "aum_expected": "100M",
+            "fees_desc": "0.5%",
+            "comments_buisness": "No comments",
+        }
+        base.update(overrides)
+        return base
+
+    def _post(self, payload):
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            headers={**json_headers(), **auth_header()},
+        )
+        return response, json.loads(response.data)
+
+    def test_post_returns_200(self):
+        # check that creating initiative data returns 200
+        response, _ = self._post(self._valid_payload())
+        self.assertEqual(response.status_code, 200)
+
+    def test_post_returns_created_client_name(self):
+        # check that the created data has the correct client name
+        _, data = self._post(self._valid_payload(client_name="Created Client"))
+        self.assertEqual(data[0]["client_name"], "Created Client")
+
+    def test_post_returns_list_of_one(self):
+        # check that the response wraps the new data in a list
+        _, data = self._post(self._valid_payload())
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+
+    def test_post_id_is_uuid(self):
+        # check that the auto-generated id is a valid uuid string
+        import uuid
+        _, data = self._post(self._valid_payload())
+        self.assertIn("id", data[0])
+        try:
+            uuid.UUID(data[0]["id"])
+        except ValueError:
+            self.fail(f"id is not a valid UUID: {data[0]['id']}")
+
+    def test_post_id_initiative_in_response(self):
+        # check that id_initiative is correctly saved and returned
+        initiative_id = self.__class__.initiative.id
+        _, data = self._post(self._valid_payload())
+        self.assertEqual(data[0]["id_initiative"], initiative_id)
+
+    def test_post_implementation_date_parsed(self):
+        # check that a valid implementation_date is accepted and returned
+        _, data = self._post(self._valid_payload(implementation_date="2024-06-01"))
+        self.assertIn("implementation_date", data[0])
+
+    def test_post_aum_expected_in_response(self):
+        # check that aum_expected is correctly saved and returned
+        _, data = self._post(self._valid_payload(aum_expected="250M"))
+        self.assertEqual(data[0]["aum_expected"], "250M")
+
+
+class TestPatchInitiativeDataById(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        cls.patcher_cm_enter = patch(PATCH_CM_ENTER, return_value=None)
+        cls.patcher_cm_enter.start()
+
+        cls.patcher_cm_exit = patch(PATCH_CM_EXIT, return_value=False)
+        cls.patcher_cm_exit.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Fund D")
+        cls.initiative_data = insert_initiative_data(
+            id_initiative=cls.initiative.id,
+            client_name="Original Client",
+            fees_desc="0.5%",
+        )
+        cls.url = f"{BASE_URL_BY_ID}/{cls.initiative.id}/data"
+        cls.unknown_url = f"{BASE_URL_BY_ID}/UNKNOWN-999/data"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+        cls.patcher_cm_enter.stop()
+        cls.patcher_cm_exit.stop()
+
+    def _patch(self, url, payload):
+        response = self.client.patch(
+            url,
+            data=json.dumps(payload),
+            headers={**json_headers(), **auth_header()},
+        )
+        return response, json.loads(response.data)
+
+    def test_patch_returns_200(self):
+        # check that patching initiative data returns 200
+        response, _ = self._patch(self.url, {"client_name": "Updated Client"})
+        self.assertEqual(response.status_code, 200)
+
+    def test_patch_updates_client_name(self):
+        # check that client_name is correctly updated
+        _, data = self._patch(self.url, {"client_name": "Patched Client"})
+        self.assertEqual(data[0]["client_name"], "Patched Client")
+
+    def test_patch_updates_fees_desc(self):
+        # check that fees_desc is correctly updated
+        _, data = self._patch(self.url, {"fees_desc": "0.75%"})
+        self.assertEqual(data[0]["fees_desc"], "0.75%")
+
+    def test_patch_id_not_updatable(self):
+        # check that the id field cannot be modified
+        original_id = self.__class__.initiative_data.id
+        _, data = self._patch(self.url, {"id": "FORCED-ID"})
+        self.assertEqual(data[0]["id"], original_id)
+
+    def test_patch_unknown_initiative_id_returns_404(self):
+        # check that patching with a non-existent initiative id returns 404
+        response, _ = self._patch(self.unknown_url, {"client_name": "Ghost"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_patch_empty_string_normalized_to_none(self):
+        # check that _empty_to_none converts empty strings to None
+        _, data = self._patch(self.url, {"comments_buisness": ""})
+        self.assertIsNone(data[0]["comments_buisness"])
+
+    def test_patch_none_value_on_existing_field(self):
+        # check that passing None does not raise an error
+        response, _ = self._patch(self.url, {"benchmark": None})
+        self.assertEqual(response.status_code, 200)
+
+    def test_patch_implementation_date_accepted(self):
+        # check that a valid ISO date string is accepted by the patch
+        response, _ = self._patch(self.url, {"implementation_date": "2025-01-01"})
+        self.assertEqual(response.status_code, 200)
+
+
+if __name__ == "__main__":
+    unittest.main()
