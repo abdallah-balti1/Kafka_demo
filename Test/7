@@ -1,0 +1,385 @@
+import json
+import unittest
+from unittest.mock import patch, MagicMock
+
+from config import APPLICATION_ROOT
+from helpers import init_database, insert_initiative
+from server import server
+
+BASE_URL = f"{APPLICATION_ROOT}/initiatives"
+
+
+def json_headers():
+    return {"Content-Type": "application/json"}
+
+
+def auth_header():
+    return {"Authorization": "Bearer test-token"}
+
+
+def make_fake_me_response():
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "uid": "owner@flowr.com",
+        "roles": [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "INITIATIVE_OBSERVER",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_ASSESSOR",
+            "ADMIN",
+        ],
+    }
+    return fake_response
+
+
+PATCH_ME = "util.required_plm_authentication._me"
+PATCH_PARSE = "decorators.parse_params"
+PATCH_CM_ENTER = (
+    "utils.src.context_managers.session_critical_action_manager"
+    ".SessionCriticalActionManager.__enter__"
+)
+PATCH_CM_EXIT = (
+    "utils.src.context_managers.session_critical_action_manager"
+    ".SessionCriticalActionManager.__exit__"
+)
+
+
+class TestGetInitiatives(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = BASE_URL
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        init_database()
+        cls.initiative_1 = insert_initiative(name="Alpha Fund")
+        cls.initiative_2 = insert_initiative(name="Beta Fund", sponsor_country="LU")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+
+    def _get_list(self):
+        response = self.client.get(self.url, headers=auth_header())
+        return response, json.loads(response.data)
+
+    def test_get_initiatives_returns_200(self):
+        # check that the endpoint is reachable
+        response, _ = self._get_list()
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_initiatives_returns_list(self):
+        # check that the response is a list
+        _, data = self._get_list()
+        self.assertIsInstance(data, list)
+
+    def test_get_initiatives_returns_seeded_count(self):
+        # check that all seeded initiatives are returned
+        _, data = self._get_list()
+        self.assertEqual(len(data), 2)
+
+    def test_get_initiatives_contains_expected_fields(self):
+        # check that each initiative has the required fields
+        _, data = self._get_list()
+        first = data[0]
+        for field in [
+            "id", "name", "summary", "sponsor", "sponsor_country",
+            "asset_class", "distribution_channel", "legal_form",
+            "initiative_owner", "cosmos_id",
+        ]:
+            self.assertIn(field, first)
+
+    def test_get_initiatives_name_alpha_present(self):
+        # check that Alpha Fund is in the response
+        _, data = self._get_list()
+        self.assertIn("Alpha Fund", [i["name"] for i in data])
+
+    def test_get_initiatives_name_beta_present(self):
+        # check that Beta Fund is in the response
+        _, data = self._get_list()
+        self.assertIn("Beta Fund", [i["name"] for i in data])
+
+
+class TestPostInitiative(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+        cls.url = BASE_URL
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        cls.patcher_cm_enter = patch(PATCH_CM_ENTER, return_value=None)
+        cls.patcher_cm_enter.start()
+
+        cls.patcher_cm_exit = patch(PATCH_CM_EXIT, return_value=False)
+        cls.patcher_cm_exit.start()
+
+        init_database()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+        cls.patcher_cm_enter.stop()
+        cls.patcher_cm_exit.stop()
+
+    def _valid_payload(self, **overrides):
+        base = {
+            "name": "New Initiative",
+            "summary": "A summary",
+            "product_type": "EQUITY",
+            "initiative_type": "INTERNAL",
+            "sponsor": "Sponsor SA",
+            "sponsor_country": "FR",
+            "asset_class": "EQUITY",
+            "management_company": "Flowr",
+            "committee_date": "2024-01-15",
+            "distribution_channel": "DIRECT",
+            "governance_required": "NO",
+            "legal_form": "FCP",
+            "initiative_owner": "owner@flowr.com",
+            "cosmos_id": 99,
+        }
+        base.update(overrides)
+        return base
+
+    def _post(self, payload):
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            headers={**json_headers(), **auth_header()},
+        )
+        return response, json.loads(response.data)
+
+    def test_post_returns_200(self):
+        # check that creating an initiative returns 200
+        response, _ = self._post(self._valid_payload(name="Post Test Fund"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_post_returns_created_name(self):
+        # check that the created initiative has the correct name
+        _, data = self._post(self._valid_payload(name="Created Fund"))
+        self.assertEqual(data[0]["name"], "Created Fund")
+
+    def test_post_returns_list_of_one(self):
+        # check that the response wraps the new initiative in a list
+        _, data = self._post(self._valid_payload(name="List Check Fund"))
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+
+    def test_post_id_starts_with_I(self):
+        # check that the auto-generated id follows the I{count} pattern
+        _, data = self._post(self._valid_payload(name="ID Check Fund"))
+        self.assertIn("id", data[0])
+        self.assertTrue(data[0]["id"].startswith("I"))
+
+    def test_post_product_type_optional(self):
+        # check that omitting product_type does not cause an error
+        payload = self._valid_payload(name="No Product Type Fund")
+        payload.pop("product_type", None)
+        response, _ = self._post(payload)
+        self.assertEqual(response.status_code, 200)
+
+    def test_post_sponsor_country_in_response(self):
+        # check that sponsor_country is correctly saved and returned
+        _, data = self._post(self._valid_payload(name="Country Check", sponsor_country="LU"))
+        self.assertEqual(data[0]["sponsor_country"], "LU")
+
+
+class TestGetInitiativeById(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Targeted Initiative", cosmos_id=77)
+        cls.url = f"{BASE_URL}/{cls.initiative.id}"
+        cls.unknown_url = f"{BASE_URL}/UNKNOWN-999"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+
+    def test_get_by_id_returns_200(self):
+        # check that fetching an existing initiative by id returns 200
+        response = self.client.get(self.url, headers=auth_header())
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_by_id_correct_name(self):
+        # check that the returned initiative has the correct name
+        response = self.client.get(self.url, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertEqual(data[0]["name"], "Targeted Initiative")
+
+    def test_get_by_id_correct_cosmos_id(self):
+        # check that the cosmos_id is correctly returned
+        response = self.client.get(self.url, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertEqual(data[0]["cosmos_id"], 77)
+
+    def test_get_by_id_unknown_returns_404(self):
+        # check that a non-existent id returns 404
+        response = self.client.get(self.unknown_url, headers=auth_header())
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_by_id_lowercase_converted(self):
+        # check that a lowercase id is converted to uppercase by the resource
+        lowercase_url = f"{BASE_URL}/{self.__class__.initiative.id.lower()}"
+        response = self.client.get(lowercase_url, headers=auth_header())
+        self.assertEqual(response.status_code, 200)
+
+
+class TestPatchInitiativeById(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        cls.patcher_cm_enter = patch(PATCH_CM_ENTER, return_value=None)
+        cls.patcher_cm_enter.start()
+
+        cls.patcher_cm_exit = patch(PATCH_CM_EXIT, return_value=False)
+        cls.patcher_cm_exit.start()
+
+        init_database()
+        cls.initiative = insert_initiative(
+            name="Original Name",
+            sponsor="Old Sponsor",
+            summary="Initial summary",
+        )
+        cls.url = f"{BASE_URL}/{cls.initiative.id}"
+        cls.unknown_url = f"{BASE_URL}/UNKNOWN-999"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+        cls.patcher_cm_enter.stop()
+        cls.patcher_cm_exit.stop()
+
+    def _patch(self, url, payload):
+        response = self.client.patch(
+            url,
+            data=json.dumps(payload),
+            headers={**json_headers(), **auth_header()},
+        )
+        return response, json.loads(response.data)
+
+    def test_patch_returns_200(self):
+        # check that patching an existing initiative returns 200
+        response, _ = self._patch(self.url, {"name": "Updated Name"})
+        self.assertEqual(response.status_code, 200)
+
+    def test_patch_updates_name(self):
+        # check that the name is correctly updated
+        _, data = self._patch(self.url, {"name": "Patched Fund Name"})
+        self.assertEqual(data[0]["name"], "Patched Fund Name")
+
+    def test_patch_updates_sponsor(self):
+        # check that the sponsor is correctly updated
+        _, data = self._patch(self.url, {"sponsor": "New Sponsor Corp"})
+        self.assertEqual(data[0]["sponsor"], "New Sponsor Corp")
+
+    def test_patch_id_not_updatable(self):
+        # check that the id field cannot be modified
+        original_id = self.__class__.initiative.id
+        _, data = self._patch(self.url, {"id": "FORCED-ID", "name": "Attempt"})
+        self.assertEqual(data[0]["id"], original_id)
+
+    def test_patch_unknown_id_returns_404(self):
+        # check that patching a non-existent initiative returns 404
+        response, _ = self._patch(self.unknown_url, {"name": "Ghost"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_patch_none_value_not_applied(self):
+        # check that passing None for a field does not overwrite the existing value
+        _, data = self._patch(self.url, {"summary": None})
+        self.assertEqual(data[0]["summary"], "Initial summary")
+
+
+class TestInactiveInitiatives(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+        cls.patcher_me.start()
+
+        cls.patcher_parse = patch(PATCH_PARSE, side_effect=lambda f: f)
+        cls.patcher_parse.start()
+
+        init_database()
+        cls.active = insert_initiative(name="Active Initiative")
+
+        inactive = insert_initiative(
+            name="Inactive Initiative",
+            summary="Should not appear",
+            product_type="EQUITY",
+            initiative_type="INTERNAL",
+            sponsor="X",
+            sponsor_country="FR",
+            asset_class="EQUITY",
+            management_company="Flowr",
+            distribution_channel="DIRECT",
+            governance_required="NO",
+            legal_form="FCP",
+            initiative_owner="owner@flowr.com",
+            cosmos_id=0,
+        )
+        from db import db as _db
+        inactive.is_active = False
+        _db.session.commit()
+        cls.inactive_id = inactive.id
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.patcher_me.stop()
+        cls.patcher_parse.stop()
+
+    def test_get_all_excludes_inactive(self):
+        # check that initiatives with is_active=False are not returned
+        response = self.client.get(BASE_URL, headers=auth_header())
+        data = json.loads(response.data)
+        self.assertIsInstance(data, list)
+        names = [i["name"] for i in data]
+        self.assertNotIn("Inactive Initiative", names)
+        self.assertIn("Active Initiative", names)
+
+    def test_get_by_id_inactive_returns_404(self):
+        # check that fetching an inactive initiative by id returns 404
+        url = f"{BASE_URL}/{self.__class__.inactive_id}"
+        response = self.client.get(url, headers=auth_header())
+        self.assertEqual(response.status_code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()
