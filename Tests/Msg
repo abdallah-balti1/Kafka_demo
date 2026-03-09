@@ -1,0 +1,1 @@
+pytest test/api/initiative/document/test_document.py::TestPostDocument::test_post_returns_201 -s --tb=short 2>&1 | tail -20
