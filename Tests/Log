@@ -1,2 +1,3 @@
 {console.log('initiativeType:', values.initiativePipeline.initiativeType)}
 {console.log('CREATION constant:', INITIATIVE_PIPELINE_CREATION)}
+values.initiativePipeline.initiativeType?.value === INITIATIVE_PIPELINE_CREATION}
