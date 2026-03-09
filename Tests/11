@@ -1,0 +1,1 @@
+pytest test/test_initiative_data.py::TestPatchInitiativeDataById::test_patch_returns_200 -s --tb=long 2>&1
