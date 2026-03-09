@@ -1,0 +1,322 @@
+import io
+import json
+import unittest
+from unittest.mock import patch, MagicMock
+
+from config import APPLICATION_ROOT
+from test.helpers import init_database, insert_initiative, insert_document
+from server import server
+
+BASE_URL = f"{APPLICATION_ROOT}/documents"
+
+PATCH_ME = "util.required_plm_authentication._me"
+PATCH_CM = "context_managers.SessionCriticalActionManager"
+PATCH_MAILER = "clients.mailer"
+PATCH_COS_WRITE = "resources.document.document.cos_write_file"
+PATCH_COS_READ = "resources.document.document_by_id.cos_read_file"
+PATCH_COS_DELETE = "resources.document.document_by_id.cos_delete_file"
+
+
+def auth_header():
+    return {"Authorization": "Bearer test-token"}
+
+
+def make_fake_me_response():
+    fake = MagicMock()
+    fake.status_code = 200
+    fake.json.return_value = {
+        "uid": "owner@flowr.com",
+        "roles": [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "INITIATIVE_OBSERVER",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_ASSESSOR",
+            "ADMIN",
+        ],
+    }
+    return fake
+
+
+def start_common_patches(cls):
+    # patch auth
+    cls.patcher_me = patch(PATCH_ME, return_value=make_fake_me_response())
+    cls.patcher_me.start()
+    # patch mailer
+    cls.patcher_mailer = patch(PATCH_MAILER, MagicMock())
+    cls.patcher_mailer.start()
+    # patch session critical action manager
+    cls.patcher_cm = patch(PATCH_CM)
+    mock_cm = cls.patcher_cm.start()
+    mock_cm.return_value.__enter__ = lambda s: None
+    mock_cm.return_value.__exit__ = lambda s, *a: False
+
+
+def stop_common_patches(cls):
+    cls.patcher_me.stop()
+    cls.patcher_mailer.stop()
+    cls.patcher_cm.stop()
+
+
+class TestGetDocuments(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        start_common_patches(cls)
+
+        init_database()
+        cls.initiative = insert_initiative(name="Doc Fund")
+        cls.doc_1 = insert_document(
+            filename="report",
+            extension=".pdf",
+            initiative_id=cls.initiative.id,
+        )
+        cls.doc_2 = insert_document(
+            filename="summary",
+            extension=".docx",
+            initiative_id=cls.initiative.id,
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        stop_common_patches(cls)
+
+    def _get(self, params=None):
+        response = self.client.get(
+            BASE_URL,
+            query_string=params or {},
+            headers=auth_header(),
+        )
+        return response, json.loads(response.data)
+
+    def test_get_documents_returns_200(self):
+        # check that the endpoint is reachable
+        response, _ = self._get()
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_documents_returns_list(self):
+        # check that the response is a list
+        _, data = self._get()
+        self.assertIsInstance(data, list)
+
+    def test_get_documents_returns_all(self):
+        # check that all seeded documents are returned
+        _, data = self._get()
+        self.assertGreaterEqual(len(data), 2)
+
+    def test_get_documents_contains_expected_fields(self):
+        # check that each document has the required fields
+        _, data = self._get()
+        first = data[0]
+        for field in ["id", "filename", "extension", "initiative_id", "is_deletable"]:
+            self.assertIn(field, first)
+
+    def test_get_documents_filter_by_initiative_id(self):
+        # check that filtering by initiative_id returns only matching docs
+        _, data = self._get(params={"id_initiative": self.initiative.id})
+        ids = [d["initiative_id"] for d in data]
+        self.assertTrue(all(i == self.initiative.id for i in ids))
+
+    def test_get_documents_filename_report_present(self):
+        # check that the report document is in the response
+        _, data = self._get()
+        self.assertIn("report", [d["filename"] for d in data])
+
+    def test_get_documents_filename_summary_present(self):
+        # check that the summary document is in the response
+        _, data = self._get()
+        self.assertIn("summary", [d["filename"] for d in data])
+
+
+class TestPostDocument(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        start_common_patches(cls)
+
+        cls.patcher_cos_write = patch(PATCH_COS_WRITE, return_value=None)
+        cls.patcher_cos_write.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Upload Fund")
+
+    @classmethod
+    def tearDownClass(cls):
+        stop_common_patches(cls)
+        cls.patcher_cos_write.stop()
+
+    def _post(self, filename="test.pdf", initiative_id=None, document_type_id=1):
+        # simulate a multipart file upload
+        file_data = io.BytesIO(b"fake file content")
+        data = {
+            "file": (file_data, filename),
+            "document_type_id": document_type_id,
+        }
+        if initiative_id:
+            data["initiative_id"] = initiative_id
+        response = self.client.post(
+            BASE_URL,
+            data=data,
+            headers=auth_header(),
+            content_type="multipart/form-data",
+        )
+        return response, json.loads(response.data)
+
+    def test_post_returns_201(self):
+        # check that uploading a document returns 201
+        response, _ = self._post(
+            filename="upload.pdf",
+            initiative_id=self.__class__.initiative.id,
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_post_returns_correct_filename(self):
+        # check that the filename is correctly saved
+        _, data = self._post(
+            filename="myreport.pdf",
+            initiative_id=self.__class__.initiative.id,
+        )
+        self.assertEqual(data["filename"], "myreport")
+
+    def test_post_returns_correct_extension(self):
+        # check that the extension is correctly saved
+        _, data = self._post(
+            filename="myreport.pdf",
+            initiative_id=self.__class__.initiative.id,
+        )
+        self.assertEqual(data["extension"], ".pdf")
+
+    def test_post_cos_write_called(self):
+        # check that cos_write_file is called during upload
+        with patch(PATCH_COS_WRITE) as mock_write:
+            self._post(
+                filename="costest.pdf",
+                initiative_id=self.__class__.initiative.id,
+            )
+            mock_write.assert_called_once()
+
+    def test_post_initiative_id_saved(self):
+        # check that the initiative_id is correctly linked
+        initiative_id = self.__class__.initiative.id
+        _, data = self._post(
+            filename="linked.pdf",
+            initiative_id=initiative_id,
+        )
+        self.assertEqual(data["initiative_id"], initiative_id)
+
+
+class TestGetDocumentById(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        start_common_patches(cls)
+
+        cls.patcher_cos_read = patch(PATCH_COS_READ, return_value=b"fake content")
+        cls.patcher_cos_read.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Read Fund")
+        cls.document = insert_document(
+            filename="readable",
+            extension=".pdf",
+            initiative_id=cls.initiative.id,
+        )
+        cls.url = f"{BASE_URL}/{cls.document.id}"
+        cls.unknown_url = f"{BASE_URL}/99999"
+
+    @classmethod
+    def tearDownClass(cls):
+        stop_common_patches(cls)
+        cls.patcher_cos_read.stop()
+
+    def test_get_by_id_returns_200(self):
+        # check that fetching a document by id returns 200
+        response = self.client.get(self.url, headers=auth_header())
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_by_id_unknown_returns_404(self):
+        # check that fetching a non-existent document returns 404
+        response = self.client.get(self.unknown_url, headers=auth_header())
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_by_id_cos_read_called(self):
+        # check that cos_read_file is called to fetch the file
+        with patch(PATCH_COS_READ, return_value=b"content") as mock_read:
+            self.client.get(self.url, headers=auth_header())
+            mock_read.assert_called_once()
+
+
+class TestDeleteDocument(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = server.test_client()
+
+        start_common_patches(cls)
+
+        cls.patcher_cos_delete = patch(PATCH_COS_DELETE, return_value=None)
+        cls.patcher_cos_delete.start()
+
+        init_database()
+        cls.initiative = insert_initiative(name="Delete Fund")
+
+    @classmethod
+    def tearDownClass(cls):
+        stop_common_patches(cls)
+        cls.patcher_cos_delete.stop()
+
+    def _insert_deletable(self):
+        return insert_document(
+            filename="to_delete",
+            extension=".pdf",
+            initiative_id=self.__class__.initiative.id,
+            is_deletable=True,
+        )
+
+    def _insert_non_deletable(self):
+        return insert_document(
+            filename="protected",
+            extension=".pdf",
+            initiative_id=self.__class__.initiative.id,
+            is_deletable=False,
+        )
+
+    def test_delete_returns_200(self):
+        # check that deleting a deletable document returns 200
+        doc = self._insert_deletable()
+        response = self.client.delete(
+            f"{BASE_URL}/{doc.id}", headers=auth_header()
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_delete_unknown_returns_404(self):
+        # check that deleting a non-existent document returns 404
+        response = self.client.delete(
+            f"{BASE_URL}/99999", headers=auth_header()
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_non_deletable_returns_403(self):
+        # check that deleting a protected document returns 403
+        doc = self._insert_non_deletable()
+        response = self.client.delete(
+            f"{BASE_URL}/{doc.id}", headers=auth_header()
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_cos_delete_called(self):
+        # check that cos_delete_file is called on successful delete
+        doc = self._insert_deletable()
+        with patch(PATCH_COS_DELETE) as mock_delete:
+            self.client.delete(f"{BASE_URL}/{doc.id}", headers=auth_header())
+            mock_delete.assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()
