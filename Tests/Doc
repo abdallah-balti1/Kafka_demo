@@ -1,0 +1,26 @@
+class DocumentNotDeletableError(CustomException):
+    def __init__(self, document_id):
+        super().__init__(403, document_id, "DOCUMENT_NOT_DELETABLE",
+                         "The document %s is not deletable" % document_id)
+
+
+def delete(user, id, initiative_id=None):
+
+    document = InitiativeDocumentRepository.get(id)
+
+    if not document.is_deletable:
+        return {"message": f"Document {id} is not deletable"}, 403
+
+    with SessionCriticalActionManager(
+        "Delete document {}".format(document.filename + str(id) + document.extension),
+        db.session,
+        DEV_TEAM_EMAILS,
+    ):
+        if initiative_id:
+            try:
+                cos_delete_file(document.filename + str(id) + document.extension)
+            except OSError as e:
+                logging.error(e)
+        InitiativeDocumentRepository.delete(id)
+
+    return ""
