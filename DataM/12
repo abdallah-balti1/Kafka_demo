@@ -1,0 +1,49 @@
+"""
+Define the TemplateConfig model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class TemplateConfig(db.Model, BaseModel):
+    """The template config model"""
+
+    __tablename__ = "template_config"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    template_id = db.Column(db.String(100), db.ForeignKey("template.id"), nullable=False)
+    assessment_sub_category_id = db.Column(
+        db.String(100), db.ForeignKey("assessment_sub_category.id"), nullable=True
+    )
+    assessment_category_id = db.Column(
+        db.String(100), db.ForeignKey("assessment_category.id"), nullable=True
+    )
+    teams_id = db.Column(db.String(100), nullable=True)
+
+    initiatives = db.relationship("Initiative", backref="template_config", lazy="dynamic")
+
+    def __init__(
+        self,
+        id,
+        template_id,
+        assessment_sub_category_id=None,
+        assessment_category_id=None,
+        teams_id=None,
+    ):
+        """Create a new template config"""
+        self.id = id
+        self.template_id = template_id
+        self.assessment_sub_category_id = assessment_sub_category_id
+        self.assessment_category_id = assessment_category_id
+        self.teams_id = teams_id
+
+    def to_json(self):
+        """Return a json representation of the TemplateConfig"""
+        return {
+            "id": self.id,
+            "template_id": self.template_id,
+            "assessment_sub_category_id": self.assessment_sub_category_id,
+            "assessment_category_id": self.assessment_category_id,
+            "teams_id": self.teams_id,
+        }
