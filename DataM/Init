@@ -2,6 +2,8 @@
 Define the Initiative model
 """
 
+from datetime import datetime
+
 from abstract_base_model import BaseModel
 from sqlalchemy import func, select
 
@@ -41,58 +43,57 @@ class Initiative(db.Model, BaseModel):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     assessment_team = db.Column(db.String(200), nullable=True)
     manager_team = db.Column(db.String(255), nullable=False)
-    created_by_id = db.Column(db.String(100), nullable=True)
+    created_by_id = db.Column(db.Integer, nullable=True)
 
     # -- Initiative data fields (merged from initiative_data) --
-    salesforce_id_opportunity = db.Column(db.String(255), nullable=True)
-    client_description = db.Column(db.Text, nullable=True)
-    client_name = db.Column(db.String(255), nullable=True)
+    salesforce_id_opportunity = db.Column(db.String(100), nullable=True)
+    client_description = db.Column(db.String(255), nullable=True)
+    client_name = db.Column(db.String(100), nullable=True)
     client_type = db.Column(db.String(100), nullable=True)
-    existing_holdings = db.Column(db.Text, nullable=True)
-    rfp = db.Column(db.Boolean, nullable=True)
+    existing_holdings = db.Column(db.String(100), nullable=True, default=False)
+    rfp = db.Column(db.Text, nullable=True)
     implementation_date = db.Column(db.Date, nullable=True)
-    cosmos_id_data = db.Column(db.String(255), nullable=True)
-    name_data = db.Column(db.String(255), nullable=True)
-    lead_wallet_manager_name = db.Column(db.String(255), nullable=True)
-    lead_wallet_manager_team = db.Column(db.String(255), nullable=True)
-    shareclass_name = db.Column(db.String(255), nullable=True)
-    benchmark = db.Column(db.String(255), nullable=True)
+    cosmos_id_data = db.Column(db.String(100), nullable=True)
+    name_data = db.Column(db.String(100), nullable=True)
+    lead_wallet_manager_name = db.Column(db.String(100), nullable=True)
+    lead_wallet_manager_team = db.Column(db.String(100), nullable=True)
+    shareclass_name = db.Column(db.Text, nullable=True)
+    benchmark = db.Column(db.String(100), nullable=True, default=False)
     instruments_details = db.Column(db.Text, nullable=True)
     investment_strategy_guidelines = db.Column(db.Text, nullable=True)
-    additional_licence_needed = db.Column(db.String(255), nullable=True)
-    product_name_data = db.Column(db.String(255), nullable=True)
-    legal_form_data = db.Column(db.String(255), nullable=True)
-    legal_structure = db.Column(db.String(255), nullable=True)
-    regulatory_status = db.Column(db.String(255), nullable=True)
+    additional_licence_needed = db.Column(db.String(100), nullable=True, default=False)
+    product_name_data = db.Column(db.String(100), nullable=True, default=False)
+    legal_form_data = db.Column(db.String(100), nullable=True)
+    legal_structure = db.Column(db.String(100), nullable=True)
+    regulatory_status = db.Column(db.String(100), nullable=True)
     country_of_domiciliation = db.Column(db.String(100), nullable=True)
-    management_company_data = db.Column(db.String(255), nullable=True)
-    investment_management = db.Column(db.String(255), nullable=True)
-    investment_management_delegated = db.Column(db.String(255), nullable=True)
-    standard_service = db.Column(db.String(255), nullable=True)
-    specific_service_desc = db.Column(db.Text, nullable=True)
+    management_company_data = db.Column(db.String(100), nullable=True)
+    investment_management = db.Column(db.String(100), nullable=True)
+    investment_management_delegated = db.Column(db.Text, nullable=True)
+    standard_service = db.Column(db.Boolean, nullable=True, default=False)
+    specific_service_desc = db.Column(db.Text, nullable=True, default=False)
     aum_expected = db.Column(db.String(100), nullable=True)
-    fees_desc = db.Column(db.Text, nullable=True)
+    fees_desc = db.Column(db.String(100), nullable=True)
     comments_buisness = db.Column(db.Text, nullable=True)
 
     def __init__(
         self,
         name,
         summary,
-        distribution_channel,
-        governance_required,
+        product_type,
+        initiative_type,
         sponsor,
         sponsor_country,
+        asset_class,
+        management_company,
+        committee_date,
+        distribution_channel,
+        governance_required,
+        legal_form,
         initiative_owner,
+        cosmos_id,
+        assessment_team,
         manager_team,
-        product_type=None,
-        initiative_type=None,
-        asset_class=None,
-        management_company=None,
-        committee_date=None,
-        legal_form=None,
-        cosmos_id=None,
-        is_active=True,
-        assessment_team=None,
         template_config_id=None,
         created_by_id=None,
         salesforce_id_opportunity=None,
@@ -140,7 +141,6 @@ class Initiative(db.Model, BaseModel):
         self.legal_form = legal_form
         self.initiative_owner = initiative_owner
         self.cosmos_id = cosmos_id
-        self.is_active = is_active
         self.assessment_team = assessment_team
         self.manager_team = manager_team
         self.template_config_id = template_config_id
@@ -177,7 +177,8 @@ class Initiative(db.Model, BaseModel):
 
     def to_json(self):
         """Return a json representation of the Initiative"""
-        return {
+        date_str = str(self.committee_date)
+        initiative = {
             "id": self.id,
             "template_config_id": self.template_config_id,
             "name": self.name,
@@ -188,7 +189,7 @@ class Initiative(db.Model, BaseModel):
             "sponsor_country": self.sponsor_country,
             "asset_class": self.asset_class,
             "management_company": self.management_company,
-            "committee_date": str(self.committee_date) if self.committee_date else None,
+            "committee_date": date_str,
             "distribution_channel": self.distribution_channel,
             "governance_required": self.governance_required,
             "legal_form": self.legal_form,
@@ -228,3 +229,5 @@ class Initiative(db.Model, BaseModel):
             "fees_desc": self.fees_desc,
             "comments_buisness": self.comments_buisness,
         }
+
+        return initiative
