@@ -1,0 +1,30 @@
+"""
+Models package — import all models so SQLAlchemy can register them
+and alembic / db.create_all() can discover every table.
+"""
+
+from .assessment_category import AssessmentCategory
+from .assessment_sub_category import AssessmentSubCategory
+from .document import Document
+from .document_type import DocumentType
+from .initiative import Initiative
+from .initiative_data import InitiativeData
+from .initiative_team_members import InitiativeTeamMembers
+from .initiative_team_relationship import InitiativeTeamRelationship
+from .task import Task
+from .template import Template
+from .template_config import TemplateConfig
+
+__all__ = [
+    "AssessmentCategory",
+    "AssessmentSubCategory",
+    "Document",
+    "DocumentType",
+    "Initiative",
+    "InitiativeData",
+    "InitiativeTeamMembers",
+    "InitiativeTeamRelationship",
+    "Task",
+    "Template",
+    "TemplateConfig",
+]
