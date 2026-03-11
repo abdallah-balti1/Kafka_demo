@@ -1,0 +1,32 @@
+"""
+Define the Template and TemplateConfig models
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class Template(db.Model, BaseModel):
+    """The template model"""
+
+    __tablename__ = "template"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+
+    configs = db.relationship("TemplateConfig", backref="template", cascade="all, delete-orphan")
+
+    def __init__(self, id, name):
+        """Create a new template"""
+        self.id = id
+        self.name = name
+
+    def to_json(self):
+        """Return a json representation of the Template"""
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+
+
