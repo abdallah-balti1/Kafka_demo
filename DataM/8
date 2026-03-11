@@ -1,0 +1,51 @@
+"""
+Define the Document model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class Document(db.Model, BaseModel):
+    """The document model"""
+
+    __tablename__ = "document"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    id_initiative = db.Column(db.String(100), db.ForeignKey("initiative.id"), nullable=False)
+    document_type_id = db.Column(db.String(100), db.ForeignKey("document_type.id"), nullable=False)
+    filename = db.Column(db.String(255), nullable=True)
+    extension = db.Column(db.String(20), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=True)
+    is_deletable = db.Column(db.Boolean, nullable=True, default=True)
+
+    def __init__(
+        self,
+        id,
+        id_initiative,
+        document_type_id,
+        filename=None,
+        extension=None,
+        created_at=None,
+        is_deletable=True,
+    ):
+        """Create a new document"""
+        self.id = id
+        self.id_initiative = id_initiative
+        self.document_type_id = document_type_id
+        self.filename = filename
+        self.extension = extension
+        self.created_at = created_at
+        self.is_deletable = is_deletable
+
+    def to_json(self):
+        """Return a json representation of the Document"""
+        return {
+            "id": self.id,
+            "id_initiative": self.id_initiative,
+            "document_type_id": self.document_type_id,
+            "filename": self.filename,
+            "extension": self.extension,
+            "created_at": str(self.created_at) if self.created_at else None,
+            "is_deletable": self.is_deletable,
+        }
