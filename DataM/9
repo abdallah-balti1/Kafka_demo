@@ -1,0 +1,31 @@
+"""
+Define the AssessmentCategory model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class AssessmentCategory(db.Model, BaseModel):
+    """The assessment category model"""
+
+    __tablename__ = "assessment_category"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+
+    sub_categories = db.relationship(
+        "AssessmentSubCategory", backref="category", cascade="all, delete-orphan"
+    )
+
+    def __init__(self, id, name):
+        """Create a new assessment category"""
+        self.id = id
+        self.name = name
+
+    def to_json(self):
+        """Return a json representation of the AssessmentCategory"""
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
