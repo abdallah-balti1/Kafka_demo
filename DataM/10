@@ -1,0 +1,36 @@
+"""
+Define the AssessmentSubCategory model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class AssessmentSubCategory(db.Model, BaseModel):
+    """The assessment sub category model"""
+
+    __tablename__ = "assessment_sub_category"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    assessment_category_id = db.Column(
+        db.String(100), db.ForeignKey("assessment_category.id"), nullable=False
+    )
+
+    template_configs = db.relationship(
+        "TemplateConfig", backref="assessment_sub_category", cascade="all, delete-orphan"
+    )
+
+    def __init__(self, id, name, assessment_category_id):
+        """Create a new assessment sub category"""
+        self.id = id
+        self.name = name
+        self.assessment_category_id = assessment_category_id
+
+    def to_json(self):
+        """Return a json representation of the AssessmentSubCategory"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "assessment_category_id": self.assessment_category_id,
+        }
