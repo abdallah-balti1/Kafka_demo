@@ -1,0 +1,123 @@
+"""
+Define the Initiative model
+"""
+
+from datetime import datetime
+
+from abstract_base_model import BaseModel
+from sqlalchemy import func, select
+
+from db import db
+
+
+def generate_custom_id(context):
+    conn = context.connection
+    result = conn.execute(select(func.count()).select_from(Initiative.__table__))
+    count = result.scalar_one()
+    return f"I{count + 1}"
+
+
+class Initiative(db.Model, BaseModel):
+    """The initiative model"""
+
+    __tablename__ = "initiative"
+
+    id = db.Column(db.String(100), primary_key=True, default=generate_custom_id, nullable=False)
+    # ── MODIFICATION : ajout de la FK vers template_config ──────────────────
+    template_config_id = db.Column(db.String(100), db.ForeignKey("template_config.id"), nullable=True)
+    # ────────────────────────────────────────────────────────────────────────
+    initiative_data = db.relationship("InitiativeData", back_populates="initiative", cascade="all, delete-orphan")
+    name = db.Column(db.String(255), nullable=False)
+    summary = db.Column(db.String(255), nullable=False)
+    product_type = db.Column(db.String(40), nullable=True)
+    initiative_type = db.Column(db.String(40), nullable=True)
+    sponsor = db.Column(db.String(40), nullable=False)
+    sponsor_country = db.Column(db.String(40), nullable=False)
+    asset_class = db.Column(db.String(40), nullable=True)
+    management_company = db.Column(db.Text, nullable=True)
+    committee_date = db.Column(db.Date, nullable=True)
+    distribution_channel = db.Column(db.String(40), nullable=False)
+    governance_required = db.Column(db.String(40), nullable=False)
+    legal_form = db.Column(db.String(40), nullable=True)
+    initiative_owner = db.Column(db.String(40), nullable=False)
+    cosmos_id = db.Column(db.Integer, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    assessment_team = db.Column(db.String(200), nullable=True)
+    manager_team = db.Column(db.String(255), nullable=False)
+    created_by_id = db.Column(db.String(100), nullable=True)
+
+    # Relationships
+    documents = db.relationship("Document", backref="initiative", cascade="all, delete-orphan")
+    tasks = db.relationship("Task", backref="initiative", cascade="all, delete-orphan")
+    team_relationships = db.relationship(
+        "InitiativeTeamRelationship", backref="initiative", cascade="all, delete-orphan"
+    )
+
+    def __init__(
+        self,
+        name,
+        summary,
+        distribution_channel,
+        governance_required,
+        sponsor,
+        sponsor_country,
+        initiative_owner,
+        manager_team,
+        product_type=None,
+        initiative_type=None,
+        asset_class=None,
+        management_company=None,
+        committee_date=None,
+        legal_form=None,
+        cosmos_id=None,
+        assessment_team=None,
+        template_config_id=None,
+        created_by_id=None,
+    ):
+        """Create a new initiative"""
+        self.name = name
+        self.summary = summary
+        self.product_type = product_type
+        self.initiative_type = initiative_type
+        self.sponsor = sponsor
+        self.sponsor_country = sponsor_country
+        self.asset_class = asset_class
+        self.management_company = management_company
+        self.committee_date = committee_date
+        self.distribution_channel = distribution_channel
+        self.governance_required = governance_required
+        self.legal_form = legal_form
+        self.initiative_owner = initiative_owner
+        self.cosmos_id = cosmos_id
+        self.assessment_team = assessment_team
+        self.manager_team = manager_team
+        self.template_config_id = template_config_id
+        self.created_by_id = created_by_id
+
+    def to_json(self):
+        """Return a json representation of the Initiative"""
+        date_str = str(self.committee_date)
+        initiative = {
+            "id": self.id,
+            "template_config_id": self.template_config_id,
+            "name": self.name,
+            "summary": self.summary,
+            "product_type": self.product_type,
+            "initiative_type": self.initiative_type,
+            "sponsor": self.sponsor,
+            "sponsor_country": self.sponsor_country,
+            "asset_class": self.asset_class,
+            "management_company": self.management_company,
+            "committee_date": date_str,
+            "distribution_channel": self.distribution_channel,
+            "governance_required": self.governance_required,
+            "legal_form": self.legal_form,
+            "initiative_owner": self.initiative_owner,
+            "cosmos_id": self.cosmos_id,
+            "is_active": self.is_active,
+            "assessment_team": self.assessment_team,
+            "manager_team": self.manager_team,
+            "created_by_id": self.created_by_id,
+        }
+
+        return initiative
