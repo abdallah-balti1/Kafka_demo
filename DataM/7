@@ -1,0 +1,32 @@
+"""
+Define the DocumentType model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class DocumentType(db.Model, BaseModel):
+    """The document type model"""
+
+    __tablename__ = "document_type"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=True)
+
+    documents = db.relationship("Document", backref="document_type", cascade="all, delete-orphan")
+
+    def __init__(self, id, name, created_at=None):
+        """Create a new document type"""
+        self.id = id
+        self.name = name
+        self.created_at = created_at
+
+    def to_json(self):
+        """Return a json representation of the DocumentType"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": str(self.created_at) if self.created_at else None,
+        }
