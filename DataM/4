@@ -1,0 +1,35 @@
+"""
+Define the InitiativeTeamRelationship model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class InitiativeTeamRelationship(db.Model, BaseModel):
+    """The initiative team relationship model"""
+
+    __tablename__ = "initiative_team_relationship"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    initiative_id = db.Column(db.String(100), db.ForeignKey("initiative.id"), nullable=False)
+    team_id = db.Column(db.String(100), nullable=True)
+    accountant_id = db.Column(db.String(100), nullable=True)
+
+    members = db.relationship("InitiativeTeamMembers", backref="team_relationship", cascade="all, delete-orphan")
+
+    def __init__(self, id, initiative_id, team_id=None, accountant_id=None):
+        """Create a new initiative team relationship"""
+        self.id = id
+        self.initiative_id = initiative_id
+        self.team_id = team_id
+        self.accountant_id = accountant_id
+
+    def to_json(self):
+        """Return a json representation of the InitiativeTeamRelationship"""
+        return {
+            "id": self.id,
+            "initiative_id": self.initiative_id,
+            "team_id": self.team_id,
+            "accountant_id": self.accountant_id,
+        }
