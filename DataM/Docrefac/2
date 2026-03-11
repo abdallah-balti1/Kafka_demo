@@ -1,0 +1,14 @@
+"""
+Defines the blueprint for initiatives (get all initiatives)
+"""
+
+from flask import Blueprint
+from flask_restful import Api
+
+from resources import InitiativeByIdResource, InitiativesResource
+
+INITIATIVES_BLUEPRINT = Blueprint("initiatives", __name__)
+Api(INITIATIVES_BLUEPRINT).add_resource(InitiativesResource, "/initiatives", endpoint="initiatives")
+
+INITIATIVE_BLUEPRINT = Blueprint("initiative", __name__)
+Api(INITIATIVE_BLUEPRINT).add_resource(InitiativeByIdResource, "/initiatives/<string:id>", endpoint="initiatives")
