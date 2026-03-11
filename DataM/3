@@ -1,0 +1,148 @@
+"""
+Define the InitiativeData model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class InitiativeData(db.Model, BaseModel):
+    """The initiative data model"""
+
+    __tablename__ = "initiative_data"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    id_initiative = db.Column(db.String(100), db.ForeignKey("initiative.id"), unique=True, nullable=False)
+    salesforce_id_opportunity = db.Column(db.String(255), nullable=True)
+    client_description = db.Column(db.Text, nullable=True)
+    client_name = db.Column(db.String(255), nullable=True)
+    client_type = db.Column(db.String(100), nullable=True)
+    existing_holdings = db.Column(db.Text, nullable=True)
+    rfp = db.Column(db.Boolean, nullable=True)
+    implementation_date = db.Column(db.Date, nullable=True)
+    cosmos_id_data = db.Column(db.String(255), nullable=True)
+    name_data = db.Column(db.String(255), nullable=True)
+    lead_wallet_manager_name = db.Column(db.String(255), nullable=True)
+    lead_wallet_manager_team = db.Column(db.String(255), nullable=True)
+    shareclass_name = db.Column(db.String(255), nullable=True)
+    benchmark = db.Column(db.String(255), nullable=True)
+    instruments_details = db.Column(db.Text, nullable=True)
+    investment_strategy_guidelines = db.Column(db.Text, nullable=True)
+    additional_licence_needed = db.Column(db.String(255), nullable=True)
+    product_name_data = db.Column(db.String(255), nullable=True)
+    legal_form_data = db.Column(db.String(255), nullable=True)
+    legal_structure = db.Column(db.String(255), nullable=True)
+    regulatory_status = db.Column(db.String(255), nullable=True)
+    country_of_domiciliation = db.Column(db.String(100), nullable=True)
+    management_company_data = db.Column(db.String(255), nullable=True)
+    investment_management = db.Column(db.String(255), nullable=True)
+    investment_management_delegated = db.Column(db.String(255), nullable=True)
+    standard_service = db.Column(db.String(255), nullable=True)
+    specific_service_desc = db.Column(db.Text, nullable=True)
+    aum_expected = db.Column(db.String(100), nullable=True)
+    fees_desc = db.Column(db.Text, nullable=True)
+    comments_buisness = db.Column(db.Text, nullable=True)
+
+    def __init__(
+        self,
+        id,
+        id_initiative,
+        salesforce_id_opportunity=None,
+        client_description=None,
+        client_name=None,
+        client_type=None,
+        existing_holdings=None,
+        rfp=None,
+        implementation_date=None,
+        cosmos_id_data=None,
+        name_data=None,
+        lead_wallet_manager_name=None,
+        lead_wallet_manager_team=None,
+        shareclass_name=None,
+        benchmark=None,
+        instruments_details=None,
+        investment_strategy_guidelines=None,
+        additional_licence_needed=None,
+        product_name_data=None,
+        legal_form_data=None,
+        legal_structure=None,
+        regulatory_status=None,
+        country_of_domiciliation=None,
+        management_company_data=None,
+        investment_management=None,
+        investment_management_delegated=None,
+        standard_service=None,
+        specific_service_desc=None,
+        aum_expected=None,
+        fees_desc=None,
+        comments_buisness=None,
+    ):
+        """Create a new initiative data entry"""
+        self.id = id
+        self.id_initiative = id_initiative
+        self.salesforce_id_opportunity = salesforce_id_opportunity
+        self.client_description = client_description
+        self.client_name = client_name
+        self.client_type = client_type
+        self.existing_holdings = existing_holdings
+        self.rfp = rfp
+        self.implementation_date = implementation_date
+        self.cosmos_id_data = cosmos_id_data
+        self.name_data = name_data
+        self.lead_wallet_manager_name = lead_wallet_manager_name
+        self.lead_wallet_manager_team = lead_wallet_manager_team
+        self.shareclass_name = shareclass_name
+        self.benchmark = benchmark
+        self.instruments_details = instruments_details
+        self.investment_strategy_guidelines = investment_strategy_guidelines
+        self.additional_licence_needed = additional_licence_needed
+        self.product_name_data = product_name_data
+        self.legal_form_data = legal_form_data
+        self.legal_structure = legal_structure
+        self.regulatory_status = regulatory_status
+        self.country_of_domiciliation = country_of_domiciliation
+        self.management_company_data = management_company_data
+        self.investment_management = investment_management
+        self.investment_management_delegated = investment_management_delegated
+        self.standard_service = standard_service
+        self.specific_service_desc = specific_service_desc
+        self.aum_expected = aum_expected
+        self.fees_desc = fees_desc
+        self.comments_buisness = comments_buisness
+
+    def to_json(self):
+        """Return a json representation of the InitiativeData"""
+        date_str = str(self.implementation_date) if self.implementation_date else None
+        return {
+            "id": self.id,
+            "id_initiative": self.id_initiative,
+            "salesforce_id_opportunity": self.salesforce_id_opportunity,
+            "client_description": self.client_description,
+            "client_name": self.client_name,
+            "client_type": self.client_type,
+            "existing_holdings": self.existing_holdings,
+            "rfp": self.rfp,
+            "implementation_date": date_str,
+            "cosmos_id_data": self.cosmos_id_data,
+            "name_data": self.name_data,
+            "lead_wallet_manager_name": self.lead_wallet_manager_name,
+            "lead_wallet_manager_team": self.lead_wallet_manager_team,
+            "shareclass_name": self.shareclass_name,
+            "benchmark": self.benchmark,
+            "instruments_details": self.instruments_details,
+            "investment_strategy_guidelines": self.investment_strategy_guidelines,
+            "additional_licence_needed": self.additional_licence_needed,
+            "product_name_data": self.product_name_data,
+            "legal_form_data": self.legal_form_data,
+            "legal_structure": self.legal_structure,
+            "regulatory_status": self.regulatory_status,
+            "country_of_domiciliation": self.country_of_domiciliation,
+            "management_company_data": self.management_company_data,
+            "investment_management": self.investment_management,
+            "investment_management_delegated": self.investment_management_delegated,
+            "standard_service": self.standard_service,
+            "specific_service_desc": self.specific_service_desc,
+            "aum_expected": self.aum_expected,
+            "fees_desc": self.fees_desc,
+            "comments_buisness": self.comments_buisness,
+        }
