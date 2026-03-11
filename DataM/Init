@@ -1,0 +1,230 @@
+"""
+Define the Initiative model
+"""
+
+from abstract_base_model import BaseModel
+from sqlalchemy import func, select
+
+from db import db
+
+
+def generate_custom_id(context):
+    conn = context.connection
+    result = conn.execute(select(func.count()).select_from(Initiative.__table__))
+    count = result.scalar_one()
+    return f"I{count + 1}"
+
+
+class Initiative(db.Model, BaseModel):
+    """The initiative model"""
+
+    __tablename__ = "initiative"
+
+    id = db.Column(db.String(100), primary_key=True, default=generate_custom_id, nullable=False)
+    template_config_id = db.Column(db.String(100), db.ForeignKey("template_config.id"), nullable=True)
+
+    # -- Initiative fields --
+    name = db.Column(db.String(255), nullable=False)
+    summary = db.Column(db.String(255), nullable=False)
+    product_type = db.Column(db.String(40), nullable=True)
+    initiative_type = db.Column(db.String(40), nullable=True)
+    sponsor = db.Column(db.String(40), nullable=False)
+    sponsor_country = db.Column(db.String(40), nullable=False)
+    asset_class = db.Column(db.String(40), nullable=True)
+    management_company = db.Column(db.Text, nullable=True)
+    committee_date = db.Column(db.Date, nullable=True)
+    distribution_channel = db.Column(db.String(40), nullable=False)
+    governance_required = db.Column(db.String(40), nullable=False)
+    legal_form = db.Column(db.String(40), nullable=True)
+    initiative_owner = db.Column(db.String(40), nullable=False)
+    cosmos_id = db.Column(db.Integer, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    assessment_team = db.Column(db.String(200), nullable=True)
+    manager_team = db.Column(db.String(255), nullable=False)
+    created_by_id = db.Column(db.String(100), nullable=True)
+
+    # -- Initiative data fields (merged from initiative_data) --
+    salesforce_id_opportunity = db.Column(db.String(255), nullable=True)
+    client_description = db.Column(db.Text, nullable=True)
+    client_name = db.Column(db.String(255), nullable=True)
+    client_type = db.Column(db.String(100), nullable=True)
+    existing_holdings = db.Column(db.Text, nullable=True)
+    rfp = db.Column(db.Boolean, nullable=True)
+    implementation_date = db.Column(db.Date, nullable=True)
+    cosmos_id_data = db.Column(db.String(255), nullable=True)
+    name_data = db.Column(db.String(255), nullable=True)
+    lead_wallet_manager_name = db.Column(db.String(255), nullable=True)
+    lead_wallet_manager_team = db.Column(db.String(255), nullable=True)
+    shareclass_name = db.Column(db.String(255), nullable=True)
+    benchmark = db.Column(db.String(255), nullable=True)
+    instruments_details = db.Column(db.Text, nullable=True)
+    investment_strategy_guidelines = db.Column(db.Text, nullable=True)
+    additional_licence_needed = db.Column(db.String(255), nullable=True)
+    product_name_data = db.Column(db.String(255), nullable=True)
+    legal_form_data = db.Column(db.String(255), nullable=True)
+    legal_structure = db.Column(db.String(255), nullable=True)
+    regulatory_status = db.Column(db.String(255), nullable=True)
+    country_of_domiciliation = db.Column(db.String(100), nullable=True)
+    management_company_data = db.Column(db.String(255), nullable=True)
+    investment_management = db.Column(db.String(255), nullable=True)
+    investment_management_delegated = db.Column(db.String(255), nullable=True)
+    standard_service = db.Column(db.String(255), nullable=True)
+    specific_service_desc = db.Column(db.Text, nullable=True)
+    aum_expected = db.Column(db.String(100), nullable=True)
+    fees_desc = db.Column(db.Text, nullable=True)
+    comments_buisness = db.Column(db.Text, nullable=True)
+
+    def __init__(
+        self,
+        name,
+        summary,
+        distribution_channel,
+        governance_required,
+        sponsor,
+        sponsor_country,
+        initiative_owner,
+        manager_team,
+        product_type=None,
+        initiative_type=None,
+        asset_class=None,
+        management_company=None,
+        committee_date=None,
+        legal_form=None,
+        cosmos_id=None,
+        is_active=True,
+        assessment_team=None,
+        template_config_id=None,
+        created_by_id=None,
+        salesforce_id_opportunity=None,
+        client_description=None,
+        client_name=None,
+        client_type=None,
+        existing_holdings=None,
+        rfp=None,
+        implementation_date=None,
+        cosmos_id_data=None,
+        name_data=None,
+        lead_wallet_manager_name=None,
+        lead_wallet_manager_team=None,
+        shareclass_name=None,
+        benchmark=None,
+        instruments_details=None,
+        investment_strategy_guidelines=None,
+        additional_licence_needed=None,
+        product_name_data=None,
+        legal_form_data=None,
+        legal_structure=None,
+        regulatory_status=None,
+        country_of_domiciliation=None,
+        management_company_data=None,
+        investment_management=None,
+        investment_management_delegated=None,
+        standard_service=None,
+        specific_service_desc=None,
+        aum_expected=None,
+        fees_desc=None,
+        comments_buisness=None,
+    ):
+        """Create a new initiative"""
+        self.name = name
+        self.summary = summary
+        self.product_type = product_type
+        self.initiative_type = initiative_type
+        self.sponsor = sponsor
+        self.sponsor_country = sponsor_country
+        self.asset_class = asset_class
+        self.management_company = management_company
+        self.committee_date = committee_date
+        self.distribution_channel = distribution_channel
+        self.governance_required = governance_required
+        self.legal_form = legal_form
+        self.initiative_owner = initiative_owner
+        self.cosmos_id = cosmos_id
+        self.is_active = is_active
+        self.assessment_team = assessment_team
+        self.manager_team = manager_team
+        self.template_config_id = template_config_id
+        self.created_by_id = created_by_id
+        self.salesforce_id_opportunity = salesforce_id_opportunity
+        self.client_description = client_description
+        self.client_name = client_name
+        self.client_type = client_type
+        self.existing_holdings = existing_holdings
+        self.rfp = rfp
+        self.implementation_date = implementation_date
+        self.cosmos_id_data = cosmos_id_data
+        self.name_data = name_data
+        self.lead_wallet_manager_name = lead_wallet_manager_name
+        self.lead_wallet_manager_team = lead_wallet_manager_team
+        self.shareclass_name = shareclass_name
+        self.benchmark = benchmark
+        self.instruments_details = instruments_details
+        self.investment_strategy_guidelines = investment_strategy_guidelines
+        self.additional_licence_needed = additional_licence_needed
+        self.product_name_data = product_name_data
+        self.legal_form_data = legal_form_data
+        self.legal_structure = legal_structure
+        self.regulatory_status = regulatory_status
+        self.country_of_domiciliation = country_of_domiciliation
+        self.management_company_data = management_company_data
+        self.investment_management = investment_management
+        self.investment_management_delegated = investment_management_delegated
+        self.standard_service = standard_service
+        self.specific_service_desc = specific_service_desc
+        self.aum_expected = aum_expected
+        self.fees_desc = fees_desc
+        self.comments_buisness = comments_buisness
+
+    def to_json(self):
+        """Return a json representation of the Initiative"""
+        return {
+            "id": self.id,
+            "template_config_id": self.template_config_id,
+            "name": self.name,
+            "summary": self.summary,
+            "product_type": self.product_type,
+            "initiative_type": self.initiative_type,
+            "sponsor": self.sponsor,
+            "sponsor_country": self.sponsor_country,
+            "asset_class": self.asset_class,
+            "management_company": self.management_company,
+            "committee_date": str(self.committee_date) if self.committee_date else None,
+            "distribution_channel": self.distribution_channel,
+            "governance_required": self.governance_required,
+            "legal_form": self.legal_form,
+            "initiative_owner": self.initiative_owner,
+            "cosmos_id": self.cosmos_id,
+            "is_active": self.is_active,
+            "assessment_team": self.assessment_team,
+            "manager_team": self.manager_team,
+            "created_by_id": self.created_by_id,
+            "salesforce_id_opportunity": self.salesforce_id_opportunity,
+            "client_description": self.client_description,
+            "client_name": self.client_name,
+            "client_type": self.client_type,
+            "existing_holdings": self.existing_holdings,
+            "rfp": self.rfp,
+            "implementation_date": str(self.implementation_date) if self.implementation_date else None,
+            "cosmos_id_data": self.cosmos_id_data,
+            "name_data": self.name_data,
+            "lead_wallet_manager_name": self.lead_wallet_manager_name,
+            "lead_wallet_manager_team": self.lead_wallet_manager_team,
+            "shareclass_name": self.shareclass_name,
+            "benchmark": self.benchmark,
+            "instruments_details": self.instruments_details,
+            "investment_strategy_guidelines": self.investment_strategy_guidelines,
+            "additional_licence_needed": self.additional_licence_needed,
+            "product_name_data": self.product_name_data,
+            "legal_form_data": self.legal_form_data,
+            "legal_structure": self.legal_structure,
+            "regulatory_status": self.regulatory_status,
+            "country_of_domiciliation": self.country_of_domiciliation,
+            "management_company_data": self.management_company_data,
+            "investment_management": self.investment_management,
+            "investment_management_delegated": self.investment_management_delegated,
+            "standard_service": self.standard_service,
+            "specific_service_desc": self.specific_service_desc,
+            "aum_expected": self.aum_expected,
+            "fees_desc": self.fees_desc,
+            "comments_buisness": self.comments_buisness,
+        }
