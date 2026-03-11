@@ -1,0 +1,37 @@
+"""
+Define the InitiativeTeamMembers model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class InitiativeTeamMembers(db.Model, BaseModel):
+    """The initiative team members model"""
+
+    __tablename__ = "initiative_team_members"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    initiative_team_relationship_id = db.Column(
+        db.String(100),
+        db.ForeignKey("initiative_team_relationship.id"),
+        nullable=False,
+    )
+    user_id = db.Column(db.String(100), nullable=True)
+    added_at = db.Column(db.DateTime, nullable=True)
+
+    def __init__(self, id, initiative_team_relationship_id, user_id=None, added_at=None):
+        """Create a new initiative team member"""
+        self.id = id
+        self.initiative_team_relationship_id = initiative_team_relationship_id
+        self.user_id = user_id
+        self.added_at = added_at
+
+    def to_json(self):
+        """Return a json representation of the InitiativeTeamMembers"""
+        return {
+            "id": self.id,
+            "initiative_team_relationship_id": self.initiative_team_relationship_id,
+            "user_id": self.user_id,
+            "added_at": str(self.added_at) if self.added_at else None,
+        }
