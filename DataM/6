@@ -1,0 +1,65 @@
+"""
+Define the Task model
+"""
+
+from abstract_base_model import BaseModel
+from db import db
+
+
+class Task(db.Model, BaseModel):
+    """The task model"""
+
+    __tablename__ = "task"
+
+    id = db.Column(db.String(100), primary_key=True, nullable=False)
+    initiative_id = db.Column(db.String(100), db.ForeignKey("initiative.id"), nullable=False)
+    initiative_team_relationship_id = db.Column(
+        db.String(100),
+        db.ForeignKey("initiative_team_relationship.id"),
+        nullable=True,
+    )
+    task_name = db.Column(db.String(255), nullable=False)
+    task_status = db.Column(db.String(40), nullable=True)
+    task_type = db.Column(db.String(40), nullable=True)
+    parent_task_id = db.Column(db.String(100), db.ForeignKey("task.id"), nullable=True)
+    starting_date = db.Column(db.Date, nullable=True)
+    ending_date = db.Column(db.Date, nullable=True)
+
+    subtasks = db.relationship("Task", backref=db.backref("parent_task", remote_side=[id]))
+
+    def __init__(
+        self,
+        id,
+        initiative_id,
+        task_name,
+        initiative_team_relationship_id=None,
+        task_status=None,
+        task_type=None,
+        parent_task_id=None,
+        starting_date=None,
+        ending_date=None,
+    ):
+        """Create a new task"""
+        self.id = id
+        self.initiative_id = initiative_id
+        self.initiative_team_relationship_id = initiative_team_relationship_id
+        self.task_name = task_name
+        self.task_status = task_status
+        self.task_type = task_type
+        self.parent_task_id = parent_task_id
+        self.starting_date = starting_date
+        self.ending_date = ending_date
+
+    def to_json(self):
+        """Return a json representation of the Task"""
+        return {
+            "id": self.id,
+            "initiative_id": self.initiative_id,
+            "initiative_team_relationship_id": self.initiative_team_relationship_id,
+            "task_name": self.task_name,
+            "task_status": self.task_status,
+            "task_type": self.task_type,
+            "parent_task_id": self.parent_task_id,
+            "starting_date": str(self.starting_date) if self.starting_date else None,
+            "ending_date": str(self.ending_date) if self.ending_date else None,
+        }
