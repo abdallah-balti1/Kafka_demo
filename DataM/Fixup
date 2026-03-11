@@ -1,5 +1,5 @@
 def get_mu_version(wb: Workbook):
-    """returns the MU version following workbook content"""
+    """Return MU version based on workbook structure and headers."""
 
     required_worksheets_mu_2 = {
         WS_DATA_NAME,
@@ -7,24 +7,26 @@ def get_mu_version(wb: Workbook):
         WS_LOOKUP_DATA_NAME,
     }
 
-    set_available_worksheets = set(wb.sheetnames)
-
-    if not (required_worksheets_mu_2 <= set_available_worksheets):
-        return MASS_UPDATE_VERSION_1
-
-    ws = wb[WS_DATA_NAME]
-    headers = {cell.value for cell in ws[1] if cell.value}
-
-    required_adl_columns_v3 = {
+    adl_columns_v3 = {
         "Max ADL in",
         "Max ADL out",
         "ADL in",
         "ADL out",
         "New ADL in",
         "New ADL out",
+        "Effective NAV date",
     }
 
-    if required_adl_columns_v3 <= headers:
-        return MASS_UPDATE_VERSION_3
+    # 1) Detect V3 by scanning all worksheets
+    for ws in wb.worksheets:
+        headers = {cell.value for cell in ws[1] if cell.value}
+        if adl_columns_v3 & headers:
+            return MASS_UPDATE_VERSION_3
 
-    return MASS_UPDATE_VERSION_2
+    # 2) Detect V2 with old worksheet names
+    available_worksheets = set(wb.sheetnames)
+    if required_worksheets_mu_2 <= available_worksheets:
+        return MASS_UPDATE_VERSION_2
+
+    # 3) Otherwise V1
+    return MASS_UPDATE_VERSION_1
