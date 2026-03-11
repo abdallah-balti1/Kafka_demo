@@ -1,0 +1,248 @@
+from context_managers.session_critical_action_manager import SessionCriticalActionManager
+from flasgger.utils import swag_from
+from flask_restful import Resource
+from flask_restful.reqparse import Argument
+
+from config import DEV_TEAM_EMAILS
+from db import db
+from decorators import parse_params
+from repositories import InitiativeRepository
+from util.authorized_roles import authorized_roles
+from util.required_plm_authentication import authorized_plm_roles
+
+
+class InitiativesResource(Resource):
+    """Verbs relative to an Initiative"""
+
+    @staticmethod
+    @authorized_plm_roles(
+        [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "ADMIN",
+            "INITIATIVE_ASSESSOR",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_OBSERVER",
+        ]
+    )
+    @swag_from("../../swagger/initiatives/GET.yml")
+    def get(user):
+        initiatives = InitiativeRepository.get_all()
+        return [initiative.to_json() for initiative in initiatives]
+
+    @staticmethod
+    @authorized_plm_roles(["INITIATIVE_OWNER", "INITIATIVE_COORDINATOR", "ADMIN", "INITIATIVE_OVERSIGHT"])
+    @parse_params(
+        Argument("name", type=str, location="json"),
+        Argument("summary", type=str, location="json"),
+        Argument("product_type", type=str, location="json", required=False),
+        Argument("initiative_type", type=str, location="json"),
+        Argument("sponsor", type=str, location="json"),
+        Argument("sponsor_country", type=str, location="json"),
+        Argument("asset_class", type=str, location="json"),
+        Argument("management_company", type=str, location="json"),
+        Argument("committee_date", type=str, location="json"),
+        Argument("distribution_channel", type=str, location="json"),
+        Argument("governance_required", type=str, location="json"),
+        Argument("legal_form", type=str, location="json"),
+        Argument("initiative_owner", type=str, location="json"),
+        Argument("cosmos_id", type=int, location="json"),
+        # initiative data fields
+        Argument("salesforce_id_opportunity", type=str, location="json"),
+        Argument("client_description", type=str, location="json"),
+        Argument("client_name", type=str, location="json"),
+        Argument("client_type", type=str, location="json"),
+        Argument("existing_holdings", type=bool, location="json"),
+        Argument("rfp", type=str, location="json"),
+        Argument("implementation_date", type=str, location="json"),
+        Argument("cosmos_id_data", type=str, location="json"),
+        Argument("name_data", type=str, location="json"),
+        Argument("lead_wallet_manager_name", type=str, location="json"),
+        Argument("lead_wallet_manager_team", type=str, location="json"),
+        Argument("shareclass_name", type=str, location="json"),
+        Argument("benchmark", type=str, location="json"),
+        Argument("instruments_details", type=str, location="json"),
+        Argument("investment_strategy_guidelines", type=str, location="json"),
+        Argument("additional_licence_needed", type=bool, location="json"),
+        Argument("product_name_data", type=str, location="json"),
+        Argument("legal_form_data", type=str, location="json"),
+        Argument("legal_structure", type=str, location="json"),
+        Argument("regulatory_status", type=str, location="json"),
+        Argument("country_of_domiciliation", type=str, location="json"),
+        Argument("management_company_data", type=str, location="json"),
+        Argument("investment_management", type=str, location="json"),
+        Argument("investment_management_delegated", type=str, location="json"),
+        Argument("standard_service", type=bool, location="json"),
+        Argument("specific_service_desc", type=str, location="json"),
+        Argument("aum_expected", type=str, location="json"),
+        Argument("fees_desc", type=str, location="json"),
+        Argument("comments_buisness", type=str, location="json"),
+    )
+    @swag_from("../../swagger/initiatives/POST.yml")
+    def post(
+        user,
+        name,
+        summary,
+        product_type,
+        initiative_type,
+        sponsor,
+        sponsor_country,
+        asset_class,
+        management_company,
+        committee_date,
+        distribution_channel,
+        governance_required,
+        legal_form,
+        initiative_owner,
+        cosmos_id,
+        salesforce_id_opportunity,
+        client_description,
+        client_name,
+        client_type,
+        existing_holdings,
+        rfp,
+        implementation_date,
+        cosmos_id_data,
+        name_data,
+        lead_wallet_manager_name,
+        lead_wallet_manager_team,
+        shareclass_name,
+        benchmark,
+        instruments_details,
+        investment_strategy_guidelines,
+        additional_licence_needed,
+        product_name_data,
+        legal_form_data,
+        legal_structure,
+        regulatory_status,
+        country_of_domiciliation,
+        management_company_data,
+        investment_management,
+        investment_management_delegated,
+        standard_service,
+        specific_service_desc,
+        aum_expected,
+        fees_desc,
+        comments_buisness,
+    ):
+        with SessionCriticalActionManager("Create an initiative", db.session, DEV_TEAM_EMAILS):
+            new_initiative = InitiativeRepository.create(
+                name=name,
+                summary=summary,
+                product_type=product_type,
+                initiative_type=initiative_type,
+                sponsor=sponsor,
+                sponsor_country=sponsor_country,
+                asset_class=asset_class,
+                management_company=management_company,
+                committee_date=committee_date,
+                distribution_channel=distribution_channel,
+                governance_required=governance_required,
+                legal_form=legal_form,
+                initiative_owner=initiative_owner,
+                cosmos_id=cosmos_id,
+                salesforce_id_opportunity=salesforce_id_opportunity,
+                client_description=client_description,
+                client_name=client_name,
+                client_type=client_type,
+                existing_holdings=existing_holdings,
+                rfp=rfp,
+                implementation_date=implementation_date,
+                cosmos_id_data=cosmos_id_data,
+                name_data=name_data,
+                lead_wallet_manager_name=lead_wallet_manager_name,
+                lead_wallet_manager_team=lead_wallet_manager_team,
+                shareclass_name=shareclass_name,
+                benchmark=benchmark,
+                instruments_details=instruments_details,
+                investment_strategy_guidelines=investment_strategy_guidelines,
+                additional_licence_needed=additional_licence_needed,
+                product_name_data=product_name_data,
+                legal_form_data=legal_form_data,
+                legal_structure=legal_structure,
+                regulatory_status=regulatory_status,
+                country_of_domiciliation=country_of_domiciliation,
+                management_company_data=management_company_data,
+                investment_management=investment_management,
+                investment_management_delegated=investment_management_delegated,
+                standard_service=standard_service,
+                specific_service_desc=specific_service_desc,
+                aum_expected=aum_expected,
+                fees_desc=fees_desc,
+                comments_buisness=comments_buisness,
+            )
+
+        return [new_initiative.to_json()]
+
+
+class InitiativeByIdResource(Resource):
+    """Verbs relative to a single Initiative by id"""
+
+    @staticmethod
+    @authorized_plm_roles(
+        [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "ADMIN",
+            "INITIATIVE_ASSESSOR",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_OBSERVER",
+        ]
+    )
+    @swag_from("../../swagger/initiatives/GET_id.yml")
+    def get(user, id):
+        initiative = InitiativeRepository.get(id)
+        return [initiative.to_json()]
+
+    @staticmethod
+    @authorized_plm_roles(["INITIATIVE_OWNER", "INITIATIVE_COORDINATOR", "ADMIN", "INITIATIVE_OVERSIGHT"])
+    @parse_params(
+        Argument("name", type=str, location="json"),
+        Argument("summary", type=str, location="json"),
+        Argument("product_type", type=str, location="json"),
+        Argument("initiative_type", type=str, location="json"),
+        Argument("sponsor", type=str, location="json"),
+        Argument("sponsor_country", type=str, location="json"),
+        Argument("asset_class", type=str, location="json"),
+        Argument("management_company", type=str, location="json"),
+        Argument("committee_date", type=str, location="json"),
+        Argument("distribution_channel", type=str, location="json"),
+        Argument("governance_required", type=str, location="json"),
+        Argument("legal_form", type=str, location="json"),
+        Argument("initiative_owner", type=str, location="json"),
+        Argument("cosmos_id", type=int, location="json"),
+        Argument("salesforce_id_opportunity", type=str, location="json"),
+        Argument("client_description", type=str, location="json"),
+        Argument("client_name", type=str, location="json"),
+        Argument("client_type", type=str, location="json"),
+        Argument("existing_holdings", type=bool, location="json"),
+        Argument("rfp", type=str, location="json"),
+        Argument("implementation_date", type=str, location="json"),
+        Argument("cosmos_id_data", type=str, location="json"),
+        Argument("name_data", type=str, location="json"),
+        Argument("lead_wallet_manager_name", type=str, location="json"),
+        Argument("lead_wallet_manager_team", type=str, location="json"),
+        Argument("shareclass_name", type=str, location="json"),
+        Argument("benchmark", type=str, location="json"),
+        Argument("instruments_details", type=str, location="json"),
+        Argument("investment_strategy_guidelines", type=str, location="json"),
+        Argument("additional_licence_needed", type=bool, location="json"),
+        Argument("product_name_data", type=str, location="json"),
+        Argument("legal_form_data", type=str, location="json"),
+        Argument("legal_structure", type=str, location="json"),
+        Argument("regulatory_status", type=str, location="json"),
+        Argument("country_of_domiciliation", type=str, location="json"),
+        Argument("management_company_data", type=str, location="json"),
+        Argument("investment_management", type=str, location="json"),
+        Argument("investment_management_delegated", type=str, location="json"),
+        Argument("standard_service", type=bool, location="json"),
+        Argument("specific_service_desc", type=str, location="json"),
+        Argument("aum_expected", type=str, location="json"),
+        Argument("fees_desc", type=str, location="json"),
+        Argument("comments_buisness", type=str, location="json"),
+    )
+    @swag_from("../../swagger/initiatives/PATCH.yml")
+    def patch(user, id, **kwargs):
+        with SessionCriticalActionManager("Modify an initiative", db.session, DEV_TEAM_EMAILS):
+            initiative = InitiativeRepository.modify(id, **kwargs)
+        return [initiative.to_json()]
