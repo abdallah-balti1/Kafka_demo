@@ -1,0 +1,30 @@
+def get_mu_version(wb: Workbook):
+    """returns the MU version following workbook content"""
+
+    required_worksheets_mu_2 = {
+        WS_DATA_NAME,
+        WS_INITIAL_DATA_NAME,
+        WS_LOOKUP_DATA_NAME,
+    }
+
+    set_available_worksheets = set(wb.sheetnames)
+
+    if not (required_worksheets_mu_2 <= set_available_worksheets):
+        return MASS_UPDATE_VERSION_1
+
+    ws = wb[WS_DATA_NAME]
+    headers = {cell.value for cell in ws[1] if cell.value}
+
+    required_adl_columns_v3 = {
+        "Max ADL in",
+        "Max ADL out",
+        "ADL in",
+        "ADL out",
+        "New ADL in",
+        "New ADL out",
+    }
+
+    if required_adl_columns_v3 <= headers:
+        return MASS_UPDATE_VERSION_3
+
+    return MASS_UPDATE_VERSION_2
