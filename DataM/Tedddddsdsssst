@@ -1,0 +1,16 @@
+import openpyxl
+
+from util.mass_update import get_mu_version
+from constants.specific_fees import HEADERS, SHEET_NAME
+from constants.mass_update import MASS_UPDATE_VERSION_3
+
+
+def test_get_mu_version_returns_v3_when_specific_fees_headers_are_present():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = SHEET_NAME
+
+    for col_idx, header in enumerate(HEADERS, start=1):
+        ws.cell(row=3, column=col_idx, value=header)
+
+    assert get_mu_version(wb) == MASS_UPDATE_VERSION_3
