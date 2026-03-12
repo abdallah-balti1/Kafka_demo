@@ -1,0 +1,259 @@
+"""Defines the Initiative repository"""
+
+from datetime import date, datetime
+
+from errors import EntityNotFound
+from sqlalchemy import select
+
+from db import db
+from models import Initiative
+from util.manager_team_assessment import get_project_owner_by_assessment_team
+
+
+class InitiativeRepository:
+    """The repository for the initiative"""
+
+    @staticmethod
+    def get(initiative_id):
+        """Get the initiative linked with the initiative id"""
+        initiative = db.session.scalars(
+            select(Initiative).where(Initiative.id == initiative_id, Initiative.is_active.is_(True))
+        ).first()
+        if initiative is None:
+            raise EntityNotFound("initiative", initiative_id)
+        return initiative
+
+    @staticmethod
+    def get_by_initiative_id(initiative_id: str) -> Initiative:
+        """Get the initiative linked with the initiative id"""
+        obj = db.session.scalars(
+            select(Initiative).where(Initiative.id == initiative_id)
+        ).first()
+        if obj is None:
+            raise EntityNotFound("initiative", initiative_id)
+        return obj
+
+    @staticmethod
+    def get_all():
+        """Get all active initiatives"""
+        initiatives = db.session.scalars(
+            select(Initiative).where(Initiative.is_active.is_(True))
+        )
+        return [initiative for initiative in initiatives]
+
+    @staticmethod
+    def delete(initiative_id):
+        """Soft delete the initiative by setting is_active to False"""
+        initiative = db.session.get(Initiative, initiative_id)
+        if initiative is None:
+            raise EntityNotFound("initiative", initiative_id)
+        initiative.is_active = False
+        db.session.flush()
+        return initiative
+
+    @staticmethod
+    def _empty_to_none(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            v = value.strip()
+            if v == "" or v.lower() in {"none", "null", "undefined"}:
+                return None
+        return value
+
+    @staticmethod
+    def _date_or_none(value):
+        value = InitiativeRepository._empty_to_none(value)
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            v = value.strip()
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+            except Exception:
+                raise ValueError(f"Invalid date format: {value}")
+        return value
+
+    @staticmethod
+    def create(
+        name,
+        summary,
+        product_type,
+        initiative_type,
+        sponsor,
+        sponsor_country,
+        asset_class,
+        management_company,
+        committee_date,
+        distribution_channel,
+        governance_required,
+        legal_form,
+        initiative_owner,
+        cosmos_id,
+        assessment_team=None,
+        manager_team=None,
+        template_config_id=None,
+        created_by_id=None,
+        # initiative data fields
+        salesforce_id_opportunity=None,
+        client_description=None,
+        client_name=None,
+        client_type=None,
+        existing_holdings=None,
+        rfp=None,
+        implementation_date=None,
+        cosmos_id_data=None,
+        name_data=None,
+        lead_wallet_manager_name=None,
+        lead_wallet_manager_team=None,
+        shareclass_name=None,
+        benchmark=None,
+        instruments_details=None,
+        investment_strategy_guidelines=None,
+        additional_licence_needed=None,
+        product_name_data=None,
+        legal_form_data=None,
+        legal_structure=None,
+        regulatory_status=None,
+        country_of_domiciliation=None,
+        management_company_data=None,
+        investment_management=None,
+        investment_management_delegated=None,
+        standard_service=None,
+        specific_service_desc=None,
+        aum_expected=None,
+        fees_desc=None,
+        comments_buisness=None,
+    ):
+        initiative_data_for_rules = {
+            "name": name,
+            "summary": summary,
+            "product_type": product_type,
+            "initiative_type": initiative_type,
+            "sponsor": sponsor,
+            "sponsor_country": sponsor_country,
+            "asset_class": asset_class,
+            "management_company": management_company,
+            "committee_date": committee_date,
+            "distribution_channel": distribution_channel,
+            "governance_required": governance_required,
+            "legal_form": legal_form,
+            "initiative_owner": initiative_owner,
+            "cosmos_id": cosmos_id,
+        }
+
+        initiative = Initiative(
+            name=name,
+            summary=summary,
+            product_type=product_type,
+            initiative_type=initiative_type,
+            sponsor=sponsor,
+            sponsor_country=sponsor_country,
+            asset_class=asset_class,
+            management_company=management_company,
+            committee_date=committee_date,
+            distribution_channel=distribution_channel,
+            governance_required=governance_required,
+            legal_form=legal_form,
+            initiative_owner=initiative_owner,
+            cosmos_id=cosmos_id,
+            assessment_team=assessment_team,
+            manager_team=manager_team,
+            template_config_id=template_config_id,
+            created_by_id=created_by_id,
+            salesforce_id_opportunity=salesforce_id_opportunity,
+            client_description=client_description,
+            client_name=client_name,
+            client_type=client_type,
+            existing_holdings=existing_holdings,
+            rfp=rfp,
+            implementation_date=InitiativeRepository._date_or_none(implementation_date),
+            cosmos_id_data=cosmos_id_data,
+            name_data=name_data,
+            lead_wallet_manager_name=lead_wallet_manager_name,
+            lead_wallet_manager_team=lead_wallet_manager_team,
+            shareclass_name=shareclass_name,
+            benchmark=benchmark,
+            instruments_details=instruments_details,
+            investment_strategy_guidelines=investment_strategy_guidelines,
+            additional_licence_needed=additional_licence_needed,
+            product_name_data=product_name_data,
+            legal_form_data=legal_form_data,
+            legal_structure=legal_structure,
+            regulatory_status=regulatory_status,
+            country_of_domiciliation=country_of_domiciliation,
+            management_company_data=management_company_data,
+            investment_management=investment_management,
+            investment_management_delegated=investment_management_delegated,
+            standard_service=standard_service,
+            specific_service_desc=specific_service_desc,
+            aum_expected=aum_expected,
+            fees_desc=fees_desc,
+            comments_buisness=comments_buisness,
+        ).save()
+        return initiative
+
+    @staticmethod
+    def modify(initiative_id, **kwargs):
+        initiative = db.session.scalars(
+            select(Initiative).where(Initiative.id == initiative_id, Initiative.is_active.is_(True))
+        ).first()
+        if initiative is None:
+            raise EntityNotFound("initiative", initiative_id)
+
+        not_allowed = {"id"}
+
+        # Handle implementation_date separately BEFORE general normalization
+        if "implementation_date" in kwargs:
+            kwargs["implementation_date"] = InitiativeRepository._date_or_none(
+                kwargs["implementation_date"]
+            )
+
+        # Normalize all other incoming string values
+        for k in list(kwargs.keys()):
+            if k == "implementation_date":
+                continue
+            kwargs[k] = InitiativeRepository._empty_to_none(kwargs[k])
+
+        # Re-evaluate assessment and manager team if any rule field changed
+        rule_fields = [
+            "name", "summary", "product_type", "initiative_type", "sponsor",
+            "sponsor_country", "asset_class", "management_company", "committee_date",
+            "distribution_channel", "governance_required", "legal_form",
+            "initiative_owner", "cosmos_id",
+        ]
+
+        if any(field in kwargs for field in rule_fields):
+            initiative_data_for_rules = {
+                "name": kwargs.get("name", initiative.name),
+                "summary": kwargs.get("summary", initiative.summary),
+                "product_type": kwargs.get("product_type", initiative.product_type),
+                "initiative_type": kwargs.get("initiative_type", initiative.initiative_type),
+                "sponsor": kwargs.get("sponsor", initiative.sponsor),
+                "sponsor_country": kwargs.get("sponsor_country", initiative.sponsor_country),
+                "asset_class": kwargs.get("asset_class", initiative.asset_class),
+                "management_company": kwargs.get("management_company", initiative.management_company),
+                "committee_date": kwargs.get("committee_date", initiative.committee_date),
+                "distribution_channel": kwargs.get("distribution_channel", initiative.distribution_channel),
+                "governance_required": kwargs.get("governance_required", initiative.governance_required),
+                "legal_form": kwargs.get("legal_form", initiative.legal_form),
+                "initiative_owner": kwargs.get("initiative_owner", initiative.initiative_owner),
+                "cosmos_id": kwargs.get("cosmos_id", initiative.cosmos_id),
+            }
+
+        # Apply updates — skip None values to preserve existing data
+        for field, value in kwargs.items():
+            if field in not_allowed:
+                continue
+            if not hasattr(initiative, field):
+                continue
+            if value is None:
+                continue
+            setattr(initiative, field, value)
+
+        db.session.flush()
+        return initiative
