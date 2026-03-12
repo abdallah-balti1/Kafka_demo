@@ -1,1 +1,4 @@
 pytest test/api/initiative/test_initiative.py::TestPatchInitiativeById::test_patch_updates_name -s
+
+
+grep -n "@staticmethod\|@parse_params\|@authorized\|@swag\|def patch\|def post\|def get" src/resources/initiative/initiative.py
