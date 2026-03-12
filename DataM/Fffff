@@ -1,0 +1,60 @@
+from openpyxl import Workbook
+
+# V2
+REQUIRED_WORKSHEETS_MU_2 = {
+    WS_DATA_NAME,
+    WS_INITIAL_DATA_NAME,
+    WS_LOOKUP_DATA_NAME,
+}
+
+# V3
+MU_V3_HEADERS = {
+    "Max ADL in",
+    "Max ADL out",
+    "ADL in",
+    "ADL out",
+    "New ADL in",
+    "New ADL out",
+    "Effective NAV date",
+}
+
+HEADER_ROW_INDEX = 3
+
+
+def _get_row_values(ws, row_index: int) -> set[str]:
+    """Return normalized non-empty values from a worksheet row."""
+    if ws.max_row < row_index:
+        return set()
+
+    row = ws[row_index]
+    return {
+        str(cell.value).strip()
+        for cell in row
+        if cell.value is not None and str(cell.value).strip()
+    }
+
+
+def _is_mu_v3_worksheet(ws) -> bool:
+    """Check whether a worksheet matches MU V3 structure."""
+    headers = _get_row_values(ws, HEADER_ROW_INDEX)
+    return MU_V3_HEADERS.issubset(headers)
+
+
+def _has_mu_v2_structure(wb: Workbook) -> bool:
+    """Check whether workbook matches MU V2 structure."""
+    return REQUIRED_WORKSHEETS_MU_2.issubset(set(wb.sheetnames))
+
+
+def get_mu_version(wb: Workbook):
+    """Return MU version based on workbook structure."""
+
+    # First detect V3 by content, because worksheet names may have changed
+    for ws in wb.worksheets:
+        if _is_mu_v3_worksheet(ws):
+            return MASS_UPDATE_VERSION_3
+
+    # Then fallback to old template detection
+    if _has_mu_v2_structure(wb):
+        return MASS_UPDATE_VERSION_2
+
+    return MASS_UPDATE_VERSION_1
