@@ -1,0 +1,85 @@
+import unittest
+
+import openpyxl
+from openpyxl import Workbook
+
+from constants.mass_update import (
+    MASS_UPDATE_VERSION_1,
+    MASS_UPDATE_VERSION_2,
+    MASS_UPDATE_VERSION_3,
+)
+from constants.specific_fees import HEADERS
+from util.mass_update import get_mu_version
+from util.mass_update.constants import (
+    WS_DATA_NAME,
+    WS_INITIAL_DATA_NAME,
+    WS_LOOKUP_DATA_NAME,
+)
+
+
+class TestGetMuVersion(unittest.TestCase):
+    def test_get_mu_version_returns_v1_when_v2_structure_is_missing(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Random sheet"
+
+        self.assertEqual(get_mu_version(wb), MASS_UPDATE_VERSION_1)
+
+        wb.close()
+
+    def test_get_mu_version_returns_v2_when_required_v2_worksheets_are_present(self):
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        wb.create_sheet(WS_DATA_NAME)
+        wb.create_sheet(WS_INITIAL_DATA_NAME)
+        wb.create_sheet(WS_LOOKUP_DATA_NAME)
+
+        self.assertEqual(get_mu_version(wb), MASS_UPDATE_VERSION_2)
+
+        wb.close()
+
+    def test_get_mu_version_returns_v3_when_headers_are_present_on_row_3(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Specific Fees"
+
+        for col_idx, header in enumerate(HEADERS, start=1):
+            ws.cell(row=3, column=col_idx, value=header)
+
+        self.assertEqual(get_mu_version(wb), MASS_UPDATE_VERSION_3)
+
+        wb.close()
+
+    def test_get_mu_version_returns_v3_when_headers_are_present_on_another_candidate_row(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Specific Fees"
+
+        ws.cell(row=1, column=1, value="Title")
+        ws.cell(row=2, column=1, value="Subtitle")
+
+        for col_idx, header in enumerate(HEADERS, start=1):
+            ws.cell(row=5, column=col_idx, value=header)
+
+        self.assertEqual(get_mu_version(wb), MASS_UPDATE_VERSION_3)
+
+        wb.close()
+
+    def test_get_mu_version_ignores_empty_worksheets_before_detecting_v3(self):
+        wb = Workbook()
+        empty_ws = wb.active
+        empty_ws.title = "Empty sheet"
+
+        v3_ws = wb.create_sheet("Specific Fees")
+
+        for col_idx, header in enumerate(HEADERS, start=1):
+            v3_ws.cell(row=3, column=col_idx, value=header)
+
+        self.assertEqual(get_mu_version(wb), MASS_UPDATE_VERSION_3)
+
+        wb.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
