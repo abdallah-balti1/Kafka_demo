@@ -1,0 +1,43 @@
+HEADER_CANDIDATE_ROWS = (1, 2, 3, 4, 5)
+
+
+def _get_headers_from_row(ws, row_index: int) -> set[str]:
+    if ws.max_row < row_index:
+        return set()
+
+    return {
+        str(cell.value).strip()
+        for cell in ws[row_index]
+        if cell.value is not None and str(cell.value).strip()
+    }
+
+
+def _is_mu_v3_worksheet(ws) -> bool:
+    expected_headers = set(HEADERS)
+
+    for row_index in HEADER_CANDIDATE_ROWS:
+        headers = _get_headers_from_row(ws, row_index)
+        if expected_headers.issubset(headers):
+            return True
+
+    return False
+
+
+def get_mu_version(wb: Workbook):
+    """returns the MU version following workbook structure"""
+
+    required_worksheets_mu_2 = {
+        WS_DATA_NAME,
+        WS_INITIAL_DATA_NAME,
+        WS_LOOKUP_DATA_NAME,
+    }
+
+    for ws in wb.worksheets:
+        if _is_mu_v3_worksheet(ws):
+            return MASS_UPDATE_VERSION_3
+
+    available_worksheets = set(wb.sheetnames)
+    if required_worksheets_mu_2 <= available_worksheets:
+        return MASS_UPDATE_VERSION_2
+
+    return MASS_UPDATE_VERSION_1
