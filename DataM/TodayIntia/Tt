@@ -7,3 +7,8 @@ grep -n "@staticmethod\|@parse_params\|@authorized\|@swag\|def patch\|def post\|
 test_patch_updates_initiative_data_fields -s 2>&1 | grep "DEBUG
 
 pytest test/api/initiative/test_initiative.py::TestPatchInitiativeById::test_patch_updates_initiative_data_fields -s 2>&1 | grep "DEBUG"
+
+
+from flask import request
+    print("DEBUG request JSON:", request.get_json())
+    print("DEBUG kwargs:", kwargs)
