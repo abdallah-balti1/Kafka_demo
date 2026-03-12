@@ -1,0 +1,1 @@
+pytest test/api/initiative/test_initiative.py::TestPatchInitiativeById::test_patch_updates_name -s
