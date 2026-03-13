@@ -1,0 +1,6 @@
+grep -n "ForeignKey\|relationship" src/models/initiative.py
+grep -n "ForeignKey\|relationship" src/models/task.py
+grep -n "ForeignKey\|relationship" src/models/initiative_team_relationship.py
+grep -n "ForeignKey\|relationship" src/models/initiative_team_members.py
+grep -n "ForeignKey\|relationship" src/models/document.py
+grep -n "ForeignKey\|relationship" src/models/template_config.py
