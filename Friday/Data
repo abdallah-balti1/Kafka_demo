@@ -1,0 +1,51 @@
+. src/resources/template_config/__init__.py
+from .template_config import TemplateConfigsResource
+2. src/resources/template_config/template_config.py
+from flask_restful import Resource
+from util.required_plm_authentication import authorized_plm_roles
+from db import db
+from models.template_config import TemplateConfig
+from models.template import Template
+
+
+class TemplateConfigsResource(Resource):
+    """Get all template configs with their template name"""
+
+    @staticmethod
+    @authorized_plm_roles(
+        [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "ADMIN",
+            "INITIATIVE_ASSESSOR",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_OBSERVER",
+        ]
+    )
+    def get(user):
+        results = (
+            db.session.query(TemplateConfig.id, Template.name)
+            .join(Template, TemplateConfig.template_id == Template.id)
+            .all()
+        )
+        return [{"id": row.id, "name": row.name} for row in results]
+3. src/routes/template_configs.py
+"""
+Defines the blueprint for template configs
+"""
+from flask import Blueprint
+from flask_restful import Api
+
+from resources.template_config import TemplateConfigsResource
+
+TEMPLATE_CONFIGS_BLUEPRINT = Blueprint("template_configs", __name__)
+Api(TEMPLATE_CONFIGS_BLUEPRINT).add_resource(
+    TemplateConfigsResource, "/template-configs", endpoint="template_configs"
+)
+4. Dans app.py — enregistrer le blueprint
+from routes.template_configs import TEMPLATE_CONFIGS_BLUEPRINT
+
+app.register_blueprint(TEMPLATE_CONFIGS_BLUEPRINT)
+Une fois ces 4 choses faites, testez avec :
+GET /template-configs
+Ça doit retourner [{"id": "...", "name": "..."}]. Dites-moi quand c'est bon et on passe au frontend React (dropdown dans Create Initiative).
