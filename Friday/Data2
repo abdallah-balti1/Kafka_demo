@@ -1,0 +1,64 @@
+src/redux/pages/InitiativePipelineCardTab/api.js — Ajouter la fonction fetch
+export function getTemplateConfigsData(token: string) {
+  const requestURL = `${config.INITIATIVE_API_URL}/template-configs`;
+
+  return request(requestURL, {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+}
+2. src/redux/entities/initiativesPipeline/hooks.js — Ajouter le hook
+En suivant le même pattern que useFetchInitiativeOwners :
+export const useFetchTemplateConfigs = (token, fetch, defaultValue) => {
+  const [state, setState] = useState(defaultValue);
+
+  useEffect(() => {
+    if (fetch && token) {
+      getTemplateConfigsData(token).then((response) => {
+        setState(response);
+      });
+    }
+  }, [token, fetch]);
+
+  return { value: state };
+};
+3. InitiativePipelineCharacteristicsSection.js — 3 endroits à modifier
+A) Import du hook (ligne ~21) :
+import {
+  useFetchInitiativeOwners,
+  useFetchSponsorCountries,
+  useFetchTemplateConfigs,  // ← ajouter
+} from 'redux/entities/initiativesPipeline/hooks.js';
+B) Appel du hook (après ligne ~62, avec les autres useFetch...) :
+const { value: templateConfigs } = useFetchTemplateConfigs(token, true, []) || {};
+C) Le champ Dropdown — à ajouter dans le JSX, dans une nouvelle <Style.Row> avant la fermeture </Style.InputsContainer> (ou à l'endroit souhaité dans le formulaire) :
+<Style.Row>
+  <Style.Input>
+    <Field
+      name="initiativePipeline.templateConfigId"
+      component={Dropdown}
+      label={intl.formatMessage({
+        id: 'INITIATIVE_PIPELINE.ASSESSMENT_TEMPLATE',
+      })}
+      options={
+        templateConfigs &&
+        templateConfigs.map((template) => ({
+          value: template.id,
+          label: template.name,
+        }))
+      }
+      isClearable={true}
+      hasError={hasError(errors, touched, 'initiativePipeline.templateConfigId')}
+    />
+    <ErrorMessage
+      name="initiativePipeline.templateConfigId"
+      component={Style.FieldErrorMessage}
+    />
+  </Style.Input>
+</Style.Row>
+4. Ajouter la clé i18n
+Dans votre fichier de traductions (ex: en.json ou fr.json) :
+"INITIATIVE_PIPELINE.ASSESSMENT_TEMPLATE": "Assessment template"
+Montrez-moi où est géré le post du formulaire (le createInitiativeDataApi) pour vérifier que templateConfigId est bien passé dans le payload — il est probable qu'il faille l'ajouter explicitement.
