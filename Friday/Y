@@ -1,0 +1,6 @@
+options={
+  (templateConfigs || []).map((template) => ({
+    value: template.id,
+    label: template.name,
+  }))
+}
