@@ -1,0 +1,49 @@
+Étape 1 — src/resources/template/template.py (nouveau fichier)
+from flask_restful import Resource
+from util.required_plm_authentication import authorized_plm_roles
+from db import db
+from models.template import Template
+
+
+class TemplatesResource(Resource):
+    """Get all templates"""
+
+    @staticmethod
+    @authorized_plm_roles(
+        [
+            "INITIATIVE_OWNER",
+            "INITIATIVE_COORDINATOR",
+            "ADMIN",
+            "INITIATIVE_ASSESSOR",
+            "INITIATIVE_OVERSIGHT",
+            "INITIATIVE_OBSERVER",
+        ]
+    )
+    def get(user):
+        templates = db.session.query(Template).all()
+        return [{"id": t.id, "name": t.name} for t in templates]
+Étape 2 — src/resources/template/__init__.py
+from .template import TemplatesResource
+Étape 3 — src/routes/templates.py
+"""
+Defines the blueprint for templates
+"""
+from flask import Blueprint
+from flask_restful import Api
+
+from resources.template import TemplatesResource
+
+TEMPLATES_BLUEPRINT = Blueprint("templates", __name__)
+Api(TEMPLATES_BLUEPRINT).add_resource(
+    TemplatesResource, "/templates", endpoint="templates"
+)
+Étape 4 — Dans app.py
+from routes.templates import TEMPLATES_BLUEPRINT
+
+app.register_blueprint(TEMPLATES_BLUEPRINT)
+Et côté frontend, changer juste l'URL dans api.js :
+// Remplacer
+`${config.INITIATIVE_API_URL}/template-configs`
+// Par
+`${config.INITIATIVE_API_URL}/templates`
+Tout le reste du frontend reste identique.
