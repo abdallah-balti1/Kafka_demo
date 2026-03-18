@@ -1,0 +1,65 @@
+{
+  // Global
+  "editor.formatOnSave": false,
+
+  // JavaScript
+  "[javascript]": {
+    "editor.formatOnSave": false,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // React / TS
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+
+  // JSON
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+
+  // Python configuration
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+
+  // Black arguments
+  "black-formatter.args": [
+    "--line-length",
+    "120"
+  ],
+
+  // isort arguments
+  "isort.args": [
+    "--profile",
+    "black",
+    "--line-length",
+    "120"
+  ],
+
+  // Python env
+  "python.venvPath": ".venv",
+  "python.languageServer": "Pylance",
+
+  // UI
+  "editor.minimap.enabled": false,
+  "editor.stickyScroll.enabled": false,
+
+  // Debug
+  "debug.javascript.autoAttachFilter": "always",
+
+  // Telemetry
+  "redhat.telemetry.enabled": true,
+
+  // Continue extension
+  "continue.showInlineTip": false,
+
+  // Proxy
+  "http.proxySupport": "off",
+  "http.proxyAuthorization": null,
+  "http.proxyStrictSSL": false
+}
