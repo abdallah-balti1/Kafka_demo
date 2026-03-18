@@ -1,0 +1,204 @@
+Oui. Commence par garder Black + isort + pre-commit, et considère Ruff comme un bonus très utile, pas comme une obligation.
+C’est quoi Ruff ?
+Ruff est un outil Python très rapide qui peut faire le travail de plusieurs outils de qualité de code à la fois. Sa doc officielle dit qu’il peut remplacer Flake8, Black, isort, pydocstyle, pyupgrade, autoflake, etc., et qu’il propose à la fois un linter et un formatter. Le formatter Ruff est pensé comme un remplacement “drop-in” de Black, tout en gardant quelques différences connues avec Black. �
+Astral Docs +3
+En pratique :
+Black : reformate ton code.
+isort : trie les imports.
+pre-commit : lance automatiquement des vérifications avant chaque commit Git.
+Ruff : détecte plein de problèmes de code, peut en corriger certains automatiquement, et peut aussi gérer formatage/imports si un jour tu veux simplifier ta stack. Par défaut, Ruff active notamment des règles issues de Flake8 (F) et une partie des règles E, en évitant les règles de style qui se chevauchent avec un formatter. �
+Astral Docs +1
+Mon conseil pour toi
+Vu que tu veux apprendre proprement :
+Maintenant : utilise Black + isort + pre-commit
+En plus : ajoute Ruff uniquement comme linter
+Plus tard, quand tu seras à l’aise, tu pourras éventuellement remplacer isort et même Black par Ruff si tu veux une stack plus simple. Ruff peut être utilisé indépendamment comme linter et formatter. �
+Astral Docs +1
+Setup recommandé pour un projet Python moderne
+1) Installer les outils
+Dans ton venv :
+Bash
+pip install black isort ruff pre-commit
+2) Fichier pyproject.toml
+À la racine du projet :
+TOML
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+Pourquoi ce fichier est important : Black lit sa configuration depuis pyproject.toml, et la doc Black recommande cette approche pour définir les options du projet. isort recommande aussi d’utiliser le profil black dans la config du repo pour éviter les conflits entre Black et isort. �
+Black +2
+Le select = ["E", "F", "I"] veut dire en gros :
+E : erreurs de style pycodestyle utiles
+F : erreurs type Flake8/Pyflakes
+I : règles d’imports inspirées de isort dans Ruff �
+Astral Docs
+3) Config VS Code
+Aujourd’hui, dans VS Code, le plus propre est d’utiliser les extensions dédiées Black Formatter et isort, en plus de l’extension Python. La doc VS Code explique le formatage Python via extension dédiée, et l’organisation des imports via editor.codeActionsOnSave dans le scope [python]. Le Marketplace Microsoft propose bien une extension officielle Black Formatter et une extension officielle isort. �
+Visual Studio Code +3
+Installe ces extensions :
+Python (Microsoft)
+Black Formatter (Microsoft)
+isort (Microsoft)
+Puis dans settings.json :
+JSON
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "isort.args": ["--profile", "black", "--line-length", "120"],
+  "black-formatter.args": ["--line-length", "120"]
+}
+Important
+Selon la façon dont ton VS Code est configuré, source.organizeImports peut nécessiter une sauvegarde explicite ou un déclenchement compatible avec ton setup. La doc VS Code montre bien que l’organisation des imports se règle via editor.codeActionsOnSave sous [python]. �
+Visual Studio Code +1
+4) Fichier .pre-commit-config.yaml
+À la racine du projet :
+YAML
+repos:
+  - repo: https://github.com/psf/black
+    rev: 26.3.0
+    hooks:
+      - id: black
+        args: ["--line-length=120"]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile=black", "--line-length=120"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+Pourquoi cet ordre ?
+La doc Ruff recommande que, quand Ruff tourne avec --fix, son hook de lint soit placé avant le formatter Ruff, et avant Black/isort/autres formatters, car ses corrections peuvent produire du code qui doit ensuite être reformaté. �
+Astral Docs
+Comme toi tu gardes Black + isort :
+Ruff corrige ce qu’il peut
+isort trie les imports
+Black reformate le rendu final
+C’est un très bon ordre pratique.
+5) Activer pre-commit
+Dans le repo :
+Bash
+pre-commit install
+Puis pour tester sur tout le projet :
+Bash
+pre-commit run --all-files
+La doc officielle pre-commit explique que la config se fait dans .pre-commit-config.yaml et montre l’usage de pre-commit run --all-files. Elle fournit aussi la commande pre-commit autoupdate pour mettre à jour les versions des hooks plus tard. �
+pre-commit.com
+6) Commandes utiles au quotidien
+Formatage manuel :
+Bash
+black .
+isort .
+Lint Ruff :
+Bash
+ruff check .
+Correction auto Ruff :
+Bash
+ruff check . --fix
+Lancer tous les hooks :
+Bash
+pre-commit run --all-files
+7) Workflow simple que je te conseille
+Quand tu codes :
+tu sauvegardes
+VS Code lance Black
+VS Code lance isort
+avant commit, pre-commit relance les vérifications
+Ruff attrape les petits problèmes oubliés
+Donc tu as une double sécurité :
+au save
+au commit
+8) Différence simple entre les outils
+Black
+Formateur strict, opinionné, très utilisé. Il lit bien pyproject.toml. �
+Black +1
+isort
+Trie et regroupe les imports. Le profil black est recommandé officiellement quand on utilise Black avec isort. �
+Pycqa +2
+pre-commit
+Exécute des hooks Git automatiquement avant le commit, à partir du fichier .pre-commit-config.yaml. �
+pre-commit.com
+Ruff
+Linter ultra rapide, avec beaucoup de règles, et peut aussi aller vers formatter/import sorting si un jour tu veux simplifier ton setup. �
+Astral Docs +2
+9) Ce que je te recommande concrètement
+Pour toi, le meilleur départ est :
+Black pour le format
+isort pour les imports
+Ruff pour le lint
+pre-commit pour sécuriser les commits
+C’est propre, moderne, simple à comprendre, et très utilisé.
+Voici la version finale minimale des fichiers.
+pyproject.toml
+TOML
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+.pre-commit-config.yaml
+YAML
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile=black", "--line-length=120"]
+
+  - repo: https://github.com/psf/black
+    rev: 26.3.0
+    hooks:
+      - id: black
+        args: ["--line-length=120"]
+settings.json VS Code
+JSON
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "black-formatter.args": ["--line-length", "120"],
+  "isort.args": ["--profile", "black", "--line-length", "120"]
+}
+installation
+Bash
+pip install black isort ruff pre-commit
+pre-commit install
+pre-commit run --all-files
+Le point à surveiller : les rev de .pre-commit-config.yaml évoluent avec le temps, donc pense à faire pre-commit autoupdate de temps en temps. La doc officielle le recommande pour mettre à jour les hooks. �
+pre-commit.com
+Je peux maintenant te donner une version “senior/dev team” prête à copier-coller, avec aussi exclude, fichiers ignorés, support de Flask, tests et CI.
