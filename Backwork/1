@@ -1,0 +1,9 @@
+cosmos_id: createInitiativePipelineFormValues.cosmosId?.value
+  ? parseInt(createInitiativePipelineFormValues.cosmosId.value, 10)
+  : null,
+
+
+
+  cosmos_id: UpdateInitiativePipelineFormValues.cosmosId?.value
+  ? parseInt(UpdateInitiativePipelineFormValues.cosmosId.value, 10)
+  : null,
