@@ -1,0 +1,10 @@
+def decorated_function(*args, **kwargs):
+    # Bypass complet en local dev
+    if os.getenv("BYPASS_AUTH") == "1":
+        kwargs["user"] = _get_user(ROLE_ADMIN)
+        return func(*args, **kwargs)
+
+    # Api-Key check
+    if request.headers.get("Api-Key") and request.headers.get("Api-Key") == config.API_KEY:
+        kwargs["user"] = _get_user(ROLE_ADMIN, claims=claims)
+        return func(*args, **kwargs)
