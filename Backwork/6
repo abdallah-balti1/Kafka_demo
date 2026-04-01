@@ -1,0 +1,80 @@
+// @flow
+import React, { useEffect, useState } from 'react';
+import { FormattedMessage } from 'react-intl';
+
+import RadioListItem from 'components/RadioListItem';
+import ModalLayout from 'components/ModalLayout';
+
+import Style from './AddInitiativeTeam.style';
+
+export type OwnPropsType = {
+  onCloseClick: () => void,
+  projectTeamIds: number[],
+  projectId: number,
+};
+
+export type MapStateToPropsType = { teams: TeamType[] };
+
+export type MapDispatchToPropsType = {
+  fetchInitiativeTeams: () => FetchTeamsActionType,  // ← remplacé fetchTeams
+  setSelectedTeamForMemberAssignment: (teamId: ?number) => SelectTeamForMemberAssignmentActionType,
+};
+
+type PropsType = OwnPropsType & MapStateToPropsType & MapDispatchToPropsType;
+
+const AddInitiativeTeam = ({
+  onCloseClick,
+  fetchInitiativeTeams,  // ← remplacé fetchTeams
+  teams,
+  projectTeamIds,
+  projectId,
+  initiativeId,
+  addInitiativeTeam,
+  setSelectedTeamForMemberAssignment,
+}: PropsType) => {
+  const [addedTeam, setAddedTeam] = useState<?TeamType>(null);
+  const [filter, setFilter] = useState<string>('');
+
+  useEffect(
+    () => {
+      fetchInitiativeTeams();  // ← remplacé fetchTeams()
+    },
+    [fetchInitiativeTeams],  // ← remplacé fetchTeams
+  );
+
+  const availableTeams: TeamType[] = teams;
+
+  return (
+    <ModalLayout
+      title={<FormattedMessage id="INITIATIVE_COMMUNITY.ADD_TEAM.TITLE" />}
+      description={<FormattedMessage id="INITIATIVE_COMMUNITY.ADD_TEAM.DESCRIPTION" />}
+      onCancel={onCloseClick}
+      isConfirmDisabled={!addedTeam}
+      onConfirm={() => {
+        addedTeam && addInitiativeTeam(initiativeId, addedTeam.id);
+        onCloseClick();
+        addedTeam && setSelectedTeamForMemberAssignment(addedTeam.id);
+      }}
+    >
+      <Style.FilterInputWithPlaceholder
+        filter={{ id: filter, value: filter }}
+        onChange={(value: string) => setFilter(value)}
+      />
+      <div>
+        {availableTeams
+          .filter(team => team.displayName.toLowerCase().includes(filter.toLowerCase()))
+          .map(team => (
+            <RadioListItem
+              label={team.displayName}
+              onSelectItem={() => setAddedTeam(team)}
+              isSelected={team.id === (addedTeam && addedTeam.id)}
+              key={team.id}
+            />
+          ))}
+      </div>
+    </ModalLayout>
+  );
+};
+
+export default AddInitiativeTeam;
+Il faut aussi mettre à jour le fichier container.js
