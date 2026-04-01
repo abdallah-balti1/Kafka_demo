@@ -1,0 +1,43 @@
+Parfait, je vois tout le pattern. Voici toutes les modifications à faire :
+1. constants.js — ajouter la constante
+export const TEAMS_INITIATIVE_FETCH_REQUEST = 'TEAMS_INITIATIVE_FETCH_REQUEST';
+2. actions.js — ajouter l'action
+export const fetchInitiativeTeams = (): FetchTeamsActionType => ({
+  type: TEAMS_INITIATIVE_FETCH_REQUEST,
+});
+Et dans export default :
+export default {
+  fetchTeams,
+  fetchInitiativeTeams,  // ← ajouter
+  fetchTeamsSuccess,
+  fetchTeamsError,
+  fetchTeamsById,
+};
+3. sagas.js — ajouter la saga
+// Import
+import { getAllTeams, getTeams, getTeamsByIds, getInitiativeTeams } from './api';
+import { TEAMS_INITIATIVE_FETCH_REQUEST } from './constants';
+
+// Nouvelle saga
+export function* fetchInitiativeTeamsSaga(): SagaType {
+  try {
+    const response: ResponseType = yield authenticatedCall(getInitiativeTeams);
+    yield put(fetchTeamsSuccess(modelizeTeamsState(response.data)));
+  } catch (error) {
+    yield put(fetchTeamsError(error));
+    yield call(handleAPIExceptions, error);
+  }
+}
+
+// Dans teamsSagas()
+export default function* teamsSagas(): SagaType {
+  yield takeEvery(TEAMS_FETCH_REQUEST, fetchTeamsSaga);
+  yield takeEvery(TEAMS_INITIATIVE_FETCH_REQUEST, fetchInitiativeTeamsSaga);  // ← ajouter
+  // ... autres takeEvery existants
+}
+4. AddInitiativeTeam.js — utiliser la nouvelle action
+// MapDispatchToPropsType
+fetchInitiativeTeams: () => FetchTeamsActionType,  // ← remplacer fetchTeams
+
+// useEffect
+fetchInitiativeTeams();  // ← remplacer fetchTeams()
