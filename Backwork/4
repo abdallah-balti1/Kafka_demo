@@ -1,0 +1,19 @@
+@staticmethod
+def get_list(is_initiative_user=None):
+    """Get the list of teams"""
+    query = Team.query
+    if is_initiative_user is not None:
+        query = query.filter(Team.is_initiative_user == is_initiative_user)
+    return query.all()
+
+
+
+    @parse_params(
+    Argument("show_all_teams", type=str, required=False, location="args"),
+    Argument("is_initiative_user", type=bool, required=False, location="args"),  # ← ajouter
+)
+def get(user, show_all_teams, is_initiative_user=None):
+    teams = TeamRepository.get_list(is_initiative_user=is_initiative_user)
+    if show_all_teams == "true":
+        return [team.to_json() for team in teams]
+    return [team.to_json() for team in teams if team.is_active]
