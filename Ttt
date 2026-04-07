@@ -1,0 +1,5 @@
+const accountant = users.byId[rel.accountantId];
+
+mainAssessor: accountant
+  ? `${accountant.firstname} ${accountant.lastname}`
+  : null
