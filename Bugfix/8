@@ -1,0 +1,362 @@
+// @flow
+import { Suspense } from 'react';
+import { LoadingIndicatorWithPosition, TabContainer } from 'styles';
+import ExecutiveSummary from './components/ExecutiveSummary';
+import InitiativeCommunity from './components/InitiativeCommunity';
+import InitiativeDescription from './components/InitiativeDescription';
+import GlobalRating from './components/GlobalRating';   // ← new import
+import Style from './InitiativePipelineCardTab.style';
+
+const InitiativePipelineCardTab = ({ initiative, newProductId, newUmbrellaId }) => {
+  return (
+    <TabContainer>
+      <Suspense fallback={<LoadingIndicatorWithPosition />}>
+        {initiative ? (
+          <>
+            <Style.RowContainer>
+              <ExecutiveSummary initiative={initiative} />
+            </Style.RowContainer>
+
+            <InitiativeDescription initiative={initiative} />
+
+            <Style.CommunityContainer>
+              <InitiativeCommunity initiative={initiative} />
+            </Style.CommunityContainer>
+
+            {/* Global Rating card — new section */}
+            <Style.GlobalRatingContainer>
+              <GlobalRating initiative={initiative} />
+            </Style.GlobalRatingContainer>
+          </>
+        ) : (
+          <LoadingIndicatorWithPosition />
+        )}
+      </Suspense>
+    </TabContainer>
+  );
+};
+
+export default InitiativePipelineCardTab;
+
+
+
+
+
+
+// @flow
+export { default } from './GlobalRating.wrap';
+
+
+
+
+
+
+// @flow
+import styled, { css } from 'styled-components';
+import { Grid, typography } from 'styles';
+
+export default {
+  Container: styled.div`
+    background-color: white;
+    width: 100%;
+  `,
+
+  HeaderContainer: styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: ${Grid(4)};
+  `,
+
+  Title: styled.h3`
+    ${typography.h3}
+  `,
+
+  // ─── Global Rating Block ───────────────────────────────────────────
+
+  GlobalRatingContainer: styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: ${Grid(3)} ${Grid(4)};
+    background-color: #f9f9f9;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: ${Grid(2)};
+  `,
+
+  GlobalRatingLabel: styled.span`
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  `,
+
+  GlobalRatingValue: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(3)};
+  `,
+
+  // ─── Rating Badge ──────────────────────────────────────────────────
+
+  RatingBadge: styled.span`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: ${Grid(1)} ${Grid(2)};
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    background-color: ${({ color }) => color || '#999'};
+    min-width: 72px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  `,
+
+  EmptyBadge: styled.span`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: ${Grid(1)} ${Grid(2)};
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    background-color: #f0f0f0;
+    min-width: 72px;
+    text-align: center;
+  `,
+
+  // ─── Rating Scale Dots ─────────────────────────────────────────────
+
+  ScaleContainer: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(1)};
+  `,
+
+  ScaleDot: styled.span`
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: ${({ color, isActive }) => (isActive ? color : '#e0e0e0')};
+    transition: background-color 0.2s ease;
+    cursor: default;
+  `,
+
+  // ─── Assessments Table ─────────────────────────────────────────────
+
+  AssessmentsContainer: styled.div`
+    padding: 0 ${Grid(4)} ${Grid(4)};
+  `,
+
+  AssessmentsHeader: styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: ${Grid(1)} 0;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: ${Grid(1)};
+  `,
+
+  ColumnLabel: styled.span`
+    font-size: 11px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  `,
+
+  AssessmentRow: styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: ${Grid(2)} 0;
+    border-bottom: 1px solid #f0f0f0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  `,
+
+  CategoryName: styled.span`
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a2e;
+  `,
+
+  RatingCell: styled.div`
+    display: flex;
+    align-items: center;
+  `,
+
+  // ─── Empty State ───────────────────────────────────────────────────
+
+  EmptyState: styled.div`
+    padding: ${Grid(6)} ${Grid(4)};
+    text-align: center;
+    font-size: 13px;
+    color: #bbb;
+    font-style: italic;
+  `,
+};
+
+
+
+
+
+
+
+// @flow
+import { connect } from 'react-redux';
+import GlobalRating, {
+  type MapStateToPropsType,
+  type MapDispatchToPropsType,
+} from './GlobalRating';
+
+// Selectors — adjust paths to match your actual redux structure
+import {
+  selectGlobalRating,
+  selectAssessmentRatings,
+} from 'redux/entities/initiativeAssessorsTeams/selectors';
+
+const mapStateToProps = (state: StateType): MapStateToPropsType => ({
+  globalRating:  selectGlobalRating(state),
+  assessments:   selectAssessmentRatings(state),
+});
+
+// No dispatch needed for a read-only rating card
+const mapDispatchToProps = (): MapDispatchToPropsType => ({});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps,
+)(GlobalRating);
+
+
+
+
+
+
+// @flow
+import React from 'react';
+import { FormattedMessage } from 'react-intl';
+import Style from './GlobalRating.style';
+
+type RatingLevel = 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' | null;
+
+type AssessmentRating = {
+  category: string,
+  rating: RatingLevel,
+  weight: number,
+};
+
+type OwnPropsType = {
+  initiative: Object,
+  assessments?: AssessmentRating[],
+  globalRating?: RatingLevel,
+};
+
+type PropsType = OwnPropsType;
+
+const RATING_CONFIG: { [RatingLevel]: { label: string, color: string, rank: number } } = {
+  VERY_LOW:  { label: 'Very low',  color: '#4CAF50', rank: 1 },
+  LOW:       { label: 'Low',       color: '#8BC34A', rank: 2 },
+  MEDIUM:    { label: 'Medium',    color: '#FFC107', rank: 3 },
+  HIGH:      { label: 'High',      color: '#FF9800', rank: 4 },
+  VERY_HIGH: { label: 'Very high', color: '#F44336', rank: 5 },
+};
+
+const ALL_LEVELS: RatingLevel[] = ['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'];
+
+const RatingBadge = ({ rating }: { rating: RatingLevel }) => {
+  if (!rating) return <Style.EmptyBadge>—</Style.EmptyBadge>;
+  const config = RATING_CONFIG[rating];
+  return (
+    <Style.RatingBadge color={config.color}>
+      {config.label}
+    </Style.RatingBadge>
+  );
+};
+
+const RatingScale = ({ rating }: { rating: RatingLevel }) => {
+  const activeRank = rating ? RATING_CONFIG[rating].rank : 0;
+  return (
+    <Style.ScaleContainer>
+      {ALL_LEVELS.map((level) => {
+        const config = RATING_CONFIG[level];
+        const isActive = config.rank <= activeRank;
+        return (
+          <Style.ScaleDot
+            key={level}
+            color={config.color}
+            isActive={isActive}
+            title={config.label}
+          />
+        );
+      })}
+    </Style.ScaleContainer>
+  );
+};
+
+const GlobalRating = ({ initiative, assessments = [], globalRating }: PropsType) => {
+  return (
+    <Style.Container>
+      {/* Header */}
+      <Style.HeaderContainer>
+        <Style.Title>
+          <FormattedMessage id="INITIATIVE_CARD.GLOBAL_RATING.TITLE" defaultMessage="Global Rating" />
+        </Style.Title>
+      </Style.HeaderContainer>
+
+      {/* Global Rating Summary */}
+      <Style.GlobalRatingContainer>
+        <Style.GlobalRatingLabel>
+          <FormattedMessage id="INITIATIVE_CARD.GLOBAL_RATING.OVERALL" defaultMessage="Overall Risk Rating" />
+        </Style.GlobalRatingLabel>
+        <Style.GlobalRatingValue>
+          <RatingBadge rating={globalRating} />
+          <RatingScale rating={globalRating} />
+        </Style.GlobalRatingValue>
+      </Style.GlobalRatingContainer>
+
+      {/* Assessments breakdown */}
+      {assessments.length > 0 && (
+        <Style.AssessmentsContainer>
+          <Style.AssessmentsHeader>
+            <Style.ColumnLabel>
+              <FormattedMessage id="INITIATIVE_CARD.GLOBAL_RATING.CATEGORY" defaultMessage="Category" />
+            </Style.ColumnLabel>
+            <Style.ColumnLabel>
+              <FormattedMessage id="INITIATIVE_CARD.GLOBAL_RATING.RATING" defaultMessage="Rating" />
+            </Style.ColumnLabel>
+          </Style.AssessmentsHeader>
+
+          {assessments.map((assessment, index) => (
+            <Style.AssessmentRow key={index}>
+              <Style.CategoryName>{assessment.category}</Style.CategoryName>
+              <Style.RatingCell>
+                <RatingBadge rating={assessment.rating} />
+              </Style.RatingCell>
+            </Style.AssessmentRow>
+          ))}
+        </Style.AssessmentsContainer>
+      )}
+
+      {assessments.length === 0 && (
+        <Style.EmptyState>
+          <FormattedMessage
+            id="INITIATIVE_CARD.GLOBAL_RATING.NO_ASSESSMENTS"
+            defaultMessage="No assessments available yet."
+          />
+        </Style.EmptyState>
+      )}
+    </Style.Container>
+  );
+};
+
+export default GlobalRating;
