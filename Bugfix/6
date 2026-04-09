@@ -1,0 +1,247 @@
+import React from 'react';
+import Style from './GlobalRating.style';
+
+const RATING_SCALE = ['Very low', 'Low', 'Medium', 'High', 'Very high'];
+
+const RATING_TO_SCORE = {
+  'very low': 1,
+  low: 2,
+  medium: 3,
+  high: 4,
+  'very high': 5,
+};
+
+const normalizeRating = value => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    if (value <= 1) return 'Very low';
+    if (value <= 2) return 'Low';
+    if (value <= 3) return 'Medium';
+    if (value <= 4) return 'High';
+    return 'Very high';
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (normalized in RATING_TO_SCORE) {
+    return RATING_SCALE[RATING_TO_SCORE[normalized] - 1];
+  }
+
+  return String(value);
+};
+
+const ratingToScore = value => {
+  const normalized = normalizeRating(value);
+
+  if (!normalized) return null;
+
+  return RATING_TO_SCORE[String(normalized).toLowerCase()] || null;
+};
+
+const scoreToRating = score => {
+  if (!score) return null;
+  if (score <= 1.5) return 'Very low';
+  if (score <= 2.5) return 'Low';
+  if (score <= 3.5) return 'Medium';
+  if (score <= 4.5) return 'High';
+  return 'Very high';
+};
+
+const getToneFromRating = rating => {
+  const normalized = String(rating || '').toLowerCase();
+
+  switch (normalized) {
+    case 'very low':
+      return 'veryLow';
+    case 'low':
+      return 'low';
+    case 'medium':
+      return 'medium';
+    case 'high':
+      return 'high';
+    case 'very high':
+      return 'veryHigh';
+    default:
+      return 'neutral';
+  }
+};
+
+const humanize = value => {
+  if (!value) return '-';
+
+  return String(value)
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, char => char.toUpperCase());
+};
+
+const getCategoryName = item => {
+  if (!item) return 'Category';
+
+  return (
+    item.category ||
+    item.categoryName ||
+    item.assessmentCategory ||
+    item.assessment_category ||
+    item.name ||
+    item.label ||
+    'Category'
+  );
+};
+
+const getCategoryRating = item => {
+  if (!item) return null;
+
+  return (
+    item.globalRating ||
+    item.global_rating ||
+    item.rating ||
+    item.level ||
+    item.value ||
+    null
+  );
+};
+
+const extractRatingItems = initiative => {
+  if (!initiative) return [];
+
+  if (Array.isArray(initiative.globalRatingBreakdown)) {
+    return initiative.globalRatingBreakdown;
+  }
+
+  if (Array.isArray(initiative.global_rating_breakdown)) {
+    return initiative.global_rating_breakdown;
+  }
+
+  if (Array.isArray(initiative.assessmentRatings)) {
+    return initiative.assessmentRatings;
+  }
+
+  if (Array.isArray(initiative.assessment_ratings)) {
+    return initiative.assessment_ratings;
+  }
+
+  if (Array.isArray(initiative.assessments)) {
+    return initiative.assessments.map(item => ({
+      category: getCategoryName(item),
+      rating: getCategoryRating(item),
+    }));
+  }
+
+  if (Array.isArray(initiative.assessmentCategories)) {
+    return initiative.assessmentCategories.map(item => ({
+      category: getCategoryName(item),
+      rating: getCategoryRating(item),
+    }));
+  }
+
+  return [];
+};
+
+const computeGlobalRating = (initiative, items) => {
+  const directValue =
+    initiative?.globalRating ||
+    initiative?.global_rating ||
+    initiative?.rating ||
+    initiative?.overallRating ||
+    initiative?.overall_rating;
+
+  const normalizedDirectValue = normalizeRating(directValue);
+
+  if (normalizedDirectValue) {
+    return normalizedDirectValue;
+  }
+
+  const scores = items
+    .map(item => ratingToScore(getCategoryRating(item)))
+    .filter(score => score !== null);
+
+  if (!scores.length) {
+    return null;
+  }
+
+  const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+
+  return scoreToRating(average);
+};
+
+const formatDate = value => {
+  if (!value) return null;
+
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch (e) {
+    return value;
+  }
+};
+
+const GlobalRating = ({ initiative }) => {
+  const ratingItems = extractRatingItems(initiative);
+  const globalRating = computeGlobalRating(initiative, ratingItems);
+  const tone = getToneFromRating(globalRating);
+  const updatedAt =
+    initiative?.updatedAt || initiative?.updated_at || initiative?.lastModifiedAt || null;
+
+  return (
+    <Style.Container>
+      <Style.HeaderContainer>
+        <Style.Title>Global rating</Style.Title>
+      </Style.HeaderContainer>
+
+      <Style.Content>
+        <Style.SummaryCard>
+          <Style.SummaryLabel>Overall rating</Style.SummaryLabel>
+
+          <Style.Badge $tone={tone}>
+            {globalRating || 'Not available'}
+          </Style.Badge>
+
+          {updatedAt && (
+            <Style.SummaryMeta>
+              Last update: {formatDate(updatedAt)}
+            </Style.SummaryMeta>
+          )}
+        </Style.SummaryCard>
+
+        <Style.SectionTitle>Scale</Style.SectionTitle>
+        <Style.Legend>
+          {RATING_SCALE.map(level => (
+            <Style.LegendItem key={level}>
+              <Style.Badge $tone={getToneFromRating(level)}>{level}</Style.Badge>
+            </Style.LegendItem>
+          ))}
+        </Style.Legend>
+
+        <Style.SectionTitle>Breakdown</Style.SectionTitle>
+
+        {ratingItems.length ? (
+          <Style.RatingsList>
+            {ratingItems.map((item, index) => {
+              const categoryName = humanize(getCategoryName(item));
+              const ratingValue = normalizeRating(getCategoryRating(item));
+              const itemTone = getToneFromRating(ratingValue);
+
+              return (
+                <Style.RatingRow key={`${categoryName}-${index}`}>
+                  <Style.RatingName>{categoryName}</Style.RatingName>
+                  <Style.Badge $tone={itemTone}>
+                    {ratingValue || 'Not rated'}
+                  </Style.Badge>
+                </Style.RatingRow>
+              );
+            })}
+          </Style.RatingsList>
+        ) : (
+          <Style.EmptyState>
+            No rating data available yet.
+          </Style.EmptyState>
+        )}
+      </Style.Content>
+    </Style.Container>
+  );
+};
+
+export default GlobalRating;
