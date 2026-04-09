@@ -1,0 +1,59 @@
+BottomContainer: styled.div`
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+`,
+
+CommunityContainer: styled.div`
+  flex: 1;           /* 1/3 */
+  min-width: 0;
+`,
+
+GlobalRatingContainer: styled.div`
+  flex: 2;           /* 2/3 */
+  min-width: 0;
+  border-left: 1px solid #e0e0e0;
+`,
+
+
+
+// @flow
+import { Suspense } from 'react';
+import { LoadingIndicatorWithPosition, TabContainer } from 'styles';
+import ExecutiveSummary from './components/ExecutiveSummary';
+import InitiativeCommunity from './components/InitiativeCommunity';
+import InitiativeDescription from './components/InitiativeDescription';
+import GlobalRating from './components/GlobalRating/GlobalRating';
+import Style from './InitiativePipelineCardTab.style';
+
+const InitiativePipelineCardTab = ({ initiative, newProductId, newUmbrellaId }) => {
+  return (
+    <TabContainer>
+      <Suspense fallback={<LoadingIndicatorWithPosition />}>
+        {initiative ? (
+          <>
+            <Style.RowContainer>
+              <ExecutiveSummary initiative={initiative} />
+            </Style.RowContainer>
+
+            <InitiativeDescription initiative={initiative} />
+
+            {/* ✅ Côte à côte : Community 1/3 + GlobalRating 2/3 */}
+            <Style.BottomContainer>
+              <Style.CommunityContainer>
+                <InitiativeCommunity initiative={initiative} />
+              </Style.CommunityContainer>
+              <Style.GlobalRatingContainer>
+                <GlobalRating initiative={initiative} />
+              </Style.GlobalRatingContainer>
+            </Style.BottomContainer>
+          </>
+        ) : (
+          <LoadingIndicatorWithPosition />
+        )}
+      </Suspense>
+    </TabContainer>
+  );
+};
+
+export default InitiativePipelineCardTab;
