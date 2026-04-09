@@ -1,0 +1,23 @@
+# utils/parsers.py
+from typing import Any
+
+def parse_select_field(value: Any) -> str | None:
+    """
+    Normalizes a React Select field {value, label} to a scalar value.
+    Compatible with Flask reqparse as a custom type.
+
+    Cases handled:
+        - None                             → None
+        - ""                               → None
+        - {"value": None, "label": None}   → None
+        - {"value": "AIF", "label": "AIF"} → "AIF"
+        - "AIF"                            → "AIF"
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, dict):
+        extracted = value.get("value")
+        return extracted if extracted not in (None, "") else None
+    if isinstance(value, str):
+        return value.strip() or None
+    return None
