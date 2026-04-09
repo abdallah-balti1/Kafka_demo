@@ -1,0 +1,28 @@
+const toOption = value => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return {
+    value,
+    label: value,
+  };
+};
+
+export const getInitialValuesFromInitiative = initiative => ({
+  name: initiative.name,
+  id: initiative.id,
+  initiativeType: toOption(initiative.initiativeType),
+  productType: toOption(initiative.productType),
+  initiativeOwner: toOption(initiative.initiativeOwner),
+  sponsor: toOption(initiative.sponsor),
+  sponsorCountry: toOption(initiative.sponsorCountry),
+  legalForm: toOption(initiative.legalForm),
+  assetClass: toOption(initiative.assetClass),
+  managementCompany: toOption(initiative.managementCompany),
+  committeeDate: initiative.committeeDate,
+  distributionChannel: toOption(initiative.distributionChannel),
+  governanceRequired: toOption(initiative.governanceRequired),
+  cosmosId: toOption(initiative.cosmosId),
+  templateId: toOption(initiative.templateId),
+});
