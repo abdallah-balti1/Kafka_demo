@@ -1,0 +1,15 @@
+const payload = {
+  ...values,
+  initiativeType: values.initiativeType?.value ?? null,
+  productType: values.productType?.value ?? null,
+  initiativeOwner: values.initiativeOwner?.value ?? null,
+  sponsor: values.sponsor?.value ?? null,
+  sponsorCountry: values.sponsorCountry?.value ?? null,
+  legalForm: values.legalForm?.value ?? null,
+  assetClass: values.assetClass?.value ?? null,
+  managementCompany: values.managementCompany?.value ?? null,
+  distributionChannel: values.distributionChannel?.value ?? null,
+  governanceRequired: values.governanceRequired?.value ?? null,
+  cosmosId: values.cosmosId?.value ?? null,
+  templateId: values.templateId?.value ?? null,
+};
