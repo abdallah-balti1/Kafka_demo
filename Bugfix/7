@@ -1,0 +1,22 @@
+{ratingItems.map(item => {
+  const rawCategoryName = getCategoryName(item);
+  const categoryName = humanize(rawCategoryName);
+  const ratingValue = normalizeRating(getCategoryRating(item));
+  const itemTone = getToneFromRating(ratingValue);
+
+  const rowKey =
+    item.id ||
+    item.categoryId ||
+    item.category_id ||
+    item.code ||
+    `${String(rawCategoryName || 'category')}-${String(ratingValue || 'not-rated')}`;
+
+  return (
+    <Style.RatingRow key={rowKey}>
+      <Style.RatingName>{categoryName}</Style.RatingName>
+      <Style.Badge $tone={itemTone}>
+        {ratingValue || 'Not rated'}
+      </Style.Badge>
+    </Style.RatingRow>
+  );
+})}
