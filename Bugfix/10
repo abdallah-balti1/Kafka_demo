@@ -1,0 +1,166 @@
+// @flow
+export { default } from './GlobalRating';
+
+
+// @flow
+import React from 'react';
+import Style from './GlobalRating.style';
+
+type RatingLevel = 'VL' | 'L' | 'M' | 'H' | 'VH' | null;
+
+type AssessmentRow = {
+  category: string,
+  categoryColor: string,
+  rating: RatingLevel,
+};
+
+const STATIC_ASSESSMENTS: AssessmentRow[] = [
+  { category: 'Finance',    categoryColor: 'yellow', rating: 'M'  },
+  { category: 'Risks',      categoryColor: 'grey',   rating: 'L'  },
+  { category: 'Compliance', categoryColor: 'yellow', rating: 'H'  },
+  { category: 'BU',         categoryColor: 'grey',   rating: 'VL' },
+];
+
+const RATING_LEVELS: RatingLevel[] = ['VL', 'L', 'M', 'H', 'VH'];
+
+const RATING_COLORS: { [string]: string } = {
+  VL: '#4CAF50',
+  L:  '#2E7D32',
+  M:  '#FFC107',
+  H:  '#FF5722',
+  VH: '#F44336',
+};
+
+const RatingDots = ({ active }: { active: RatingLevel }) => {
+  const activeIndex = active ? RATING_LEVELS.indexOf(active) : -1;
+  return (
+    <Style.DotsRow>
+      {RATING_LEVELS.map((level, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <Style.Dot
+            key={level}
+            isActive={isActive}
+            color={isActive ? RATING_COLORS[level] : '#e0e0e0'}
+          >
+            {isActive ? level : ''}
+          </Style.Dot>
+        );
+      })}
+    </Style.DotsRow>
+  );
+};
+
+const GlobalRating = () => (
+  <Style.Container>
+    <Style.SectionTitle>ASSESSMENTS</Style.SectionTitle>
+
+    <Style.Table>
+      {STATIC_ASSESSMENTS.map((row) => (
+        <Style.Row key={row.category}>
+          <Style.EmptyCell />
+          <Style.CategoryBadge categoryColor={row.categoryColor}>
+            {row.category}
+          </Style.CategoryBadge>
+          <RatingDots active={row.rating} />
+          <Style.EmptyCell />
+        </Style.Row>
+      ))}
+    </Style.Table>
+  </Style.Container>
+);
+
+export default GlobalRating;
+
+
+
+// @flow
+import styled from 'styled-components';
+import { Grid, typography } from 'styles';
+
+const CATEGORY_COLORS = {
+  yellow: { bg: '#FFC107', text: '#000' },
+  green:  { bg: '#4CAF50', text: '#fff' },
+  grey:   { bg: 'transparent', text: '#333' },
+};
+
+export default {
+  Container: styled.div`
+    background-color: white;
+    width: 100%;
+    padding-bottom: ${Grid(4)};
+  `,
+
+  SectionTitle: styled.div`
+    display: inline-block;
+    background-color: #FFC107;
+    color: #000;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: ${Grid(1)} ${Grid(2)};
+    margin: ${Grid(4)} ${Grid(4)} ${Grid(2)};
+    clip-path: polygon(0 0, 95% 0, 100% 50%, 95% 100%, 0 100%);
+    padding-right: ${Grid(4)};
+  `,
+
+  Table: styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(1)};
+    padding: 0 ${Grid(2)};
+  `,
+
+  Row: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    padding: ${Grid(1)} ${Grid(2)};
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    min-height: 44px;
+  `,
+
+  EmptyCell: styled.div`
+    width: 60px;
+    flex-shrink: 0;
+  `,
+
+  CategoryBadge: styled.div`
+    min-width: 90px;
+    max-width: 120px;
+    padding: ${Grid(1)} ${Grid(2)};
+    background-color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
+    color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.text || '#333'};
+    font-size: 11px;
+    font-weight: ${({ categoryColor }) =>
+      categoryColor === 'grey' ? '400' : '700'};
+    text-align: center;
+    border-radius: 2px;
+    letter-spacing: 0.3px;
+  `,
+
+  DotsRow: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    flex: 1;
+  `,
+
+  Dot: styled.div`
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: ${({ color }) => color};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+    border: ${({ isActive }) => (isActive ? 'none' : '1px solid #e0e0e0')};
+  `,
+};
