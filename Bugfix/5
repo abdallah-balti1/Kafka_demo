@@ -1,0 +1,208 @@
+import { Suspense } from 'react';
+import { LoadingIndicatorWithPosition, TabContainer } from 'styles';
+import ExecutiveSummary from './components/ExecutiveSummary';
+import InitiativeCommunity from './components/InitiativeCommunity';
+import InitiativeDescription from './components/InitiativeDescription';
+import GlobalRating from './components/GlobalRating';
+import Style from './InitiativePipelineCardTab.style';
+
+const InitiativePipelineCardTab = ({ initiative, newProductId, newUmbrellaId }) => {
+  return (
+    <TabContainer>
+      <Suspense fallback={<LoadingIndicatorWithPosition />}>
+        {initiative ? (
+          <>
+            <Style.RowContainer>
+              <ExecutiveSummary initiative={initiative} />
+            </Style.RowContainer>
+
+            <InitiativeDescription initiative={initiative} />
+
+            <Style.BottomRowContainer>
+              <Style.BottomColumn>
+                <GlobalRating initiative={initiative} />
+              </Style.BottomColumn>
+
+              <Style.BottomColumn>
+                <InitiativeCommunity initiative={initiative} />
+              </Style.BottomColumn>
+            </Style.BottomRowContainer>
+          </>
+        ) : (
+          <LoadingIndicatorWithPosition />
+        )}
+      </Suspense>
+    </TabContainer>
+  );
+};
+
+export default InitiativePipelineCardTab;
+
+
+import GlobalRating from './GlobalRating.wrap';
+
+export default GlobalRating;
+
+
+
+
+import { connect } from 'react-redux';
+import GlobalRating from './GlobalRating';
+
+export default connect()(GlobalRating);
+
+
+
+
+import styled, { css } from 'styled-components';
+import { Grid, typography } from 'styles';
+
+const badgeTones = {
+  neutral: css`
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+  `,
+  veryLow: css`
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+  `,
+  low: css`
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+  `,
+  medium: css`
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  `,
+  high: css`
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fdba74;
+  `,
+  veryHigh: css`
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  `,
+};
+
+export default {
+  Container: styled.div`
+    background-color: white;
+    width: 100%;
+    min-height: 100%;
+  `,
+
+  HeaderContainer: styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: ${Grid(4)};
+    border-bottom: 1px solid #f0f0f0;
+  `,
+
+  Title: styled.h3`
+    ${typography.h3};
+    margin: 0;
+  `,
+
+  Content: styled.div`
+    padding: ${Grid(4)};
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(4)};
+  `,
+
+  SummaryCard: styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(2)};
+    padding: ${Grid(4)};
+    border: 1px solid #ececec;
+    border-radius: 8px;
+    background: #fafafa;
+  `,
+
+  SummaryLabel: styled.span`
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  `,
+
+  SummaryMeta: styled.span`
+    font-size: 12px;
+    color: #6b7280;
+  `,
+
+  SectionTitle: styled.h4`
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+  `,
+
+  Legend: styled.div`
+    display: flex;
+    flex-wrap: wrap;
+    gap: ${Grid(2)};
+  `,
+
+  LegendItem: styled.div`
+    display: flex;
+    align-items: center;
+  `,
+
+  RatingsList: styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(2)};
+  `,
+
+  RatingRow: styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: ${Grid(2)};
+    padding: ${Grid(3)};
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    background: white;
+  `,
+
+  RatingName: styled.span`
+    font-size: 14px;
+    color: #111827;
+    font-weight: 500;
+  `,
+
+  EmptyState: styled.div`
+    padding: ${Grid(4)};
+    border: 1px dashed #d1d5db;
+    border-radius: 8px;
+    color: #6b7280;
+    text-align: center;
+    background: #fafafa;
+  `,
+
+  Badge: styled.span`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-height: 32px;
+    padding: 0 ${Grid(3)};
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+
+    ${({ $tone }) => badgeTones[$tone] || badgeTones.neutral}
+  `,
+};
+
+
+
