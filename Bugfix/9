@@ -1,0 +1,32 @@
+// @flow
+import { connect } from 'react-redux';
+
+import {
+  selectEditingTeamMember,
+  selectInitiativeTeamId,
+} from 'redux/entities/initiativeAssessorsTeams/selectors';
+
+import GlobalRating from './GlobalRating';
+
+// ✅ Sans types Flow sur mapState/mapDispatch — simple et fonctionnel
+const mapStateToProps = () => ({
+  globalRating: null,
+  assessments: [],
+});
+
+const mapDispatchToProps = () => ({});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps,
+)(GlobalRating);
+
+
+
+// Après "type PropsType = OwnPropsType;"
+export type MapStateToPropsType = {
+  globalRating: null,
+  assessments: Array<Object>,
+};
+
+export type MapDispatchToPropsType = {};
