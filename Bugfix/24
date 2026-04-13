@@ -1,0 +1,49 @@
+"""
+Defines the blueprint for initiatives (get all initiatives)
+"""
+
+from flask import Blueprint
+from flask_restful import Api
+
+from resources import (
+    InitiativeByIdResource,
+    InitiativesResource,
+    InitiativeGlobalRatingByIdResource,  # ✅ nouveau
+)
+
+INITIATIVES_BLUEPRINT = Blueprint("initiatives", __name__)
+Api(INITIATIVES_BLUEPRINT).add_resource(
+    InitiativesResource,
+    "/initiatives",
+    endpoint="initiatives",
+)
+
+INITIATIVE_BLUEPRINT = Blueprint("initiative", __name__)
+Api(INITIATIVE_BLUEPRINT).add_resource(
+    InitiativeByIdResource,
+    "/initiatives/<string:id>",
+    endpoint="initiatives",
+)
+
+# ✅ Nouveau blueprint global rating
+INITIATIVE_GLOBAL_RATING_BLUEPRINT = Blueprint("initiative_global_rating", __name__)
+Api(INITIATIVE_GLOBAL_RATING_BLUEPRINT).add_resource(
+    InitiativeGlobalRatingByIdResource,
+    "/initiatives/<string:id>/global-rating",
+    endpoint="initiative_global_rating",
+)
+resources/__init__.py — ajoute l'export
+from resources.initiative.initiative import (
+    InitiativesResource,
+    InitiativeByIdResource,
+    InitiativeGlobalRatingByIdResource,  # ✅ nouveau
+)
+Enregistre le blueprint dans app.py
+from routes.initiatives import (
+    INITIATIVES_BLUEPRINT,
+    INITIATIVE_BLUEPRINT,
+    INITIATIVE_GLOBAL_RATING_BLUEPRINT,  # ✅ nouveau
+)
+
+app.register_blueprint(INITIATIVE_GLOBAL_RATING_BLUEPRINT)
+URL finale : GET /initiatives/12/global-rating
