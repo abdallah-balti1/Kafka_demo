@@ -1,0 +1,1 @@
+open -a "Microsoft Edge" --args --auth-server-whitelist="*.echonet" --auth-negotiate-delegate-whitelist="*.echonet"
