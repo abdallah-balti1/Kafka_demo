@@ -1,0 +1,23 @@
+class InitiativeGlobalRatingByIdResource(Resource):
+    """Global rating assessments for a given initiative"""
+
+    @required_authentication()
+    @authorized_plm_roles(
+        [
+            InitiativeRoleEnum.INITIATIVE_OWNER.value,
+            InitiativeRoleEnum.INITIATIVE_COORDINATOR.value,
+            "ADMIN",
+            InitiativeRoleEnum.INITIATIVE_OVERSIGHT.value,
+            InitiativeRoleEnum.INITIATIVE_OBSERVER.value,
+            InitiativeRoleEnum.INITIATIVE_ASSESSOR.value,
+        ]
+    )
+    @swag_from("../../swagger/initiatives/global_rating_GET.yml")
+    def get(self, user, id: int):
+        """GET /initiatives/<id>/global-rating"""
+        global_ratings = InitiativeRepository.get_global_ratings(id)
+
+        return {
+            "initiative_id": id,
+            "global_ratings": global_ratings,
+        }, 200
