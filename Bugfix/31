@@ -1,0 +1,42 @@
+from models.initiative_team_relationship import InitiativeTeamRelationship
+
+results = (
+    db.session.query(
+        AssessmentCategory.name.label("category"),
+        InitiativeTask.task_rating.label("rating"),
+    )
+    .select_from(InitiativeTask)
+    # ✅ liaison task → initiative_team_relationship
+    .join(
+        InitiativeTeamRelationship,
+        InitiativeTeamRelationship.id == InitiativeTask.relationship_id,
+    )
+    .join(
+        AssessmentSubCategory,
+        AssessmentSubCategory.id == InitiativeTask.assessment_sub_cat_id,
+    )
+    .join(
+        AssessmentCategory,
+        AssessmentCategory.id == InitiativeTask.assessment_cat_id,
+    )
+    .join(
+        TemplateConfig,
+        TemplateConfig.assessment_category_id == AssessmentCategory.id,
+    )
+    .join(
+        Initiative,
+        db.and_(
+            Initiative.template_id == TemplateConfig.template_id,
+            # ✅ filtre par initiative via la relation
+            Initiative.id == InitiativeTeamRelationship.initiative_id,
+        ),
+    )
+    .filter(
+        Initiative.id == initiative_id,
+        Initiative.is_active.is_(True),
+        db.func.lower(AssessmentSubCategory.name) == "global rating",
+    )
+    .distinct()
+    .order_by(AssessmentCategory.name)
+    .all()
+)
