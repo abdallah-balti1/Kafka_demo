@@ -1,0 +1,25 @@
+SELECT DISTINCT
+    assessment_category.name AS category,
+    task.task_rating         AS rating
+FROM task
+
+JOIN initiative_team_relationship
+    ON initiative_team_relationship.id = task.relationship_id  -- ✅ liaison correcte
+
+JOIN assessment_sub_category
+    ON assessment_sub_category.id = task.assessment_sub_cat_id
+JOIN assessment_category
+    ON assessment_category.id = task.assessment_cat_id
+JOIN template_config
+    ON template_config.assessment_category_id = assessment_category.id
+JOIN initiative
+    ON initiative.template_id = template_config.template_id
+    AND initiative.id = initiative_team_relationship.initiative_id  -- ✅ filtre par initiative
+
+WHERE
+    initiative.id = 'I2'
+    AND initiative.is_active = TRUE
+    AND LOWER(assessment_sub_category.name) = 'global rating'
+
+ORDER BY
+    assessment_category.name;
