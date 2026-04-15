@@ -1,0 +1,11 @@
+// @flow
+// redux/entities/globalRating/selectors.js
+
+export const selectGlobalRatings = (state: Object) =>
+  state.globalRating?.globalRatings ?? [];
+
+export const selectGlobalRatingsLoading = (state: Object) =>
+  state.globalRating?.loading ?? false;
+
+export const selectGlobalRatingsError = (state: Object) =>
+  state.globalRating?.error ?? null;
