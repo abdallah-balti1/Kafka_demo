@@ -1,0 +1,25 @@
+// @flow
+// redux/entities/globalRating/actions.js
+
+import axios from 'axios';
+
+export const FETCH_GLOBAL_RATINGS_REQUEST = 'FETCH_GLOBAL_RATINGS_REQUEST';
+export const FETCH_GLOBAL_RATINGS_SUCCESS = 'FETCH_GLOBAL_RATINGS_SUCCESS';
+export const FETCH_GLOBAL_RATINGS_FAILURE = 'FETCH_GLOBAL_RATINGS_FAILURE';
+
+export const fetchGlobalRatings = (initiativeId: number) => async (dispatch: Function) => {
+  dispatch({ type: FETCH_GLOBAL_RATINGS_REQUEST });
+
+  try {
+    const response = await axios.get(`/initiatives/${initiativeId}/global-rating`);
+    dispatch({
+      type: FETCH_GLOBAL_RATINGS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: FETCH_GLOBAL_RATINGS_FAILURE,
+      payload: error,
+    });
+  }
+};
