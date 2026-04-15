@@ -1,0 +1,115 @@
+// @flow
+import React, { useEffect } from 'react';
+import Style from './GlobalRating.style';
+
+type RatingLevel = 'VL' | 'L' | 'M' | 'H' | 'VH' | null;
+
+type AssessmentRow = {
+  category: string,
+  rating: RatingLevel,
+};
+
+export type MapStateToPropsType = {
+  assessments: AssessmentRow[],
+  loading: boolean,
+};
+
+export type MapDispatchToPropsType = {
+  fetchGlobalRatings: (initiativeId: number) => void,
+};
+
+type OwnPropsType = {
+  initiative: Object,
+};
+
+type PropsType = OwnPropsType & MapStateToPropsType & MapDispatchToPropsType;
+
+// ─── Config ────────────────────────────────────────────────────────────────
+
+const RATING_LEVELS: RatingLevel[] = ['VL', 'L', 'M', 'H', 'VH'];
+
+const RATING_COLORS: { [string]: string } = {
+  VL: '#4CAF50',
+  L:  '#2E7D32',
+  M:  '#FFC107',
+  H:  '#FF5722',
+  VH: '#F44336',
+};
+
+// Categories displayed with yellow badge (from mockup)
+const YELLOW_CATEGORIES = ['finance', 'compliance'];
+
+// ─── Sub-components ────────────────────────────────────────────────────────
+
+const RatingDots = ({ active }: { active: RatingLevel }) => {
+  const activeIndex = active ? RATING_LEVELS.indexOf(active) : -1;
+  return (
+    <Style.DotsRow>
+      {RATING_LEVELS.map((level, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <Style.Dot
+            key={level}
+            isActive={isActive}
+            color={isActive ? RATING_COLORS[level] : '#e0e0e0'}
+          >
+            {isActive ? level : ''}
+          </Style.Dot>
+        );
+      })}
+    </Style.DotsRow>
+  );
+};
+
+// ─── Main component ────────────────────────────────────────────────────────
+
+const GlobalRating = ({
+  initiative,
+  assessments,
+  loading,
+  fetchGlobalRatings,
+}: PropsType) => {
+
+  useEffect(() => {
+    if (initiative?.id) {
+      fetchGlobalRatings(initiative.id);
+    }
+  }, [initiative?.id]);
+
+  if (loading) {
+    return (
+      <Style.Container>
+        <Style.SectionTitle>ASSESSMENTS</Style.SectionTitle>
+        <Style.LoadingContainer>Loading...</Style.LoadingContainer>
+      </Style.Container>
+    );
+  }
+
+  return (
+    <Style.Container>
+      <Style.SectionTitle>ASSESSMENTS</Style.SectionTitle>
+
+      <Style.Table>
+        {assessments.map((row) => {
+          const isYellow = YELLOW_CATEGORIES.includes(row.category.toLowerCase());
+          return (
+            <Style.Row key={row.category}>
+              <Style.EmptyCell />
+              <Style.CategoryBadge categoryColor={isYellow ? 'yellow' : 'grey'}>
+                {row.category}
+              </Style.CategoryBadge>
+              <RatingDots active={row.rating} />
+              <Style.EmptyCell />
+            </Style.Row>
+          );
+        })}
+
+        {assessments.length === 0 && (
+          <Style.EmptyState>No assessments available.</Style.EmptyState>
+        )}
+      </Style.Table>
+    </Style.Container>
+  );
+};
+
+export default GlobalRating;
