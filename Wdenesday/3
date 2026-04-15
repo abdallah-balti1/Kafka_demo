@@ -1,0 +1,28 @@
+// @flow
+import { connect } from 'react-redux';
+
+import { fetchGlobalRatings } from 'redux/entities/globalRating/actions';
+import {
+  selectGlobalRatings,
+  selectGlobalRatingsLoading,
+} from 'redux/entities/globalRating/selectors';
+
+import GlobalRating, {
+  type MapStateToPropsType,
+  type MapDispatchToPropsType,
+} from './GlobalRating';
+
+const mapStateToProps = (state: Object): MapStateToPropsType => ({
+  assessments: selectGlobalRatings(state),
+  loading:     selectGlobalRatingsLoading(state),
+});
+
+const mapDispatchToProps = (dispatch: Function): MapDispatchToPropsType => ({
+  fetchGlobalRatings: (initiativeId: number) =>
+    dispatch(fetchGlobalRatings(initiativeId)),
+});
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps,
+)(GlobalRating);
