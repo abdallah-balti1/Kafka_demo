@@ -1,0 +1,203 @@
+// @flow
+// redux/entities/globalRating/selectors.js
+
+export const selectGlobalRatings = (state: Object) =>
+  state.globalRating?.globalRatings ?? [];
+
+export const selectGlobalRatingsLoading = (state: Object) =>
+  state.globalRating?.loading ?? false;
+
+export const selectGlobalRatingsError = (state: Object) =>
+  state.globalRating?.error ?? null;
+
+
+
+state.globalRating?.globalRatings
+
+
+state.globalRating?.error
+
+
+state.globalRating?.loading
+
+
+
+action.payload
+
+
+// @flow
+// redux/entities/globalRating/reducer.js
+
+import {
+  FETCH_GLOBAL_RATINGS_REQUEST,
+  FETCH_GLOBAL_RATINGS_SUCCESS,
+  FETCH_GLOBAL_RATINGS_FAILURE,
+} from './actions';
+
+type GlobalRatingItem = {
+  category: string,
+  rating: string | null,
+};
+
+type StateType = {
+  globalRatings: GlobalRatingItem[],
+  loading: boolean,
+  error: ?Object,
+};
+
+const initialState: StateType = {
+  globalRatings: [],
+  loading: false,
+  error: null,
+};
+
+const globalRatingReducer = (state: StateType = initialState, action: Object): StateType => {
+  switch (action.type) {
+    case FETCH_GLOBAL_RATINGS_REQUEST:
+      return { ...state, loading: true, error: null };
+
+    case FETCH_GLOBAL_RATINGS_SUCCESS:
+      return {
+        ...state,
+        loading: false,
+        globalRatings: action.payload.global_ratings,
+      };
+
+    case FETCH_GLOBAL_RATINGS_FAILURE:
+      return { ...state, loading: false, error: action.payload };
+
+    default:
+      return state;
+  }
+};
+
+export default globalRatingReducer;
+
+
+
+// @flow
+// redux/entities/globalRating/actions.js
+
+import axios from 'axios';
+
+export const FETCH_GLOBAL_RATINGS_REQUEST = 'FETCH_GLOBAL_RATINGS_REQUEST';
+export const FETCH_GLOBAL_RATINGS_SUCCESS = 'FETCH_GLOBAL_RATINGS_SUCCESS';
+export const FETCH_GLOBAL_RATINGS_FAILURE = 'FETCH_GLOBAL_RATINGS_FAILURE';
+
+export const fetchGlobalRatings = (initiativeId: number) => async (dispatch: Function) => {
+  dispatch({ type: FETCH_GLOBAL_RATINGS_REQUEST });
+
+  try {
+    const response = await axios.get(`/initiatives/${initiativeId}/global-rating`);
+    dispatch({
+      type: FETCH_GLOBAL_RATINGS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: FETCH_GLOBAL_RATINGS_FAILURE,
+      payload: error,
+    });
+  }
+};
+// @flow
+export { default } from './GlobalRating.wrap';
+
+
+
+// @flow
+import styled from 'styled-components';
+import { Grid, typography } from 'styles';
+
+const CATEGORY_COLORS = {
+  yellow: { bg: '#FFC107', text: '#000' },
+  grey:   { bg: 'transparent', text: '#333' },
+};
+
+export default {
+  Container: styled.div`
+    background-color: white;
+    width: 100%;
+    padding-bottom: ${Grid(4)};
+  `,
+
+  SectionTitle: styled.div`
+    ${typography.h3}
+    padding: ${Grid(3)} ${Grid(2)} ${Grid(2)};
+    margin: 0 ${Grid(4)} ${Grid(2)};
+  `,
+
+  Table: styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(1)};
+    padding: 0 ${Grid(2)};
+  `,
+
+  Row: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    padding: ${Grid(1)} ${Grid(2)};
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    min-height: 44px;
+  `,
+
+  EmptyCell: styled.div`
+    width: 60px;
+    flex-shrink: 0;
+  `,
+
+  CategoryBadge: styled.div`
+    min-width: 90px;
+    max-width: 120px;
+    padding: ${Grid(1)} ${Grid(2)};
+    background-color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
+    color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.text || '#333'};
+    font-size: 11px;
+    font-weight: ${({ categoryColor }) =>
+      categoryColor === 'grey' ? '400' : '700'};
+    text-align: center;
+    border-radius: 2px;
+  `,
+
+  DotsRow: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    flex: 1;
+  `,
+
+  Dot: styled.div`
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: ${({ color }) => color};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+    border: ${({ isActive }) => (isActive ? 'none' : '1px solid #e0e0e0')};
+  `,
+
+  LoadingContainer: styled.div`
+    padding: ${Grid(4)};
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+  `,
+
+  EmptyState: styled.div`
+    padding: ${Grid(4)};
+    text-align: center;
+    color: #bbb;
+    font-size: 13px;
+    font-style: italic;
+  `,
+};
