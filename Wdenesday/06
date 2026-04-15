@@ -1,0 +1,47 @@
+// @flow
+// redux/entities/globalRating/reducer.js
+
+import {
+  FETCH_GLOBAL_RATINGS_REQUEST,
+  FETCH_GLOBAL_RATINGS_SUCCESS,
+  FETCH_GLOBAL_RATINGS_FAILURE,
+} from './actions';
+
+type GlobalRatingItem = {
+  category: string,
+  rating: string | null,
+};
+
+type StateType = {
+  globalRatings: GlobalRatingItem[],
+  loading: boolean,
+  error: ?Object,
+};
+
+const initialState: StateType = {
+  globalRatings: [],
+  loading: false,
+  error: null,
+};
+
+const globalRatingReducer = (state: StateType = initialState, action: Object): StateType => {
+  switch (action.type) {
+    case FETCH_GLOBAL_RATINGS_REQUEST:
+      return { ...state, loading: true, error: null };
+
+    case FETCH_GLOBAL_RATINGS_SUCCESS:
+      return {
+        ...state,
+        loading: false,
+        globalRatings: action.payload.global_ratings,
+      };
+
+    case FETCH_GLOBAL_RATINGS_FAILURE:
+      return { ...state, loading: false, error: action.payload };
+
+    default:
+      return state;
+  }
+};
+
+export default globalRatingReducer;
