@@ -1,0 +1,6 @@
+open -a "Google Chrome" --args --auth-server-whitelist="*.echonet" --auth-negotiate-delegate-whitelist="*.echonet"
+
+
+
+defaults write com.google.Chrome AuthServerWhitelist "*.echonet"
+defaults write com.google.Chrome AuthNegotiateDelegateWhitelist "*.echonet"
