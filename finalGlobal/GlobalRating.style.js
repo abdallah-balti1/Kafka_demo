@@ -1,0 +1,89 @@
+// @flow
+import styled from 'styled-components';
+import { Grid, typography } from 'styles';
+
+const CATEGORY_COLORS = {
+  yellow: { bg: '#FFC107', text: '#000' },
+  grey:   { bg: 'transparent', text: '#333' },
+};
+
+export default {
+  Container: styled.div`
+    background-color: white;
+    width: 100%;
+    padding-bottom: ${Grid(4)};
+  `,
+
+  SectionTitle: styled.div`
+    ${typography.h3}
+    padding: ${Grid(3)} ${Grid(2)} ${Grid(2)};
+    margin: 0 ${Grid(4)} ${Grid(2)};
+  `,
+
+  Table: styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: ${Grid(1)};
+    padding: 0 ${Grid(2)};
+  `,
+
+  Row: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    padding: ${Grid(1)} ${Grid(2)};
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    min-height: 44px;
+  `,
+
+  EmptyCell: styled.div`
+    width: 60px;
+    flex-shrink: 0;
+  `,
+
+  CategoryBadge: styled.div`
+    min-width: 90px;
+    max-width: 120px;
+    padding: ${Grid(1)} ${Grid(2)};
+    background-color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
+    color: ${({ categoryColor }) =>
+      CATEGORY_COLORS[categoryColor]?.text || '#333'};
+    font-size: 11px;
+    font-weight: ${({ categoryColor }) =>
+      categoryColor === 'grey' ? '400' : '700'};
+    text-align: center;
+    border-radius: 2px;
+  `,
+
+  DotsRow: styled.div`
+    display: flex;
+    align-items: center;
+    gap: ${Grid(2)};
+    flex: 1;
+  `,
+
+  Dot: styled.div`
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: ${({ color }) => color};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+    border: ${({ isActive }) => (isActive ? 'none' : '1px solid #e0e0e0')};
+  `,
+
+  EmptyState: styled.div`
+    padding: ${Grid(4)};
+    text-align: center;
+    color: #bbb;
+    font-size: 13px;
+    font-style: italic;
+  `,
+};
