@@ -1,1 +1,44 @@
+export function* getOneInitiativeSaga(action): Saga<> {
+  try {
+    const initiativeId = action.payload?.initiativeId;
 
+    // 1. Récupère l'initiative
+    const response = yield call(authenticatedCall, getInitiative, initiativeId);
+    const initiative = modelizeInitiativeFromApi(response.data[0]);
+
+    // 2. ✅ Récupère les global ratings
+    const globalRatingsResponse = yield call(
+      authenticatedCall,
+      getGlobalRatings,   // ← nouvelle fonction API à ajouter
+      initiativeId,
+    );
+
+    // 3. ✅ Merge dans l'initiative
+    initiative.global_ratings = globalRatingsResponse?.data?.global_ratings || [];
+
+    yield put(getOneInitiativePipelineSuccess(initiative));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(getOneInitiativePipelineFailure(error));
+  }
+
+
+
+
+
+
+  export const getGlobalRatings = (initiativeId: string) =>
+  request(`${config.INITIATIVE_API_URL}/initiatives/${initiativeId}/global-rating`, {
+    method: 'GET',
+  });
+
+
+  import {
+  exportInitiativePipeline,
+  getInitiative,
+  getInitiatives,
+  patchInitiative,
+  postInitiative,
+  getGlobalRatings,   // ✅ nouveau
+} from './api';
+}
