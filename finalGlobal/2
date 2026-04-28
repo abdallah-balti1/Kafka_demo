@@ -24,3 +24,26 @@ lsof -i :8079
 
 # 2. Toutes les variables proxy actives
 env | grep -i proxy
+
+
+
+SELECT DISTINCT
+    assessment_category.name AS category,
+    task.task_rating AS rating
+FROM task
+JOIN initiative_team_relationship
+    ON initiative_team_relationship.id = task.relationship_id
+JOIN assessment_sub_category
+    ON assessment_sub_category.id = task.assessment_sub_cat_id
+JOIN assessment_category
+    ON assessment_category.id = task.assessment_cat_id
+JOIN template_config
+    ON template_config.assessment_category_id = assessment_category.id
+JOIN initiative
+    ON initiative.template_id = template_config.template_id
+WHERE
+    initiative_team_relationship.initiative_id = 'I19'  -- ← ton initiative_id
+    AND initiative.id = 'I19'
+    AND LOWER(assessment_sub_category.name) = 'global risk'
+ORDER BY
+    assessment_category.name;
