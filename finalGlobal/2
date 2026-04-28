@@ -1,0 +1,2 @@
+curl -vk https://canary-flowr-int.am.staging.echonet/plm/me \
+  -H "Authorization: Bearer TON_TOKEN"
