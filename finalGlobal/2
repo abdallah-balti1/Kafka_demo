@@ -17,3 +17,10 @@ https://canary-flowr-int.am.staging.echonet/plm/me
 
 curl -vk --noproxy "*" https://canary-flowr-int.am.staging.echonet/plm/me \
   -H "Authorization: Bearer TON_TOKEN"
+
+
+# 1. Qui tourne sur le port 8079 ?
+lsof -i :8079
+
+# 2. Toutes les variables proxy actives
+env | grep -i proxy
