@@ -4,4 +4,16 @@ curl -vk https://canary-flowr-int.am.staging.echonet/plm/me \
 
   # Ajouter le host en exception NO_PROXY
 export NO_PROXY="localhost,127.0.0.1,*.echonet,*.staging.echonet"
-export no_proxy="localhost,127.0.0.1,*.echonet,*.staging.echonet"
+export no_proxy="localhost,127.0.0.1,*.echonet,*.staging.echoneet
+ett"
+
+
+
+
+https://canary-flowr-int.am.staging.echonet/plm/me
+
+
+
+
+curl -vk --noproxy "*" https://canary-flowr-int.am.staging.echonet/plm/me \
+  -H "Authorization: Bearer TON_TOKEN"
