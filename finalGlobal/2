@@ -47,3 +47,17 @@ WHERE
     AND LOWER(assessment_sub_category.name) = 'global risk'
 ORDER BY
     assessment_category.name;
+
+
+
+  useEffect(() => {
+  getOneInitiativePipeline(initiativeId);
+}, [initiativeId]); // existant
+
+// ✅ AJOUTE CE useEffect
+useEffect(() => {
+  const { tabName } = match.params;
+  if (tabName === 'card') {
+    getOneInitiativePipeline(initiativeId);
+  }
+}, [match.params.tabName]); // re-fetch quand on revient sur card
