@@ -61,3 +61,25 @@ useEffect(() => {
     getOneInitiativePipeline(initiativeId);
   }
 }, [match.params.tabName]); // re-fetch quand on revient sur card
+
+
+
+
+
+SectionTitle: styled.h3`
+  ${typography.h3}
+  padding: ${Grid(4)};
+  margin: 0;
+`,
+
+CategoryBadge: styled.div`
+  min-width: 90px;
+  max-width: 120px;
+  padding: ${Grid(1)} ${Grid(2)};
+  background-color: ${({ categoryColor }) => CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
+  color: ${({ categoryColor }) => CATEGORY_COLORS[categoryColor]?.text || '#333'};
+  font-size: 13px;        /* ✅ même taille que "Mathieu D Ales" */
+  font-weight: 400;       /* ✅ même poids */
+  text-align: center;
+  border-radius: 2px;
+`,
