@@ -83,3 +83,57 @@ CategoryBadge: styled.div`
   text-align: center;
   border-radius: 2px;
 `,
+
+
+
+
+BottomContainer: styled.div`
+  display: flex;
+  align-items: flex-start;  /* ✅ aligne en haut */
+  width: 100%;
+`,
+
+GlobalRatingContainer: styled.div`
+  flex: 1;
+  min-width: 0;
+  margin-left: ${Grid(4)};
+`,
+
+CommunityContainer: styled.div`
+  flex: 1;
+  min-width: 0;
+
+
+
+
+
+
+  SectionTitle: styled.h3`
+  ${typography.h3}
+  padding: ${Grid(4)};    /* ✅ même padding que HeaderContainer d'ASSESSORS */
+  margin: 0;
+  border-bottom: none;
+`,
+
+CategoryBadge: styled.div`
+  min-width: 90px;
+  max-width: 120px;
+  padding: ${Grid(1)} ${Grid(2)};
+  background-color: ${({ categoryColor }) =>
+    CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
+  color: ${({ categoryColor }) =>
+    CATEGORY_COLORS[categoryColor]?.text || '#333'};
+  font-size: 14px;     /* ✅ même taille que Mathieu D ALES */
+  font-weight: ${({ categoryColor }) =>
+    categoryColor === 'grey' ? '400' : '700'};
+  text-align: left;    /* ✅ aligné à gauche comme Mathieu D ALES */
+  border-radius: 2px;
+`,
+
+Container: styled.div`
+  background-color: white;
+  width: 100%;
+  padding-bottom: ${Grid(4)};
+  border: 1px solid #e8e8e8;  /* ✅ même bordure que la card ASSESSORS */
+`,
+`,
