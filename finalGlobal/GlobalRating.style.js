@@ -12,12 +12,15 @@ export default {
     background-color: white;
     width: 100%;
     padding-bottom: ${Grid(4)};
+    border: 1px solid #e8e8e8;
   `,
 
-  SectionTitle: styled.div`
+  SectionTitle: styled.h3`
     ${typography.h3}
-    padding: ${Grid(3)} ${Grid(2)} ${Grid(2)};
-    margin: 0 ${Grid(4)} ${Grid(2)};
+    padding: ${Grid(4)};
+    margin: 0;
+    display: flex;
+    align-items: center;
   `,
 
   Table: styled.div`
@@ -34,7 +37,7 @@ export default {
     padding: ${Grid(1)} ${Grid(2)};
     border: 1px solid #e8e8e8;
     border-radius: 4px;
-    min-height: 44px;
+    min-height: 52px;
   `,
 
   EmptyCell: styled.div`
@@ -50,10 +53,11 @@ export default {
       CATEGORY_COLORS[categoryColor]?.bg || 'transparent'};
     color: ${({ categoryColor }) =>
       CATEGORY_COLORS[categoryColor]?.text || '#333'};
-    font-size: 11px;
+    font-size: 16px;        /* matched to body text size */
     font-weight: ${({ categoryColor }) =>
       categoryColor === 'grey' ? '400' : '700'};
-    text-align: center;
+    font-style: normal;
+    text-align: left;
     border-radius: 2px;
   `,
 
@@ -65,14 +69,14 @@ export default {
   `,
 
   Dot: styled.div`
-    width: 28px;
-    height: 28px;
+    width: 40px;            /* was 28px */
+    height: 40px;           /* was 28px */
     border-radius: 50%;
     background-color: ${({ color }) => color};
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 13px;        /* was 10px */
     font-weight: 800;
     color: white;
     flex-shrink: 0;
