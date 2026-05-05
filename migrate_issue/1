@@ -1,0 +1,17 @@
+head -20 src/models/governance.py
+head -20 src/models/status_initiative.py
+
+
+cd src && python -c "
+from manage import server, db
+import models.initiative
+import models.governance
+import models.governance_config
+import models.status_initiative
+import models.initiative_commitee_date
+
+with server.app_context():
+    tables = db.metadata.tables.keys()
+    for t in sorted(tables):
+        print(t)
+"
