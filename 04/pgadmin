@@ -1,0 +1,5 @@
+rm -rf ~/Library/Application\ Support/pgadmin
+rm -rf ~/Library/Preferences/org.pgadmin.pgAdmin4.plist
+rm -rf ~/Library/Saved\ Application\ State/org.pgadmin.pgAdmin4.savedState
+rm -rf ~/Library/Caches/org.pgadmin.pgAdmin4
+rm -rf ~/.pgadmin
