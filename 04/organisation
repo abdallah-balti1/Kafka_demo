@@ -1,0 +1,22 @@
+redux/entities/governance/
+  constants.js   → toutes les action types
+  actions.js     → action creators
+  api.js         → fetch/create/delete vers le backend
+  modelize.js    → normalisation des données API
+  reducer.js     → state governance/commitees/statuses
+  selectors.js   → selectGovernances, selectLoading...
+  sagas.js       → cascade CREATE: governance → commitees → statuses
+  index.js       → re-exports
+
+pages/Import/GovernanceConfig/
+  components/AddGovernanceForm/
+    AddGovernanceForm.js       → formulaire hiérarchique (slide)
+    AddGovernanceForm.style.js
+    AddGovernanceForm.wrap.js  → connect Redux
+    index.js
+  GovernanceConfig.js          → tableau Governance > Committee > Status
+  GovernanceConfig.style.js
+  GovernanceConfig.wrap.js     → connect Redux
+  index.js
+
+integration_snippet.js  → 4 lignes à ajouter (Import.js, rootSaga, rootReducer)
