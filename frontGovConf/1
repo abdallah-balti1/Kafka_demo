@@ -5,3 +5,60 @@ useEffect(() => {
     setOpenedGovernances(allOpen);
   }
 }, [governances]);
+
+
+
+{openedGovernances[governance.id] &&
+  (governance.commitees || []).map(commitee => (
+    <Style.StatusRow key={commitee.id}>
+      <Style.ColGovernance />
+      <Style.ColCommitee>
+        <span>{commitee.name}</span>
+        <Style.DeleteButton
+          type="button"
+          onClick={() => deleteCommitee(commitee.id)}
+          style={{ marginLeft: 8 }}
+        >
+          🗑
+        </Style.DeleteButton>
+      </Style.ColCommitee>
+      <Style.ColStatus>
+        {(commitee.status_initiatives || []).map(s => s.name).join(', ') || '—'}
+      </Style.ColStatus>
+      <Style.ColFinal>
+        {(commitee.status_initiatives || []).some(s => s.is_final_status) ? (
+          <Style.Badge isYes>Yes</Style.Badge>
+        ) : (
+          <Style.Badge>No</Style.Badge>
+        )}
+      </Style.ColFinal>
+      <Style.ColActions />
+    </Style.StatusRow>
+  ))}
+
+
+
+
+def to_json(self):
+    return {
+        "id": self.id,
+        "name": self.name,
+        "commitees": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "governance_id": c.governance_id,
+                "order": c.order,
+                "status_initiatives": [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "commitee_id": s.commitee_id,
+                        "is_final_status": s.is_final_status,
+                    }
+                    for s in (c.status_initiatives or [])
+                ],
+            }
+            for c in (self.commitees or [])
+        ],
+    }
