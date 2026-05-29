@@ -1,1 +1,7 @@
-
+useEffect(() => {
+  if (governances.length > 0) {
+    const allOpen = {};
+    governances.forEach(g => { allOpen[g.id] = true; });
+    setOpenedGovernances(allOpen);
+  }
+}, [governances]);
