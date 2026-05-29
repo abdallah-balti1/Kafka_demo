@@ -9,9 +9,6 @@ from constants.roles import InitiativeRoleEnum
 from db import db
 from decorators import parse_params
 from repositories import GovernanceRepository
-from repositories.commitee import CommiteeRepository
-from repositories.status_initiative import StatusInitiativeRepository
-from repositories.governance_config import GovernanceConfigRepository
 from util.required_authentication import required_authentication
 from util.required_plm_authentication import authorized_plm_roles
 
@@ -105,22 +102,5 @@ class GovernanceByIdResource(Resource):
     def delete(user, id: int):
         """DELETE /governances/<id>"""
         with SessionCriticalActionManager("Delete governance", db.session, DEV_TEAM_EMAILS):
-            # 1. Supprimer tous les governance_config liés à cette governance
-            configs = GovernanceConfigRepository.get_by_governance_id(id)
-            for config in configs:
-                GovernanceConfigRepository.delete(config.id)
-
-            # 2. Pour chaque commitee, supprimer ses status_initiatives
-            commitees = CommiteeRepository.get_by_governance_id(id)
-            for commitee in commitees:
-                statuses = StatusInitiativeRepository.get_by_commitee_id(commitee.id)
-                for status in statuses:
-                    StatusInitiativeRepository.delete(status.id)
-
-            # 3. Supprimer tous les commitees
-            for commitee in commitees:
-                CommiteeRepository.delete(commitee.id)
-
-            # 4. Supprimer la governance
             GovernanceRepository.delete(id)
             return {}, 204
