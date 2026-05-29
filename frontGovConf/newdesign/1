@@ -1,1 +1,25 @@
+export const updateGovernance = (id, payload) => ({ type: 'governance/UPDATE_GOVERNANCE', payload: { id, ...payload } });
+export const updateCommitee = (id, payload) => ({ type: 'governance/UPDATE_COMMITEE', payload: { id, ...payload } });
+export const updateStatusInitiative = (id, payload) => ({ type: 'governance/UPDATE_STATUS_INITIATIVE', payload: { id, ...payload } });
 
+
+
+
+export function updateGovernanceApi(payload, token) {
+  const { id, ...data } = payload;
+  return request(`${config.INITIATIVE_API_URL}/governances/${id}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, data,
+  });
+}
+export function updateCommiteeApi(payload, token) {
+  const { id, ...data } = payload;
+  return request(`${config.INITIATIVE_API_URL}/commitees/${id}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, data,
+  });
+}
+export function updateStatusInitiativeApi(payload, token) {
+  const { id, ...data } = payload;
+  return request(`${config.INITIATIVE_API_URL}/statuses/${id}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, data,
+  });
+}
