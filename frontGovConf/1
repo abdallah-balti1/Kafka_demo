@@ -74,3 +74,8 @@ grep -rn "selectTemplate\|templates" src/pages/InitiativePipelineCard/components
 
 grep -rn "template" src/redux/entities/templates/ --include="*.js" | grep "select\|name" | head -10
 grep -rn "template" src/redux/entities/ --include="*.js" | grep "select" | head -15
+
+
+
+cat src/redux/entities/templateInitiative/selectors.js
+cat src/redux/entities/templateInitiative/modelize.js | head -20
