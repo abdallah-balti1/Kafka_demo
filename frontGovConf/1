@@ -120,3 +120,8 @@ grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/sele
 {templateConfig?.[initiative.templateId]?.template_name 
   || templateConfig?.[initiative.templateId]?.name 
   || '-'}
+
+
+
+  console.log('templateConfig:', JSON.stringify(templateConfig?.slice(0, 2)));
+console.log('templateId:', initiative.templateId);
