@@ -1,4 +1,4 @@
-useEffect(() => {
+head {
   if (governances.length > 0) {
     const allOpen = {};
     governances.forEach(g => { allOpen[g.id] = true; });
@@ -65,3 +65,11 @@ def to_json(self):
 
 
 grep -rn "template" src/redux/entities/initiativesPipeline/ --include="*.js" | grep -i "select\|template_id\|templateName\|template_name" | head -15
+
+
+grep -rn "selectTemplate\|templates" src/pages/InitiativePipelineCard/components/InitiativePipelineCardTab/components/InitiativeDescription/InitiativeDescription.wrap.js
+
+
+
+
+grep -rn "template" src/redux/entities/templates/ --include="*.js" | grep "select\|name" | head -10
