@@ -27,3 +27,7 @@ def delete(status_initiative_id: int) -> StatusInitiative:
     db.session.delete(status)
     db.session.flush()
     return status
+
+
+
+grep -n "ModalOverlay\|ModalBox\|ModalIconWrap\|ModalTitle\|ModalErrorMsg\|ModalHint\|ModalConfirmBtn" src/pages/Import/GovernanceConfig/GovernanceConfig.style.js
