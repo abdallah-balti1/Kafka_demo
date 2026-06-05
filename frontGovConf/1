@@ -1,4 +1,4 @@
-templateInitiative {
+templates {
   if (governances.length > 0) {
     const allOpen = {};
     governances.forEach(g => { allOpen[g.id] = true; });
@@ -92,4 +92,17 @@ grep -n "template_name\|template" src/redux/entities/initiativesPipeline/modeliz
 cat src/redux/entities/templateInitiative/selectors.js
 
 
-grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/selectors.js
+grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/selectorssele
+
+
+
+<CommonStyle.RowContainer>
+  <CommonStyle.Label>
+    Template
+  </CommonStyle.Label>
+  <CommonStyle.Value>
+    {(templateConfig || []).find(t => t.template_id === initiative.templateId)?.template_name 
+      || initiative.templateId 
+      || '-'}
+  </CommonStyle.Value>
+</CommonStyle.RowContainer>
