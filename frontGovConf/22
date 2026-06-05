@@ -1,0 +1,19 @@
+// Ajouter l'import
+import { selectTemplateConfig } from 'redux/entities/templateInitiative/selectors';
+
+// Dans mapStateToProps, ajouter :
+templateConfig: selectTemplateConfig(state),
+
+
+<CommonStyle.RowContainer>
+  <CommonStyle.Label>
+    Template
+  </CommonStyle.Label>
+  <CommonStyle.Value title={initiative.templateId}>
+    {templateConfig?.find(t => t.id === initiative.templateId)?.template_name || '-'}
+  </CommonStyle.Value>
+</CommonStyle.RowContainer>
+
+templateConfig: any[],
+
+
