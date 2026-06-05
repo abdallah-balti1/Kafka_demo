@@ -87,3 +87,9 @@ grep -n "template_name\|templateName" src/redux/entities/initiativesPipeline/mod
 
 
 grep -n "template_name\|template" src/redux/entities/initiativesPipeline/modelize.js | head -10
+
+
+cat src/redux/entities/templateInitiative/selectors.js
+
+
+grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/selectors.js
