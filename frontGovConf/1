@@ -84,3 +84,6 @@ cat src/redux/entities/templateInitiative/modelize.js | head -20
 
 
 grep -n "template_name\|templateName" src/redux/entities/initiativesPipeline/modelize.js
+
+
+grep -n "template_name\|template" src/redux/entities/initiativesPipeline/modelize.js | head -10
