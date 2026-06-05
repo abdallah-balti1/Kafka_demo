@@ -128,3 +128,5 @@ console.log('templateId:', initiative.templateId);
 
 
 grep -rn "fetchTemplates\|FETCH_TEMPLATES" src/redux/entities/templateInitiative/ --include="*.js" | head -5
+
+grep -rn "template" src/redux/entities/ --include="actions.js" | head -10
