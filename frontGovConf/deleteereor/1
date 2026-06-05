@@ -31,3 +31,21 @@ def delete(status_initiative_id: int) -> StatusInitiative:
 
 
 grep -n "ModalOverlay\|ModalBox\|ModalIconWrap\|ModalTitle\|ModalErrorMsg\|ModalHint\|ModalConfirmBtn" src/pages/Import/GovernanceConfig/GovernanceConfig.style.js
+
+
+function LinkedErrorModal({ error, title, onClose }) {
+  if (!error) return null;
+  return (
+    <Style.ErrorOverlay>
+      <Style.ErrorModal>
+        <Style.ErrorIconWrapper><WarningIcon /></Style.ErrorIconWrapper>
+        <Style.ErrorTitle>{title}</Style.ErrorTitle>
+        <Style.ErrorBody>{error.message}</Style.ErrorBody>
+        <Style.ErrorHint>
+          Please unlink or reassign all initiatives before deleting this item.
+        </Style.ErrorHint>
+        <Style.ErrorCloseBtn onClick={onClose}>Got it</Style.ErrorCloseBtn>
+      </Style.ErrorModal>
+    </Style.ErrorOverlay>
+  );
+}
