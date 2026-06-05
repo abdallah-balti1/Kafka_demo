@@ -53,3 +53,6 @@ function LinkedErrorModal({ error, title, onClose }) {
 
 
 grep -n "ToggleBtn\|Header\|Title\|AddBtn\|TableWrapper\|TableHeader\|GovernanceBlock\|GovRow\|CommiteeBlock\|ComRow\|StatusRow\|InlineRow\|InlineEditGroup\|InlineInput\|CheckboxLabel\|AddInlineBtn\|GovLabel\|ComLabel\|StatusLabel\|StatusDot\|ActionGroup" src/pages/Import/GovernanceConfig/GovernanceConfig.style.js
+
+
+grep -n "Btn\b\|ToggleBtn\|Header\b\|Title\b\|AddBtn\|TableHeader\b\|Cell\b" src/pages/Import/GovernanceConfig/GovernanceConfig.style.js
