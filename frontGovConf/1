@@ -125,3 +125,6 @@ grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/sele
 
   console.log('templateConfig:', JSON.stringify(templateConfig?.slice(0, 2)));
 console.log('templateId:', initiative.templateId);
+
+
+grep -rn "fetchTemplates\|FETCH_TEMPLATES" src/redux/entities/templateInitiative/ --include="*.js" | head -5
