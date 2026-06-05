@@ -106,3 +106,12 @@ grep -rn "selectTemplates\|templates" src/redux/entities/templateInitiative/sele
       || '-'}
   </CommonStyle.Value>
 </CommonStyle.RowContainer>
+
+
+
+
+<CommonStyle.Value>
+  {(templateConfig || []).find(t => t.id === initiative.templateId)?.template_name
+    || (templateConfig || []).find(t => t.id === initiative.templateId)?.name
+    || '-'}
+</CommonStyle.Value>
