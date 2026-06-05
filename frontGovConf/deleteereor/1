@@ -1,1 +1,29 @@
 
+@staticmethod
+def delete(status_initiative_id: int) -> StatusInitiative:
+    status = db.session.scalars(
+        select(StatusInitiative).where(StatusInitiative.id == status_initiative_id)
+    ).first()
+    if status is None:
+        raise EntityNotFound("status_initiative", status_initiative_id)
+
+    # Remonter governance_id via le commitee
+    from models.commitee import Commitee
+    commitee = db.session.scalars(
+        select(Commitee).where(Commitee.id == status.commitee_id)
+    ).first()
+
+    if commitee:
+        linked_initiatives = db.session.scalars(
+            select(Initiative).where(
+                Initiative.governance_id == commitee.governance_id,
+                Initiative.is_active.is_(True),
+            )
+        ).all()
+
+        if linked_initiatives:
+            raise StatusLinkedToInitiativeError(status_initiative_id, len(linked_initiatives))
+
+    db.session.delete(status)
+    db.session.flush()
+    return status
