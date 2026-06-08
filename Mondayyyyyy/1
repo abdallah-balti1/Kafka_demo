@@ -72,3 +72,37 @@ export function getTemplate(templateId: string, token: string) {
   });
 }
 
+
+
+
+
+</CommonStyle.RowContainer>  {/* ferme assetClass */}
+
+{/* ✅ Committee Date + Template sur la même ligne */}
+<CommonStyle.RowContainer>
+  <CommonStyle.Label>
+    {values.commiteeNames[values.commiteeNames.length - 1] + ' Committee Date'}
+  </CommonStyle.Label>
+  {isEditing ? (
+    <Field
+      name="committeeDate"
+      component={CommonStyle.DatePicker}
+      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.COMMITTEE_DATE' })}
+      isReadOnly={
+        initiative.initiativeGovernance.commitees?.length ===
+        statusData.currentCommiteeOrder
+      }
+      hasError={hasError(errors, touched, 'committeeDate')}
+    />
+  ) : (
+    <CommonStyle.Value title={initiative.commiteeDate}>
+      {values.committeeDate || '-'}
+    </CommonStyle.Value>
+  )}
+</CommonStyle.RowContainer>
+
+<CommonStyle.RowContainer>
+  <CommonStyle.Label>Template</CommonStyle.Label>
+  <CommonStyle.Value>{initiative.template_name || '-'}</CommonStyle.Value>
+</CommonStyle.RowContainer>
+
