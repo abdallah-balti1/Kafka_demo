@@ -58,3 +58,17 @@ import { selectTemplateConfig } from 'redux/entities/templateInitiative/selector
 initiative.template_name = templateResponse?.data?.template_name || null;
 
 
+// ❌ Ce que tu as écrit
+export const getTemplate = (templateId) => axios.get(`/templates/${templateId}`);
+
+// ✅ Remplacer par
+export function getTemplate(templateId: string, token: string) {
+  const requestURL = `${config.INITIATIVE_API_URL}/templates/${templateId}`;
+  return request(requestURL, {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+}
+
