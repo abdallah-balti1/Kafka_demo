@@ -1,0 +1,60 @@
+grep -rn "template_name\|\"name\"" src/redux/entities/templateInitiative/modelize.js
+
+grep -rn "getTemplate\|/templates/" src/redux/entities/initiativesPipeline/api.js
+
+
+export const getTemplate = (templateId) =>
+  axios.get(`/templates/${templateId}`);
+
+
+
+  import {
+  // ...imports existants...
+  getTemplate,          // ✅ AJOUTER
+} from './api';
+
+export function* getOneInitiativeSaga(action): Saga<> {
+  try {
+    const initiativeId = action.payload?.initiativeId;
+    const response = yield call(authenticatedCall, getInitiative, initiativeId);
+    const initiative = modelizeInitiativeFromApi(response.data[0]);
+
+    const globalRatingsResponse = yield call(authenticatedCall, getGlobalRatings, initiativeId);
+    initiative.global_ratings = globalRatingsResponse?.data?.global_ratings || [];
+
+    // ✅ AJOUTER ces 4 lignes
+    if (initiative.templateId) {
+      const templateResponse = yield call(authenticatedCall, getTemplate, initiative.templateId);
+      initiative.template_name = templateResponse?.data?.name || null;
+    }
+
+    yield put(getOneInitiativePipelineSuccess(initiative));
+  } catch (error) {
+    yield call(handleAPIExceptions, error);
+    yield put(getOneInitiativePipelineFailure(error));
+  }
+}
+
+
+// ❌ SUPPRIMER ces lignes (plus nécessaires)
+import { selectTemplateConfig } from 'redux/entities/templateInitiative/selectors';
+// templateConfig: selectTemplateConfig(state),
+
+
+
+// ❌ SUPPRIMER templateConfig des props destructurées
+
+// ✅ GARDER uniquement
+<CommonStyle.RowContainer>
+  <CommonStyle.Label>Template</CommonStyle.Label>
+  <CommonStyle.Value>
+    {initiative.template_name || '-'}
+  </CommonStyle.Value>
+</CommonStyle.RowContainer>
+
+
+
+
+initiative.template_name = templateResponse?.data?.template_name || null;
+
+
