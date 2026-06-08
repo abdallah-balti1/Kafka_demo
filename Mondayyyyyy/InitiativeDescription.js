@@ -107,6 +107,7 @@ const InitiativeDescription = (props: PropsType) => {
   );
 
   const cosmosIdOptions = useMemo(() => getCosmosId(products), [products]);
+
   useEffect(
     () => {
       if (mgmtCompLabels) {
@@ -116,6 +117,7 @@ const InitiativeDescription = (props: PropsType) => {
     },
     [mgmtCompLabels],
   );
+
   useEffect(
     () => {
       if (sponsor_countries) {
@@ -125,6 +127,7 @@ const InitiativeDescription = (props: PropsType) => {
     },
     [sponsor_countries],
   );
+
   useEffect(
     () => {
       fetchUsers();
@@ -148,8 +151,10 @@ const InitiativeDescription = (props: PropsType) => {
         <CommonStyle.MainInfoContainer>
           <div>
             <CommonStyle.ContentContainer>
+
+              {/* ========== COLONNE 1 ========== */}
               <CommonStyle.ColumnContainer>
-                {/* Initiative name */}
+
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.INITIATIVE_NAME" />
@@ -163,7 +168,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Initiative Type */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.INITIATIVE_TYPE" />
@@ -172,9 +176,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="initiativeType"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.INITIATIVE_TYPE',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.INITIATIVE_TYPE' })}
                       options={Object.keys(INITIATIVE_PIPELINE_INITIATIVE_TYPE).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_INITIATIVE_TYPE[type].label,
@@ -190,7 +192,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Initiative Owner */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.INITIATIVE_OWNER" />
@@ -199,9 +200,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="initiativeOwner"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.INITIATIVE_OWNER',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.INITIATIVE_OWNER' })}
                       options={sortBy(
                         initiativeOwners &&
                           initiativeOwners.map(user => ({
@@ -221,7 +220,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Asset Class */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.ASSET_CLASS" />
@@ -230,9 +228,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="assetClass"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.ASSET_CLASS',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.ASSET_CLASS' })}
                       options={Object.keys(INITIATIVE_PIPELINE_ASSET_CLASS).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_ASSET_CLASS[type].label,
@@ -248,7 +244,7 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Committee Date */}
+                {/* Committee Date principal */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     {values.commiteeNames[values.commiteeNames.length - 1] + ' Committee Date'}
@@ -257,9 +253,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="committeeDate"
                       component={CommonStyle.DatePicker}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.COMMITTEE_DATE',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.COMMITTEE_DATE' })}
                       isReadOnly={
                         initiative.initiativeGovernance.commitees?.length ===
                         statusData.currentCommiteeOrder
@@ -275,10 +269,9 @@ const InitiativeDescription = (props: PropsType) => {
 
               </CommonStyle.ColumnContainer>
 
-              {/* ===================== COLONNE DROITE ===================== */}
+              {/* ========== COLONNE 2 ========== */}
               <CommonStyle.ColumnContainer>
 
-                {/* Sponsor */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.SPONSOR" />
@@ -287,9 +280,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="sponsor"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.SPONSOR',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.SPONSOR' })}
                       options={Object.keys(INITIATIVE_PIPELINE_SPONSOR).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_SPONSOR[type].label,
@@ -305,7 +296,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Sponsor Country */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.SPONSOR_COUNTRY" />
@@ -314,13 +304,8 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="sponsorCountry"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.SPONSOR_COUNTRY',
-                      })}
-                      options={Object.keys(sponsorCountries).map(type => ({
-                        value: type,
-                        label: sponsorCountries[type].label,
-                      }))}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.SPONSOR_COUNTRY' })}
+                      options={sponsorCountries}
                       isClearable={false}
                       validate={validateMandatory}
                       hasError={hasError(errors, touched, 'sponsorCountry')}
@@ -332,7 +317,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Legal Form */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.LEGAL_FORM" />
@@ -341,9 +325,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="legalForm"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.LEGAL_FORM',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.LEGAL_FORM' })}
                       options={Object.keys(INITIATIVE_PIPELINE_LEGAL_FORM).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_LEGAL_FORM[type].label,
@@ -357,7 +339,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Distribution Channel */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.DISTRIBUTION_CHANNEL" />
@@ -366,9 +347,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="distributionChannel"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.DISTRIBUTION_CHANNEL',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.DISTRIBUTION_CHANNEL' })}
                       options={Object.keys(INITIATIVE_PIPELINE_DISTRIBUTED_CHANNEL).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_DISTRIBUTED_CHANNEL[type].label,
@@ -384,13 +363,13 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* ✅ Template — aligné avec Committee Date dans la colonne gauche */}
+                {/* ✅ Template — aligné avec Committee Date (colonne 1, ligne 5) */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>Template</CommonStyle.Label>
                   <CommonStyle.Value>{initiative.template_name || '-'}</CommonStyle.Value>
                 </CommonStyle.RowContainer>
 
-                {/* Pre Committee Date 1 (conditionnel) */}
+                {/* Pre Committee Date 1 */}
                 {values.commiteeNames.length > 1 && (
                   <CommonStyle.RowContainer>
                     <CommonStyle.Label>
@@ -412,9 +391,7 @@ const InitiativeDescription = (props: PropsType) => {
                           }
                           return undefined;
                         }}
-                        label={intl.formatMessage({
-                          id: 'Pre Committee Date 1',
-                        })}
+                        label={intl.formatMessage({ id: 'Pre Committee Date 1' })}
                         isReadOnly={statusData.currentCommiteeOrder >= 1}
                         hasError={hasError(errors, touched, 'commiteeDates[0]')}
                       />
@@ -425,15 +402,14 @@ const InitiativeDescription = (props: PropsType) => {
                     )}
                   </CommonStyle.RowContainer>
                 )}
+
                 <CommonStyle.RowContainer />
 
               </CommonStyle.ColumnContainer>
-            </CommonStyle.ContentContainer>
 
-            <CommonStyle.ContentContainer>
+              {/* ========== COLONNE 3 ========== */}
               <CommonStyle.ColumnContainer>
 
-                {/* Product Type */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.PRODUCT_TYPE" />
@@ -442,9 +418,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="productType"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.PRODUCT_TYPE',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.PRODUCT_TYPE' })}
                       options={getProductTypeOptions(intl)}
                       hasError={hasError(errors, touched, 'initiativePipeline.productType')}
                     />
@@ -455,7 +429,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Governance Required */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.GOVERNANCE_REQUIRED" />
@@ -464,9 +437,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="governanceRequired"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.GOVERNANCE_REQUIRED',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.GOVERNANCE_REQUIRED' })}
                       options={Object.keys(INITIATIVE_PIPELINE_GOVERNANCE_REQUIRED).map(type => ({
                         value: type,
                         label: INITIATIVE_PIPELINE_GOVERNANCE_REQUIRED[type].label,
@@ -483,7 +454,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Cosmos ID */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.COSMOS_ID" />
@@ -492,9 +462,7 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="cosmosId"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.COSMOS_ID',
-                      })}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.COSMOS_ID' })}
                       options={cosmosIdOptions}
                       hasError={hasError(errors, touched, 'cosmosId')}
                       isReadOnly={values.initiativeType?.value === INITIATIVE_PIPELINE_CREATION}
@@ -506,7 +474,6 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Management Company */}
                 <CommonStyle.RowContainer>
                   <CommonStyle.Label>
                     <FormattedMessage id="INITIATIVE_PIPELINE.MANAGEMENT_COMPANY" />
@@ -515,13 +482,8 @@ const InitiativeDescription = (props: PropsType) => {
                     <Field
                       name="managementCompany"
                       component={CommonStyle.Dropdown}
-                      label={intl.formatMessage({
-                        id: 'INITIATIVE_PIPELINE.MANAGEMENT_COMPANY',
-                      })}
-                      options={Object.keys(managementCompanies).map(type => ({
-                        value: type,
-                        label: managementCompanies[type].label,
-                      }))}
+                      label={intl.formatMessage({ id: 'INITIATIVE_PIPELINE.MANAGEMENT_COMPANY' })}
+                      options={managementCompanies}
                       isClearable={false}
                       validate={validateMandatory}
                       hasError={hasError(errors, touched, 'managementCompany')}
@@ -533,7 +495,7 @@ const InitiativeDescription = (props: PropsType) => {
                   )}
                 </CommonStyle.RowContainer>
 
-                {/* Pre Committee Date 2 (conditionnel) */}
+                {/* Pre Committee Date 2 */}
                 {values.commiteeNames.length > 2 && (
                   <CommonStyle.RowContainer>
                     <CommonStyle.Label>
@@ -551,9 +513,7 @@ const InitiativeDescription = (props: PropsType) => {
                           }
                           return undefined;
                         }}
-                        label={intl.formatMessage({
-                          id: 'Pre Committee Date 2',
-                        })}
+                        label={intl.formatMessage({ id: 'Pre Committee Date 2' })}
                         isReadOnly={statusData.currentCommiteeOrder >= 2}
                         hasError={hasError(errors, touched, 'commiteeDates[1]')}
                       />
@@ -566,11 +526,13 @@ const InitiativeDescription = (props: PropsType) => {
                 )}
 
               </CommonStyle.ColumnContainer>
+
             </CommonStyle.ContentContainer>
 
             <CommonStyle.ContentContainer>
               <CommonStyle.ColumnContainer />
             </CommonStyle.ContentContainer>
+
           </div>
         </CommonStyle.MainInfoContainer>
       </Form>
