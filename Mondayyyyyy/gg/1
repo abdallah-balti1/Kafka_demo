@@ -1,1 +1,2 @@
-
+grep -rn "COMMITTEE_AGENDA\|CommitteeAgenda\|committee-agenda\|committee_agenda" src/ --include="*.js" -l
+grep -rn "ADMIN\|COORDINATOR\|ALLOWED_ROLES" src/constants/ --include="*.js"
