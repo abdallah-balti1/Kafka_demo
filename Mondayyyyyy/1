@@ -218,3 +218,7 @@ grep -rn "COMMITTEE_DATE\|committeeDate\|committee_date" src/pages/InitiativePip
 
 
 sed -n '109,140p' src/pages/InitiativePipeline/columns.js
+
+
+
+grep -rn "committeeDates\|commiteeDates\|committee_dates\|commitee_dates" src/redux/entities/initiativesPipeline/modelize.js | head -10
