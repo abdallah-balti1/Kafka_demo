@@ -11,3 +11,6 @@ grep -rn "filter\|Filter" src/pages/CommitteeAgenda/components/InitiativePipelin
   onFilteredChange={() => {}}
 />
 grep -rn "isFilterOpen\|filter\|Filter" src/pages/CommitteeAgenda/components/InitiativeTable/ --include="*.js" -l
+
+
+grep -rn "onClose\|onClickOutside\|backdrop\|overlay" src/pages/InitiativePipelineCard/components/ --include="*.js" -l
