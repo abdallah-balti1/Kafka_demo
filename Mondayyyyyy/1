@@ -110,3 +110,77 @@ export function getTemplate(templateId: string, token: string) {
 
 grep -rn "SUMMARY\|summary\|executive" src/pages/CommitteeAgenda/ --include="*.js" -l
 grep -rn "SUMMARY\|summary" src/pages/CommitteeAgenda/components/InitiativePipelineProjects/ --include="*.js"
+
+
+
+
+Cell: ({ original }: any) => (
+  <Style.ProjectName>
+    <SummaryCell value={original.summary} />
+  </Style.ProjectName>
+),
+
+
+
+
+const SummaryCell = ({ value }: { value: string }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const text = value || '-';
+
+  return (
+    <div>
+      <div
+        style={{
+          fontWeight: 400,
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '18px',
+          display: expanded ? 'block' : '-webkit-box',
+          WebkitLineClamp: expanded ? 'unset' : 4,
+          WebkitBoxOrient: 'vertical',
+          overflow: expanded ? 'visible' : 'hidden',
+        }}
+      >
+        {text}
+      </div>
+      {!expanded && text.length > 0 && (
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            setExpanded(true);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#009473',
+            fontWeight: 600,
+            fontSize: 12,
+            padding: '2px 0',
+          }}
+        >
+          Show more
+        </button>
+      )}
+      {expanded && (
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            setExpanded(false);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#009473',
+            fontWeight: 600,
+            fontSize: 12,
+            padding: '2px 0',
+          }}
+        >
+          Show less
+        </button>
+      )}
+    </div>
+  );
+};
