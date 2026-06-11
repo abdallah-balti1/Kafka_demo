@@ -209,3 +209,7 @@ const SummaryCell = ({ value }: { value: string }) => {
 
   Filter: FilterSmallInputWithPlaceholder,
 },
+
+
+
+grep -rn "COMMITTEE_DATE\|committeeDate\|committee_date" src/pages/InitiativePipeline/ --include="*.js" | head -20
