@@ -18,3 +18,5 @@ grep -rn "onClose\|onClickOutside\|backdrop\|overlay" src/pages/InitiativePipeli
 grep -rn "onClose\|backdrop\|overlay\|closeModal\|isOpen" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/ --include="*.js" -l
 
 grep -n "isRatingEditModalOpen\|onClose\|closeModal\|ratingEditModal" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js | head -40
+
+grep -n "closeInitiativeTaskForm\|closeRatingEditModal\|ratingEditValues\|isDirty\|dirty" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js | head -30
