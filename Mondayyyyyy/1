@@ -106,3 +106,7 @@ export function getTemplate(templateId: string, token: string) {
   <CommonStyle.Value>{initiative.template_name || '-'}</CommonStyle.Value>
 </CommonStyle.RowContainer>
 
+
+
+grep -rn "SUMMARY\|summary\|executive" src/pages/CommitteeAgenda/ --include="*.js" -l
+grep -rn "SUMMARY\|summary" src/pages/CommitteeAgenda/components/InitiativePipelineProjects/ --include="*.js"
