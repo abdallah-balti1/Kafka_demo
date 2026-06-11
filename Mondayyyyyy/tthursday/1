@@ -14,3 +14,5 @@ grep -rn "isFilterOpen\|filter\|Filter" src/pages/CommitteeAgenda/components/Ini
 
 
 grep -rn "onClose\|onClickOutside\|backdrop\|overlay" src/pages/InitiativePipelineCard/components/ --include="*.js" -l
+
+grep -rn "onClose\|backdrop\|overlay\|closeModal\|isOpen" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/ --include="*.js" -l
