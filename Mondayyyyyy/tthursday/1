@@ -20,3 +20,5 @@ grep -rn "onClose\|backdrop\|overlay\|closeModal\|isOpen" src/pages/InitiativePi
 grep -n "isRatingEditModalOpen\|onClose\|closeModal\|ratingEditModal" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js | head -40
 
 grep -n "closeInitiativeTaskForm\|closeRatingEditModal\|ratingEditValues\|isDirty\|dirty" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js | head -30
+
+sed -n '340,380p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
