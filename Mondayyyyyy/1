@@ -184,3 +184,28 @@ const SummaryCell = ({ value }: { value: string }) => {
     </div>
   );
 };
+
+
+
+
+
+
+// ✅ APRÈS
+[INITIATIVE_SUMMARY_COLUMN]: {
+  Header: <TableHeader label="INITIATIVE.INITIATIVE_SUMMARY" />,
+  accessor: 'summary',
+  minWidth: NumberGrid(50),
+
+  style: {
+    whiteSpace: 'normal',
+    lineHeight: '18px',
+  },
+
+  Cell: ({ original }: any) => (
+    <Style.ProjectName>
+      <SummaryCell value={original.summary} />
+    </Style.ProjectName>
+  ),
+
+  Filter: FilterSmallInputWithPlaceholder,
+},
