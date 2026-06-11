@@ -22,3 +22,5 @@ grep -n "isRatingEditModalOpen\|onClose\|closeModal\|ratingEditModal" src/pages/
 grep -n "closeInitiativeTaskForm\|closeRatingEditModal\|ratingEditValues\|isDirty\|dirty" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js | head -30
 
 sed -n '340,380p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+
+sed -n '600,640p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
