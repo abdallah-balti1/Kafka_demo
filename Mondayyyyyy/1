@@ -213,3 +213,8 @@ const SummaryCell = ({ value }: { value: string }) => {
 
 
 grep -rn "COMMITTEE_DATE\|committeeDate\|committee_date" src/pages/InitiativePipeline/ --include="*.js" | head -20
+
+
+
+
+sed -n '109,140p' src/pages/InitiativePipeline/columns.js
