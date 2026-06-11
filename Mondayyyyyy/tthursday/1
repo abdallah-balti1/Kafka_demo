@@ -24,3 +24,13 @@ grep -n "closeInitiativeTaskForm\|closeRatingEditModal\|ratingEditValues\|isDirt
 sed -n '340,380p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
 
 sed -n '600,640p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+
+
+
+
+
+sed -n '1,50p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+sed -n '340,400p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+sed -n '600,660p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+sed -n '740,780p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+
