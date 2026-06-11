@@ -1,1 +1,12 @@
 grep -rn "filter\|Filter" src/pages/CommitteeAgenda/components/InitiativePipelineProjects/ --include="*.js" -l
+
+// ✅ APRÈS
+<InitiativeTable
+  {...this.props}
+  projects={tableRows}
+  getTdProps={this.getTdProps}
+  getTrProps={this.getTrProps}
+  isFilterOpen={false}
+  filters={[]}
+  onFilteredChange={() => {}}
+/>
