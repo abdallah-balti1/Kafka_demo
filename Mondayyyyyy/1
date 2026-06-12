@@ -222,3 +222,12 @@ sed -n '109,140p' src/pages/InitiativePipeline/columns.js
 
 
 grep -rn "committeeDates\|commiteeDates\|committee_dates\|commitee_dates" src/redux/entities/initiativesPipeline/modelize.js | head -10
+
+
+grep -rn "INITIATIVE_COMMITTEE_DATE_COLUMN" src/redux/ --include="*.js"
+
+
+grep -rn "INITIATIVE_COMMITTEE_DATE" src/locales/
+
+
+
