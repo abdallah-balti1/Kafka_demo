@@ -1,1 +1,5 @@
+grep -rn "committeeDate" src/redux/ --include="*.js" | grep -v "committeeDates\|commiteeDates"
 
+
+
+sed -n '235,250p' src/redux/entities/initiativesPipeline/modelize.js
