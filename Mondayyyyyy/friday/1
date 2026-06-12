@@ -22,3 +22,47 @@ accessor: 'committeeDates[1]',
 
 // APRÈS
 accessor: 'committeeDate2',
+
+
+
+const SummaryCell = ({ value }: { value: string }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const text = value || '-';
+
+  return (
+    <div title={text}>  {/* ✅ tooltip natif au survol */}
+      <div
+        style={{
+          fontWeight: 400,
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '18px',
+          display: expanded ? 'block' : '-webkit-box',
+          WebkitLineClamp: expanded ? 'unset' : 4,
+          WebkitBoxOrient: 'vertical',
+          overflow: expanded ? 'visible' : 'hidden',
+        }}
+      >
+        {text}
+      </div>
+      <button
+        onClick={e => {
+          e.stopPropagation();  // ✅ bloque la navigation vers l'initiative
+          e.preventDefault();
+          setExpanded(prev => !prev);
+        }}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: '#009473',
+          fontWeight: 600,
+          fontSize: 12,
+          padding: '2px 0',
+        }}
+      >
+        {expanded ? 'Show less' : 'Show more'}
+      </button>
+    </div>
+  );
+};
