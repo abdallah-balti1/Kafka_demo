@@ -16,3 +16,10 @@ grep -rln "react-tooltip" src/ --include="*.js"
 
 
 sed -n '930,970p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+
+
+find src/pages -iname "*InitiativeTask*" -name "*.js"
+grep -rln "INITIATIVE TASKS\|TASKS LIST" src/pages/ --include="*.js"
+
+
+grep -n "Tooltip\|data-tip" src/pages/Pipeline/components/PipelineCustomization/PipelineCustomization.js
