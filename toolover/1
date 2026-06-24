@@ -39,3 +39,6 @@ grep -n "COMMENT" src/pages/InitiativePipelineCard/components/InitiativePipeline
 sed -n '1,15p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
 
 sed -n '70,100p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
+sed -n '195,225p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
