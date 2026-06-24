@@ -31,3 +31,11 @@ grep -rln "tasks" src/routes.js
 grep -n "COMMENT\|comment" src/pages/MyInitiativeTasks/MyInitiativeTasks.js | head -20
 
 grep -rln "ASSESSMENT SUB" src/ --include="*.js"
+
+
+
+grep -n "COMMENT" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
+sed -n '1,15p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
+sed -n '70,100p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
