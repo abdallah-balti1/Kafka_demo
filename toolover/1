@@ -23,3 +23,11 @@ grep -rln "INITIATIVE TASKS\|TASKS LIST" src/pages/ --include="*.js"
 
 
 grep -n "Tooltip\|data-tip" src/pages/Pipeline/components/PipelineCustomization/PipelineCustomization.js
+
+
+
+grep -rln "tasks" src/routes.js
+
+grep -n "COMMENT\|comment" src/pages/MyInitiativeTasks/MyInitiativeTasks.js | head -20
+
+grep -rln "ASSESSMENT SUB" src/ --include="*.js"
