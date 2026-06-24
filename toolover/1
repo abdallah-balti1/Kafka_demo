@@ -7,3 +7,12 @@ find src/pages -iname "*tasks*" -name "*.js"
 cat package.json | grep -i tooltip
 grep -n "COMMENT" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
 grep -rn "title=\|data-tip\|Popper\|react-tooltip" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+
+
+
+
+grep -rln "react-tooltip" src/ --include="*.js"
+
+
+
+sed -n '930,970p' src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
