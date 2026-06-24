@@ -3,3 +3,7 @@ grep -rln "Tooltip" src/components/ --include="*.js" | head -10
 grep -rln "INITIATIVE_TASKS\|InitiativeTasks" src/pages/ --include="*.js" | grep -i column
 grep -rn "COMMENT" src/pages/InitiativePipeline/InitiativePipelineTasksTab.js 2>/dev/null
 find src/pages -iname "*tasks*" -name "*.js"
+
+cat package.json | grep -i tooltip
+grep -n "COMMENT" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
+grep -rn "title=\|data-tip\|Popper\|react-tooltip" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.js
