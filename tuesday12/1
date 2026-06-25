@@ -5,3 +5,13 @@ sed -n '95,130p' src/redux/entities/initiativeTasks/selectors.combined.js
 node -c src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
 
 grep -rln "name=\"comment\"\|name='comment'" src/ --include="*.js"grgreprep -rn "grep name=" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js | InitiativePipelineTasksTab -5
+
+
+Cell: ({ value }: { value: any }) => {
+  console.log('comment value:', value);
+  return value ? (
+    <Icon name="comment" size={18} data-tip={value} style={{ cursor: 'pointer' }} />
+  ) : (
+    ''
+  );
+},
