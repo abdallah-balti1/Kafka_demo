@@ -15,3 +15,11 @@ Cell: ({ value }: { value: any }) => {
     ''
   );
 },
+
+
+Cell: ({ value }: { value: any }) =>
+  value ? (
+    <span data-tip={value} style={{ cursor: 'pointer' }}>💬</span>
+  ) : (
+    ''
+  ),
