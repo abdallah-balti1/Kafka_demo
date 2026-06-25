@@ -83,3 +83,6 @@ const CommentCell = ({ value }: { value: string }) => {
     </div>
   );
 };
+
+
+grep -n "CommentCell\|Show more" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
