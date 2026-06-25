@@ -23,3 +23,5 @@ Cell: ({ value }: { value: any }) =>
   ) : (
     ''
   ),
+
+grep -rln "Show more\|ShowMore" src/pages/CommitteeAgenda/ --include="*.js"
