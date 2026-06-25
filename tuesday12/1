@@ -86,3 +86,5 @@ const CommentCell = ({ value }: { value: string }) => {
 
 
 grep -n "CommentCell\|Show more" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
+grep -n "id: 'comment'" -A 10 src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
