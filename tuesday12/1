@@ -25,3 +25,61 @@ Cell: ({ value }: { value: any }) =>
   ),
 
 grep -rln "Show more\|ShowMore" src/pages/CommitteeAgenda/ --include="*.js"
+
+
+{
+  id: 'comment',
+  Header: <TableHeader label="COMMENT" />,
+  accessor: 'comment',
+  Cell: ({ value }: { value: any }) => <CommentCell value={value} />,
+  Filter: (props: FilterComponentPropsType) => <FilterInputWithPlaceholder {...props} />,
+},
+
+
+
+
+const CommentCell = ({ value }: { value: string }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const text = value || '';
+
+  if (!text) {
+    return '';
+  }
+
+  return (
+    <div title={text}>
+      <div
+        style={{
+          fontWeight: 400,
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '18px',
+          display: expanded ? 'block' : '-webkit-box',
+          WebkitLineClamp: expanded ? 'unset' : 4,
+          WebkitBoxOrient: 'vertical',
+          overflow: expanded ? 'visible' : 'hidden',
+        }}
+      >
+        {text}
+      </div>
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          e.preventDefault();
+          setExpanded(prev => !prev);
+        }}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: '#009473',
+          fontWeight: 600,
+          fontSize: 12,
+          padding: '2px 0',
+        }}
+      >
+        {expanded ? 'Show less' : 'Show more'}
+      </button>
+    </div>
+  );
+};
