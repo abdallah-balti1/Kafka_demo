@@ -91,3 +91,13 @@ grep -n "id: 'comment'" -A 10 src/pages/InitiativePipelineCard/components/Initia
 
 grep -n "Table\b" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.style.js 2>/dev/null
 grep -rn "overflow\|white-space\|nowrap" src/components/Table/Table.js | head -20
+
+
+{
+  id: 'comment',
+  Header: <TableHeader label="COMMENT" />,
+  accessor: 'comment',
+  minWidth: 250,
+  Cell: ({ value }: { value: any }) => <CommentCell value={value} />,
+  Filter: (props: FilterComponentPropsType) => <FilterInputWithPlaceholder {...props} />,
+},
