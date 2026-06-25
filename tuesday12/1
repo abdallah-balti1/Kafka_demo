@@ -1,1 +1,3 @@
 grep -rn "selectTeamInitiativeRelationshipWithTasks" src/redux/ --include="*.js"
+
+sed -n '95,130p' src/redux/entities/initiativeTasks/selectors.combined.js
