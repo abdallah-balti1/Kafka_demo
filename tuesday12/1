@@ -88,3 +88,6 @@ const CommentCell = ({ value }: { value: string }) => {
 grep -n "CommentCell\|Show more" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
 
 grep -n "id: 'comment'" -A 10 src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/columns.js
+
+grep -n "Table\b" src/pages/InitiativePipelineCard/components/InitiativePipelineTasksTab/InitiativePipelineTasksTab.style.js 2>/dev/null
+grep -rn "overflow\|white-space\|nowrap" src/components/Table/Table.js | head -20
