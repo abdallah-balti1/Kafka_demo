@@ -24,3 +24,6 @@ find ~/Library/Application\ Support/pgadmin -iname "*.pid*" 2>/dev/null
 
 ls -la ~/Library/Application\ Support/pgadmin/
 ls -la ~/Library/Preferences/pgadmin/
+
+
+/Applications/pgAdmin\ 4.app/Contents/MacOS/pgAdmin\ 4
