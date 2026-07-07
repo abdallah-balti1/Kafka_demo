@@ -27,6 +27,11 @@ ls -la ~/Library/Preferences/pgadmin/
 
 
 
+mkdir -p ~/Library/Application\ Support/pgAdmin4-data
+
+
+
+
 
 
 /Applications/pgAdmin\ 4.app/Contents/MacOS/pgAdmin\ 4
@@ -37,3 +42,16 @@ cat "/Users/h69212/Library/Application Support/pgAdmin/pgadmin4.log"
 
 
 "/Applications/pgAdmin 4.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3" -s "/Applications/pgAdmin 4.app/Contents/Resources/web/pgAdmin4.py"
+
+
+
+
+
+cat > "/Applications/pgAdmin 4.app/Contents/Resources/web/config_local.py" << 'EOF'
+import os
+DATA_DIR = os.path.expanduser('~/Library/Application Support/pgAdmin4-data')
+SQLITE_PATH = os.path.join(DATA_DIR, 'pgadmin4.db')
+SESSION_DB_PATH = os.path.join(DATA_DIR, 'sessions')
+STORAGE_DIR = os.path.join(DATA_DIR, 'storage')
+LOG_FILE = os.path.join(DATA_DIR, 'pgadmin4.log')
+EOF
