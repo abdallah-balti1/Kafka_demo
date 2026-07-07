@@ -26,4 +26,10 @@ ls -la ~/Library/Application\ Support/pgadmin/
 ls -la ~/Library/Preferences/pgadmin/
 
 
+
+
+
 /Applications/pgAdmin\ 4.app/Contents/MacOS/pgAdmin\ 4
+
+
+cat "/Users/h69212/Library/Application Support/pgAdmin/pgadmin4.log"
