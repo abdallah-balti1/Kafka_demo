@@ -3,3 +3,9 @@ rm -rf ~/Library/Preferences/org.pgadmin.pgAdmin4.plist
 rm -rf ~/Library/Saved\ Application\ State/org.pgadmin.pgAdmin4.savedState
 rm -rf ~/Library/Caches/org.pgadmin.pgAdmin4
 rm -rf ~/.pgadmin
+
+
+/Applications/pgAdmin\ 4.app/Contents/MacOS/pgAdmin\ 4 --disable-gpu --disable-gpu-compositing --disable-software-rasterizer
+
+sqlite3 ~/Library/Preferences/pgadmin/pgadmin4.db "DELETE FROM keyboard_shortcut;"
+sqlite3 ~/Library/Preferences/pgadmin/pgadmin4.db ".tables"
