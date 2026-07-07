@@ -33,3 +33,7 @@ ls -la ~/Library/Preferences/pgadmin/
 
 
 cat "/Users/h69212/Library/Application Support/pgAdmin/pgadmin4.log"
+
+
+
+"/Applications/pgAdmin 4.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3" -s "/Applications/pgAdmin 4.app/Contents/Resources/web/pgAdmin4.py"
