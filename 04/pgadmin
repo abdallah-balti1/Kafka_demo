@@ -9,3 +9,9 @@ rm -rf ~/.pgadmin
 
 sqlite3 ~/Library/Preferences/pgadmin/pgadmin4.db "DELETE FROM keyboard_shortcut;"
 sqlite3 ~/Library/Preferences/pgadmin/pgadmin4.db ".tables"
+
+
+
+
+rm -f ~/Library/Application\ Support/pgadmin/pgadmin4.pid
+find ~/Library -iname "*pgadmin4.pid*" 2>/dev/null
