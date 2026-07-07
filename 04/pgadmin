@@ -20,3 +20,7 @@ find ~/Library -iname "*pgadmin4.pid*" 2>/dev/null
 
 find ~/Library/Preferences/pgadmin -iname "*.pid*" 2>/dev/null
 find ~/Library/Application\ Support/pgadmin -iname "*.pid*" 2>/dev/null
+
+
+ls -la ~/Library/Application\ Support/pgadmin/
+ls -la ~/Library/Preferences/pgadmin/
