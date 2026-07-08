@@ -60,3 +60,22 @@ LOG_FILE = os.path.join(DATA_DIR, 'pgadmin4.log')EOFF
 
 mkdir -p ~/Library/Application\ Support/pgAdmin4-data
 nano ~/pgadmin_config_local.py
+
+
+
+
+Development Activity Justification
+Activity justification:
+The pgAdmin 4 application (PostgreSQL management client) installed on my workstation is repeatedly failing ("server could not be contacted" error, failure to create the configuration directory /var/lib/pgadmin with Permission denied). This issue persists even after IT support fully replaced my Mac, indicating the problem is tied to my managed user profile rather than the hardware itself. IT support has not been able to resolve this so far. I need working access to pgAdmin to carry out my daily development tasks on the FLOWR application (SQL queries, schema verification, debugging PostgreSQL database access).
+Whether it concerns installation or configuration of a tool/plugin:
+Yes — this is the reinstallation (or installation of an alternative/portable version) of a tool already used in my normal work environment, not a new tool.
+Name of the tool/plugin:
+pgAdmin 4
+Version of the tool/plugin:
+[state the current installed version if known — visible in the splash screen, or via cat "/Applications/pgAdmin 4.app/Contents/Resources/web/version.py" — otherwise state "latest stable version available at installation time"]
+Editor of the tool/plugin:
+The pgAdmin Development Team (official open-source project, pgadmin.org)
+Concerned application:
+FLOWR (Flask/SQLAlchemy backend development connected to a PostgreSQL database)
+Frequency of the action(s):
+Daily use as part of my development activity.
