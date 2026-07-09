@@ -79,3 +79,16 @@ Concerned application:
 FLOWR (Flask/SQLAlchemy backend development connected to a PostgreSQL database)
 Frequency of the action(s):
 Daily use as part of my development activity.
+
+
+sudo nano "/Library/Managed Preferences/com.google.Chrome.plist"
+
+
+<key>AuthServerAllowlist</key>
+<string>*.bnpparibas.com,*.bnpparibas.net</string>
+<key>AuthNegotiateDelegateAllowlist</key>
+<string>*.bnpparibas.com,*.bnpparibas.net</string>
+<key>AuthSchemes</key>
+<string>ntlm,negotiate</string>
+<key>DisableAuthNegotiateCnameLookup</key>
+<false/>
