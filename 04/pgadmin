@@ -97,3 +97,6 @@ sudo defaults write "/Library/Managed Preferences/com.google.Chrome" AuthServerA
 sudo defaults write "/Library/Managed Preferences/com.google.Chrome" AuthNegotiateDelegateAllowlist -string "*.bnpparibas.com,*.bnpparibas.net"
 sudo defaults write "/Library/Managed Preferences/com.google.Chrome" AuthSchemes -string "ntlm,negotiate"
 sudo defaults write "/Library/Managed Preferences/com.google.Chrome" DisableAuthNegotiateCnameLookup -bool false
+
+
+defaults read "/Library/Managed Preferences/com.google.Chrome" | grep -i auth
