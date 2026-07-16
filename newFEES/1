@@ -1,1 +1,21 @@
-
+@staticmethod
+def get_raw_fees(sha_cds: list[str]) -> list[dict]:
+    if not sha_cds:
+        return []
+    rows = db.session.query(ProductFee).filter(ProductFee.sha_cd.in_(sha_cds)).all()
+    return [
+        {
+            "sha_cd": r.sha_cd,
+            "fees_typ_cd": r.fees_typ_cd,
+            "fees_subtype_cd": r.fees_subtype_cd,
+            "fees_lvl_cd": r.fees_lvl_cd,
+            "acq_or_not_acq_fees_cd": r.acq_or_not_acq_fees_cd,
+            "specific_fees_cgy_cd": r.specific_fees_cgy_cd,
+            "fees_pctg": r.fees_pctg,
+            "basis_calc_cd": r.basis_calc_cd,
+            "calc_frq_cd": r.calc_frq_cd,
+            "pmt_frq_cd": r.pmt_frq_cd,
+            "fee_paid_lbl": getattr(r, "fee_paid_lbl", None),
+        }
+        for r in rows
+    ]
