@@ -1,1 +1,4 @@
-
+curl -X POST http://127.0.0.1:5001/smartgps/retrieve_fees_data \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -d '{"prod_cd_list": ["42735"]}'
